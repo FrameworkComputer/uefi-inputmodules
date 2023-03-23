@@ -1,4 +1,6 @@
-target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi:
+SOURCES=Cargo.toml Cargo.lock src/main.rs
+
+target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi: $(SOURCES)
 	mkdir -p esp/efi/boot
 	cargo build --target x86_64-unknown-uefi
 
