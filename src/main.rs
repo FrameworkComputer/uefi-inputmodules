@@ -6,7 +6,7 @@ use uefi::prelude::*;
 use uefi::proto::device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly};
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::unsafe_protocol;
-use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
+use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
 use uefi::{Identify, Result};
 //use ptr_meta::Pointee;
 use core::mem::MaybeUninit;
@@ -149,20 +149,17 @@ fn get_usb(bs: &BootServices) -> Result {
     for handle in &*usb_io_handles {
         info!("  Iterating through UsbIo handles");
 
-        //let mut usb_handle = unsafe {
-        //    bs.open_protocol::<UsbIo>(
-        //        OpenProtocolParams {
-        //            handle: *handle,
-        //            agent: bs.image_handle(),
-        //            controller: None,
-        //        },
-        //        OpenProtocolAttributes::GetProtocol,
-        //    )
-        //    .expect("Failed to open UsbIo handle")
-        //};
-        let mut usb_handle = bs
-            .open_protocol_exclusive::<UsbIo>(*handle)
-            .expect("Failed to open UsbIo handle");
+        let mut usb_handle = unsafe {
+            bs.open_protocol::<UsbIo>(
+                OpenProtocolParams {
+                    handle: *handle,
+                    agent: bs.image_handle(),
+                    controller: None,
+                },
+                OpenProtocolAttributes::GetProtocol,
+            )
+            .expect("Failed to open UsbIo handle")
+        };
 
         let desc = usb_handle
             .get_device_descriptor()
