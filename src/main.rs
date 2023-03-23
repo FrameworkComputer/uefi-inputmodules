@@ -3,53 +3,50 @@
 
 use log::info;
 use uefi::prelude::*;
-use uefi::proto::unsafe_protocol;
-use uefi::proto::device_path::text::{
-    AllowShortcuts, DevicePathToText, DisplayOnly,
-};
+use uefi::proto::device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly};
 use uefi::proto::loaded_image::LoadedImage;
-use uefi::table::boot::SearchType;
+use uefi::proto::unsafe_protocol;
+use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::{Identify, Result};
 //use ptr_meta::Pointee;
-use core::ptr;
 use core::mem::MaybeUninit;
+use core::ptr;
 
 #[repr(C)]
 pub enum UsbDataDirection {
-  DataIn,
-  DataOut,
-  NoData
+    DataIn,
+    DataOut,
+    NoData,
 }
 
 //#[derive(Eq, Pointee)]
 #[repr(C, packed)]
 pub struct UsbDeviceRequest {
-  pub request_type: u8,
-  pub request: u8,
-  pub value: u16,
-  pub index: u16,
-  pub length: u16,
+    pub request_type: u8,
+    pub request: u8,
+    pub value: u16,
+    pub index: u16,
+    pub length: u16,
 }
 
 //#[derive(Eq, Pointee)]
 #[repr(C, packed)]
 pub struct UsbDeviceDescriptor {
-  pub length: u8,
-  pub descriptor_type: u8,
-  pub bcd_usb: u16,
-  pub device_class: u8,
-  pub device_sub_class: u8,
-  pub device_protocol: u8,
-  pub max_packet_size0: u8,
-  pub id_vendor: u16,
-  pub id_product: u16,
-  pub bcd_device: u16,
-  pub str_manufacturer: u8,
-  pub str_product: u8,
-  pub str_serial_number: u8,
-  pub num_configurations: u8,
+    pub length: u8,
+    pub descriptor_type: u8,
+    pub bcd_usb: u16,
+    pub device_class: u8,
+    pub device_sub_class: u8,
+    pub device_protocol: u8,
+    pub max_packet_size0: u8,
+    pub id_vendor: u16,
+    pub id_product: u16,
+    pub bcd_device: u16,
+    pub str_manufacturer: u8,
+    pub str_product: u8,
+    pub str_serial_number: u8,
+    pub num_configurations: u8,
 }
-
 
 /// Foo
 #[repr(C)]
@@ -62,8 +59,14 @@ pub struct UsbIo {
     //IN UINT32                                     Timeout,
     //IN OUT VOID                                   *Data OPTIONAL,
     //IN UINTN                                      DataLength  OPTIONAL,
-
-    usb_control_transfer: extern "efiapi" fn(&mut UsbIo, &mut UsbDeviceRequest, &mut UsbDataDirection, u32, *mut u8, &mut usize) -> Status,
+    usb_control_transfer: extern "efiapi" fn(
+        &mut UsbIo,
+        &mut UsbDeviceRequest,
+        &mut UsbDataDirection,
+        u32,
+        *mut u8,
+        &mut usize,
+    ) -> Status,
 
     usb_bulk_transfer: extern "efiapi" fn(&mut UsbIo) -> Status,
     usb_async_interrupt_transfer: extern "efiapi" fn(&mut UsbIo) -> Status,
@@ -89,7 +92,7 @@ impl UsbIo {
         request: &mut UsbDeviceRequest,
         direction: &mut UsbDataDirection,
         timeout: u32,
-        data: &mut [u8]
+        data: &mut [u8],
     ) -> Result<(), usize> {
         let mut buffer_size = data.len();
         unsafe {
@@ -101,7 +104,8 @@ impl UsbIo {
                 data.as_mut_ptr(),
                 &mut buffer_size,
             )
-        }.into_with(
+        }
+        .into_with(
             || debug_assert_eq!(buffer_size, data.len()),
             |_| buffer_size,
         )
@@ -109,9 +113,8 @@ impl UsbIo {
 
     pub fn get_device_descriptor(&mut self) -> Result<UsbDeviceDescriptor> {
         let mut desc = MaybeUninit::<UsbDeviceDescriptor>::uninit();
-        (self.usb_get_device_descriptor)(self, desc.as_mut_ptr()).into_with_val(|| {
-            unsafe { desc.assume_init() }
-        })
+        (self.usb_get_device_descriptor)(self, desc.as_mut_ptr())
+            .into_with_val(|| unsafe { desc.assume_init() })
     }
 }
 
@@ -127,6 +130,16 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     Status::SUCCESS
 }
 
+//fn set_report_request(
+//    usb_io: &mut UsbIo,
+//    interface: u8,
+//    report_id: u8,
+//    repoert_type: u8,
+//    report: &[u8],
+//) -> Result {
+//    Ok(())
+//}
+
 fn get_usb(bs: &BootServices) -> Result {
     let usb_io_handles = bs
         .locate_handle_buffer(SearchType::ByProtocol(&UsbIo::GUID))
@@ -136,34 +149,45 @@ fn get_usb(bs: &BootServices) -> Result {
     for handle in &*usb_io_handles {
         info!("  Iterating through UsbIo handles");
 
+        //let mut usb_handle = unsafe {
+        //    bs.open_protocol::<UsbIo>(
+        //        OpenProtocolParams {
+        //            handle: *handle,
+        //            agent: bs.image_handle(),
+        //            controller: None,
+        //        },
+        //        OpenProtocolAttributes::GetProtocol,
+        //    )
+        //    .expect("Failed to open UsbIo handle")
+        //};
         let mut usb_handle = bs
-            .open_protocol_exclusive::<UsbIo>(*handle).expect("Failed to open UsbIo handle");
+            .open_protocol_exclusive::<UsbIo>(*handle)
+            .expect("Failed to open UsbIo handle");
 
-        let desc = usb_handle.get_device_descriptor().expect("Failed to get Device Descriptor");
+        let desc = usb_handle
+            .get_device_descriptor()
+            .expect("Failed to get Device Descriptor");
         info!("  Found Device:");
-        info!("    VID:       0x{:04X}", {desc.id_vendor});
-        info!("    PID:       0x{:04X}", {desc.id_vendor});
-        info!("    bcdDevice: 0x{:04X}", {desc.bcd_device});
+        info!("    VID:       0x{:04X}", { desc.id_vendor });
+        info!("    PID:       0x{:04X}", { desc.id_vendor });
+        info!("    bcdDevice: 0x{:04X}", { desc.bcd_device });
     }
     Ok(())
 }
 
 fn print_image_path(boot_services: &BootServices) -> Result {
-    let loaded_image = boot_services
-        .open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
+    let loaded_image =
+        boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
 
     let device_path_to_text_handle = *boot_services
         .locate_handle_buffer(SearchType::ByProtocol(&DevicePathToText::GUID))?
         .first()
         .expect("DevicePathToText is missing");
 
-    let device_path_to_text = boot_services
-        .open_protocol_exclusive::<DevicePathToText>(
-            device_path_to_text_handle,
-        )?;
+    let device_path_to_text =
+        boot_services.open_protocol_exclusive::<DevicePathToText>(device_path_to_text_handle)?;
 
-    let image_device_path =
-        loaded_image.file_path().expect("File path is not set");
+    let image_device_path = loaded_image.file_path().expect("File path is not set");
     let image_device_path_text = device_path_to_text
         .convert_device_path_to_text(
             boot_services,
