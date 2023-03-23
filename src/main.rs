@@ -12,6 +12,7 @@ use uefi::table::boot::SearchType;
 use uefi::{Identify, Result};
 //use ptr_meta::Pointee;
 use core::ptr;
+use core::mem::MaybeUninit;
 
 #[repr(C)]
 pub enum UsbDataDirection {
@@ -106,10 +107,10 @@ impl UsbIo {
         )
     }
 
-    pub fn get_device_descriptor(&mut self) -> Result<&UsbDeviceDescriptor> {
-        let ptr: *mut UsbDeviceDescriptor = ptr::null_mut();
-        (self.usb_get_device_descriptor)(self, ptr).into_with_val(|| {
-            unsafe { ptr.as_ref().unwrap() }
+    pub fn get_device_descriptor(&mut self) -> Result<UsbDeviceDescriptor> {
+        let mut desc = MaybeUninit::<UsbDeviceDescriptor>::uninit();
+        (self.usb_get_device_descriptor)(self, desc.as_mut_ptr()).into_with_val(|| {
+            unsafe { desc.assume_init() }
         })
     }
 }
@@ -122,7 +123,7 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     get_usb(boot_services).unwrap();
     print_image_path(boot_services).unwrap();
 
-    boot_services.stall(10_000_000);
+    //boot_services.stall(10_000_000);
     Status::SUCCESS
 }
 
@@ -133,7 +134,16 @@ fn get_usb(bs: &BootServices) -> Result {
 
     info!("Found {} UsbIo handles", (*usb_io_handles).len());
     for handle in &*usb_io_handles {
-        info!("Iterating through UsbIo handles");
+        info!("  Iterating through UsbIo handles");
+
+        let mut usb_handle = bs
+            .open_protocol_exclusive::<UsbIo>(*handle).expect("Failed to open UsbIo handle");
+
+        let desc = usb_handle.get_device_descriptor().expect("Failed to get Device Descriptor");
+        info!("  Found Device:");
+        info!("    VID:       0x{:04X}", {desc.id_vendor});
+        info!("    PID:       0x{:04X}", {desc.id_vendor});
+        info!("    bcdDevice: 0x{:04X}", {desc.bcd_device});
     }
     Ok(())
 }
