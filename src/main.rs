@@ -2,15 +2,14 @@
 #![no_std]
 
 use log::info;
-use uefi::prelude::*;
 use uefi::proto::device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly};
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::unsafe_protocol;
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
-use uefi::{Identify, Result};
+use uefi::{prelude::*, CStr16};
+use uefi::{Char16, Identify, Result};
 //use ptr_meta::Pointee;
 use core::mem::MaybeUninit;
-use core::ptr;
 
 #[repr(C)]
 pub enum UsbDataDirection {
@@ -48,17 +47,45 @@ pub struct UsbDeviceDescriptor {
     pub num_configurations: u8,
 }
 
+#[repr(C, packed)]
+pub struct UsbConfigDescriptor {
+    pub length: u8,
+    pub descriptor_type: u8,
+    pub total_length: u16,
+    pub num_interfaces: u8,
+    pub configuration_value: u8,
+    pub configuration: u8,
+    pub attributes: u8,
+    pub max_power: u8,
+}
+
+#[repr(C, packed)]
+pub struct UsbInterfaceDescriptor {
+    pub length: u8,
+    pub descriptor_type: u8,
+    pub interface_number: u8,
+    pub alternate_setting: u8,
+    pub num_endpoints: u8,
+    pub interface_class: u8,
+    pub interface_sub_class: u8,
+    pub interface_protocol: u8,
+    pub interface: u8,
+}
+
+#[repr(C, packed)]
+pub struct UsbEndpointDescriptor {
+    pub length: u8,
+    pub descriptor_type: u8,
+    pub endpoint_address: u8,
+    pub attributes: u8,
+    pub max_packet_size: u16,
+    pub interval: u8,
+}
+
 /// Foo
 #[repr(C)]
 #[unsafe_protocol("2b2f68d6-0cd2-44cf-8e8b-bba20b1b5b75")]
 pub struct UsbIo {
-    /// This one
-    ///   IN EFI_USB_IO_PROTOCOL                        *This,
-    //IN EFI_USB_DEVICE_REQUEST                     *Request,
-    //IN EFI_USB_DATA_DIRECTION                     Direction,
-    //IN UINT32                                     Timeout,
-    //IN OUT VOID                                   *Data OPTIONAL,
-    //IN UINTN                                      DataLength  OPTIONAL,
     usb_control_transfer: extern "efiapi" fn(
         &mut UsbIo,
         &mut UsbDeviceRequest,
@@ -68,25 +95,27 @@ pub struct UsbIo {
         &mut usize,
     ) -> Status,
 
-    usb_bulk_transfer: extern "efiapi" fn(&mut UsbIo) -> Status,
+    usb_bulk_transfer:
+        extern "efiapi" fn(&mut UsbIo, u8, *mut u8, *mut usize, usize, u32) -> Status,
+    // TODO: usb_async_interrupt_transfer
     usb_async_interrupt_transfer: extern "efiapi" fn(&mut UsbIo) -> Status,
-    usb_sync_interrupt_transfer: extern "efiapi" fn(&mut UsbIo) -> Status,
-    usb_isochronous_transfer: extern "efiapi" fn(&mut UsbIo) -> Status,
+    usb_sync_interrupt_transfer:
+        extern "efiapi" fn(&mut UsbIo, u8, *mut u8, *mut usize, usize, u32) -> Status,
+    usb_isochronous_transfer:
+        extern "efiapi" fn(&mut UsbIo, u8, *mut u8, usize, *mut u32) -> Status,
+    // TODO: async_isochronous_transfer
     usb_async_isochronous_transfer: extern "efiapi" fn(&mut UsbIo) -> Status,
-
-    /// This one
-    ///   OUT EFI_USB_DEVICE_DESCRIPTOR     *DeviceDescriptor
     usb_get_device_descriptor: extern "efiapi" fn(&mut UsbIo, *mut UsbDeviceDescriptor) -> Status,
-
-    usb_get_config_descriptor: extern "efiapi" fn(&mut UsbIo) -> Status,
-    usb_get_interface_descriptor: extern "efiapi" fn(&mut UsbIo) -> Status,
-    usb_get_endpoint_descriptor: extern "efiapi" fn(&mut UsbIo) -> Status,
-    usb_get_string_descriptor: extern "efiapi" fn(&mut UsbIo) -> Status,
-    usb_get_supported_languages: extern "efiapi" fn(&mut UsbIo) -> Status,
+    usb_get_config_descriptor: extern "efiapi" fn(&mut UsbIo, *mut UsbConfigDescriptor) -> Status,
+    usb_get_interface_descriptor:
+        extern "efiapi" fn(&mut UsbIo, *mut UsbInterfaceDescriptor) -> Status,
+    usb_get_endpoint_descriptor:
+        extern "efiapi" fn(&mut UsbIo, *mut UsbEndpointDescriptor) -> Status,
+    usb_get_string_descriptor: extern "efiapi" fn(&mut UsbIo, u16, u8, *mut *mut Char16) -> Status,
+    usb_get_supported_languages: extern "efiapi" fn(&mut UsbIo, *mut *mut u16, *mut u16) -> Status,
     usb_port_reset: extern "efiapi" fn(&mut UsbIo) -> Status,
 }
 impl UsbIo {
-    /// Control transfer
     pub fn control_transfer(
         &mut self,
         request: &mut UsbDeviceRequest,
@@ -111,9 +140,31 @@ impl UsbIo {
         )
     }
 
+    //pub fn get_string_descriptor(&mut self, lang_id: u16, string_id: u8) -> Result<CStr16> {
+    //    (self.get_string_descriptor)(self, lang_id, string_id, )
+    //}
+
     pub fn get_device_descriptor(&mut self) -> Result<UsbDeviceDescriptor> {
         let mut desc = MaybeUninit::<UsbDeviceDescriptor>::uninit();
         (self.usb_get_device_descriptor)(self, desc.as_mut_ptr())
+            .into_with_val(|| unsafe { desc.assume_init() })
+    }
+
+    pub fn get_interface_descriptor(&mut self) -> Result<UsbInterfaceDescriptor> {
+        let mut desc = MaybeUninit::<UsbInterfaceDescriptor>::uninit();
+        (self.usb_get_interface_descriptor)(self, desc.as_mut_ptr())
+            .into_with_val(|| unsafe { desc.assume_init() })
+    }
+
+    pub fn get_config_descriptor(&mut self) -> Result<UsbConfigDescriptor> {
+        let mut desc = MaybeUninit::<UsbConfigDescriptor>::uninit();
+        (self.usb_get_config_descriptor)(self, desc.as_mut_ptr())
+            .into_with_val(|| unsafe { desc.assume_init() })
+    }
+
+    pub fn get_endpoint_descriptor(&mut self) -> Result<UsbEndpointDescriptor> {
+        let mut desc = MaybeUninit::<UsbEndpointDescriptor>::uninit();
+        (self.usb_get_endpoint_descriptor)(self, desc.as_mut_ptr())
             .into_with_val(|| unsafe { desc.assume_init() })
     }
 }
@@ -130,15 +181,56 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     Status::SUCCESS
 }
 
-//fn set_report_request(
-//    usb_io: &mut UsbIo,
-//    interface: u8,
-//    report_id: u8,
-//    repoert_type: u8,
-//    report: &[u8],
-//) -> Result {
-//    Ok(())
-//}
+#[repr(u8)]
+enum HidRequestTypes {
+    GetRequest = 0xA1,
+    SetRequest = 0x21,
+}
+
+enum HidRequest {
+    GetReportRequest = 0x01,
+    GetIdleRequest = 0x02,
+    GetProtocolRequest = 0x03,
+    SetReportRequest = 0x09,
+    SetIdleRequest = 0x0a,
+    SetProtocolRequest = 0x0b,
+}
+
+fn set_report_request(
+    usb_io: &mut UsbIo,
+    interface: u8,
+    report_id: u8,
+    report_type: u8,
+    report: &mut [u8],
+) -> Result {
+    let mut request = UsbDeviceRequest {
+        request_type: HidRequestTypes::SetRequest as u8,
+        request: HidRequest::SetReportRequest as u8,
+        value: u16::from_le_bytes([report_type, report_id]),
+        index: interface as u16,
+        length: report.len() as u16,
+    };
+    usb_io.control_transfer(&mut request, &mut UsbDataDirection::DataOut, 3000, report);
+    Ok(())
+}
+
+fn get_report_request(
+    usb_io: &mut UsbIo,
+    interface: u8,
+    report_id: u8,
+    report_type: u8,
+    report: &mut [u8],
+) -> Result {
+    let mut request = UsbDeviceRequest {
+        request_type: HidRequestTypes::GetRequest as u8,
+        request: HidRequest::SetReportRequest as u8,
+        value: u16::from_le_bytes([report_type, report_id]),
+        index: interface as u16,
+        length: report.len() as u16,
+    };
+    usb_io.control_transfer(&mut request, &mut UsbDataDirection::DataIn, 3000, report);
+    Ok(())
+}
 
 fn get_usb(bs: &BootServices) -> Result {
     let usb_io_handles = bs
@@ -147,7 +239,7 @@ fn get_usb(bs: &BootServices) -> Result {
 
     info!("Found {} UsbIo handles", (*usb_io_handles).len());
     for handle in &*usb_io_handles {
-        info!("  Iterating through UsbIo handles");
+        //info!("  Iterating through UsbIo handles");
 
         let mut usb_handle = unsafe {
             bs.open_protocol::<UsbIo>(
@@ -164,13 +256,61 @@ fn get_usb(bs: &BootServices) -> Result {
         let desc = usb_handle
             .get_device_descriptor()
             .expect("Failed to get Device Descriptor");
-        info!("  Found Device:");
-        info!("    VID:       0x{:04X}", { desc.id_vendor });
-        info!("    PID:       0x{:04X}", { desc.id_vendor });
-        info!("    bcdDevice: 0x{:04X}", { desc.bcd_device });
+
+        info!("{:04X}:{:04X}", { desc.id_vendor }, { desc.id_product });
+        if desc.id_vendor != 0x3434 && desc.id_vendor != 0x32AC {
+            continue;
+        }
+
+        let major = (desc.bcd_device & 0xFF00) >> 8;
+        let minor = (desc.bcd_device & 0xF0) >> 4;
+        let patch = desc.bcd_device & 0x0F;
+        info!(
+            "  bcdDevice:       0x{:04X} ({:>2}.{:02}.{:02})",
+            { desc.bcd_device },
+            major,
+            minor,
+            patch
+        );
+        info!("  Protocol:        0x{:02X}", { desc.device_protocol });
+        // 0 and 0 means look at the interface descriptor
+        info!(
+            "  Device Class:    {}, Subclass: {}",
+            { desc.device_class },
+            { desc.device_sub_class }
+        );
+        info!("  Num Configs:     {}", { desc.num_configurations });
+        info!("  Str Manufactr:   {}", { desc.str_manufacturer });
+        info!("  Str Product:     {}", { desc.str_product });
+        info!("  Configurations:  {}", { desc.num_configurations });
+
+        let interface = usb_handle
+            .get_interface_descriptor()
+            .expect("Failed to get Interface Descriptor");
+
+        info!("  Interface #{}", { interface.interface_number });
+        info!("    Endpoints:          {}", { interface.num_endpoints });
+        info!("    Interface:          {}", { interface.interface });
+        info!(
+            "    Interface Class:    {}, Subclass: {}",
+            { interface.interface_class },
+            { interface.interface_sub_class }
+        );
+        info!("    Interface Protocol: {}", {
+            interface.interface_protocol
+        });
+
+        //if desc.id_vendor == 0x3434 || desc.id_vendor == 0x32AC {
+        //    //set_key_led(&usb_handle, &desc, 0);
+        //    //set_key_led(&usb_handle, &desc, 1);
+        //    //set_key_led(&usb_handle, &desc, 2);
+        //    //set_key_led(&usb_handle, &desc, 3);
+        //}
     }
     Ok(())
 }
+
+fn set_key_led(usb_handle: &ScopedProtocol<UsbIo>, desc: &UsbDeviceDescriptor, interface: u16) {}
 
 fn print_image_path(boot_services: &BootServices) -> Result {
     let loaded_image =
