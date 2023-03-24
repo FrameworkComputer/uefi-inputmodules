@@ -1,6 +1,10 @@
 #![no_main]
 #![no_std]
 
+extern crate alloc;
+
+use alloc::vec::Vec;
+
 use log::info;
 use uefi::proto::device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly};
 use uefi::proto::loaded_image::LoadedImage;
@@ -11,11 +15,40 @@ use uefi::{Char16, Identify, Result};
 //use ptr_meta::Pointee;
 use core::mem::MaybeUninit;
 
+const TIMEOUT: u32 = 3000;
+
 #[repr(C)]
 pub enum UsbDataDirection {
-    DataIn,
-    DataOut,
-    NoData,
+    DataIn = 0x00,
+    DataOut = 0x01,
+    NoData = 0x02,
+}
+
+#[repr(u8)]
+pub enum UsbDescriptorType {
+    Device = 0x01,
+    Config = 0x02,
+    String = 0x03,
+    Interface = 0x04,
+    Endpoint = 0x05,
+    Hid = 0x21,
+    Report = 0x22,
+}
+
+#[repr(C, packed)]
+pub struct HidDescriptor {
+    pub length: u8,
+    pub descriptor_type: u8,
+    pub bcd_hid: u16,
+    pub country_code: u8,
+    pub num_descriptors: u8,
+    pub hid_class_desc: [HidClassDescriptor; 1],
+}
+
+#[repr(C, packed)]
+pub struct HidClassDescriptor {
+    pub descriptor_type: u8,
+    pub descriptor_length: u16,
 }
 
 //#[derive(Eq, Pointee)]
@@ -82,6 +115,12 @@ pub struct UsbEndpointDescriptor {
     pub interval: u8,
 }
 
+#[repr(C, packed)]
+pub struct UsbDescriptorHead {
+    pub len: u8,
+    pub desc_type: u8,
+}
+
 /// Foo
 #[repr(C)]
 #[unsafe_protocol("2b2f68d6-0cd2-44cf-8e8b-bba20b1b5b75")]
@@ -89,10 +128,11 @@ pub struct UsbIo {
     usb_control_transfer: extern "efiapi" fn(
         &mut UsbIo,
         &mut UsbDeviceRequest,
-        &mut UsbDataDirection,
+        UsbDataDirection,
         u32,
         *mut u8,
-        &mut usize,
+        usize,
+        *mut u32,
     ) -> Status,
 
     usb_bulk_transfer:
@@ -119,21 +159,21 @@ impl UsbIo {
     pub fn control_transfer(
         &mut self,
         request: &mut UsbDeviceRequest,
-        direction: &mut UsbDataDirection,
+        direction: UsbDataDirection,
         timeout: u32,
         data: &mut [u8],
     ) -> Result<(), usize> {
         let mut buffer_size = data.len();
-        unsafe {
-            (self.usb_control_transfer)(
-                self,
-                request,
-                direction,
-                timeout,
-                data.as_mut_ptr(),
-                &mut buffer_size,
-            )
-        }
+        let mut status = 0; // TODO: Use this value?
+        (self.usb_control_transfer)(
+            self,
+            request,
+            direction,
+            timeout,
+            data.as_mut_ptr(),
+            buffer_size,
+            &mut status,
+        )
         .into_with(
             || debug_assert_eq!(buffer_size, data.len()),
             |_| buffer_size,
@@ -175,16 +215,17 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     let boot_services = system_table.boot_services();
 
     get_usb(boot_services).unwrap();
-    print_image_path(boot_services).unwrap();
+    //print_image_path(boot_services).unwrap();
 
     //boot_services.stall(10_000_000);
     Status::SUCCESS
 }
 
 #[repr(u8)]
-enum HidRequestTypes {
-    GetRequest = 0xA1,
-    SetRequest = 0x21,
+enum UsbRequestType {
+    HidGetRequest = 0xA1,
+    HidSetRequest = 0x21,
+    GetDescriptor = 0x80,
 }
 
 enum HidRequest {
@@ -196,6 +237,11 @@ enum HidRequest {
     SetProtocolRequest = 0x0b,
 }
 
+enum DeviceRequest {
+    UsbGetDescriptor = 0x06,
+    UsbSetDescriptor = 0x07,
+}
+
 fn set_report_request(
     usb_io: &mut UsbIo,
     interface: u8,
@@ -204,13 +250,15 @@ fn set_report_request(
     report: &mut [u8],
 ) -> Result {
     let mut request = UsbDeviceRequest {
-        request_type: HidRequestTypes::SetRequest as u8,
+        request_type: UsbRequestType::HidSetRequest as u8,
         request: HidRequest::SetReportRequest as u8,
         value: u16::from_le_bytes([report_type, report_id]),
         index: interface as u16,
         length: report.len() as u16,
     };
-    usb_io.control_transfer(&mut request, &mut UsbDataDirection::DataOut, 3000, report);
+    usb_io
+        .control_transfer(&mut request, UsbDataDirection::DataOut, TIMEOUT, report)
+        .unwrap();
     Ok(())
 }
 
@@ -222,13 +270,15 @@ fn get_report_request(
     report: &mut [u8],
 ) -> Result {
     let mut request = UsbDeviceRequest {
-        request_type: HidRequestTypes::GetRequest as u8,
+        request_type: UsbRequestType::HidGetRequest as u8,
         request: HidRequest::SetReportRequest as u8,
         value: u16::from_le_bytes([report_type, report_id]),
         index: interface as u16,
         length: report.len() as u16,
     };
-    usb_io.control_transfer(&mut request, &mut UsbDataDirection::DataIn, 3000, report);
+    usb_io
+        .control_transfer(&mut request, UsbDataDirection::DataIn, TIMEOUT, report)
+        .unwrap();
     Ok(())
 }
 
@@ -237,7 +287,7 @@ fn get_usb(bs: &BootServices) -> Result {
         .locate_handle_buffer(SearchType::ByProtocol(&UsbIo::GUID))
         .expect("UsbIo is missing");
 
-    info!("Found {} UsbIo handles", (*usb_io_handles).len());
+    //info!("Found {} UsbIo handles", (*usb_io_handles).len());
     for handle in &*usb_io_handles {
         //info!("  Iterating through UsbIo handles");
 
@@ -257,10 +307,11 @@ fn get_usb(bs: &BootServices) -> Result {
             .get_device_descriptor()
             .expect("Failed to get Device Descriptor");
 
-        info!("{:04X}:{:04X}", { desc.id_vendor }, { desc.id_product });
+        // Currently only interested in Keychron/Framework keyboards
         if desc.id_vendor != 0x3434 && desc.id_vendor != 0x32AC {
             continue;
         }
+        info!("{:04X}:{:04X}", { desc.id_vendor }, { desc.id_product });
 
         let major = (desc.bcd_device & 0xFF00) >> 8;
         let minor = (desc.bcd_device & 0xF0) >> 4;
@@ -283,6 +334,8 @@ fn get_usb(bs: &BootServices) -> Result {
         info!("  Str Manufactr:   {}", { desc.str_manufacturer });
         info!("  Str Product:     {}", { desc.str_product });
         info!("  Configurations:  {}", { desc.num_configurations });
+        // Should always be 64
+        //info!("  Max Packet Size: {}", { desc.max_packet_size0 });
 
         let interface = usb_handle
             .get_interface_descriptor()
@@ -299,6 +352,99 @@ fn get_usb(bs: &BootServices) -> Result {
         info!("    Interface Protocol: {}", {
             interface.interface_protocol
         });
+
+        let config_desc = usb_handle
+            .get_config_descriptor()
+            .expect("Failed to get Config Descriptor");
+        info!("  Config Desc Total Len: {}", { config_desc.total_length });
+
+        let mut all_descriptors = Vec::with_capacity(config_desc.total_length as usize);
+        all_descriptors.resize(config_desc.total_length as usize, 0);
+        let mut request = UsbDeviceRequest {
+            request_type: UsbRequestType::GetDescriptor as u8,
+            request: DeviceRequest::UsbGetDescriptor as u8,
+            value: u16::from_le_bytes([
+                config_desc.configuration_value - 1,
+                UsbDescriptorType::Config as u8,
+            ]),
+            index: 0,
+            length: config_desc.total_length,
+        };
+        usb_handle
+            .control_transfer(
+                &mut request,
+                UsbDataDirection::DataIn,
+                TIMEOUT,
+                &mut all_descriptors,
+            )
+            .expect("Failed to get all descriptors :( :(");
+        info!("Successfully got all descriptors!!!!");
+
+        let mut all_desc_byte = 0;
+        let mut after_interface_desc = false;
+        let mut hid_desc: Option<&HidDescriptor> = None;
+        while all_desc_byte < config_desc.total_length {
+            let desc_head = unsafe {
+                &*all_descriptors
+                    .as_ptr()
+                    .add(all_desc_byte as usize)
+                    .cast::<UsbDescriptorHead>()
+            };
+            if desc_head.desc_type == (UsbDescriptorType::Interface as u8) {
+                let found_int_desc = unsafe {
+                    &*all_descriptors
+                        .as_ptr()
+                        .add(all_desc_byte as usize)
+                        .cast::<UsbInterfaceDescriptor>()
+                };
+                if found_int_desc.interface_number == interface.interface_number
+                    && found_int_desc.alternate_setting == interface.alternate_setting
+                {
+                    after_interface_desc = true;
+                }
+            }
+            if after_interface_desc && desc_head.desc_type == (UsbDescriptorType::Endpoint as u8) {
+                break;
+            }
+            if after_interface_desc && desc_head.desc_type == (UsbDescriptorType::Hid as u8) {
+                hid_desc = Some(unsafe {
+                    &*all_descriptors
+                        .as_ptr()
+                        .add(all_desc_byte as usize)
+                        .cast::<HidDescriptor>()
+                });
+            }
+            all_desc_byte += desc_head.len as u16;
+        }
+        let hid_desc = if let Some(hid_desc) = hid_desc {
+            hid_desc
+        } else {
+            info!("  Failed to find HID descriptor");
+            continue;
+        };
+        info!("  Found HID descriptor");
+        info!("    Desc Type: {}", {
+            hid_desc.hid_class_desc[0].descriptor_type
+        });
+
+        let mut report_desc = Vec::new();
+        report_desc.resize(hid_desc.hid_class_desc[0].descriptor_length as usize, 0);
+        let mut request = UsbDeviceRequest {
+            request_type: UsbRequestType::GetDescriptor as u8,
+            request: DeviceRequest::UsbGetDescriptor as u8,
+            value: u16::from_le_bytes([0, UsbDescriptorType::Report as u8]),
+            index: interface.interface_number as u16,
+            length: hid_desc.hid_class_desc[0].descriptor_length,
+        };
+        usb_handle
+            .control_transfer(
+                &mut request,
+                UsbDataDirection::DataIn,
+                TIMEOUT,
+                &mut report_desc,
+            )
+            .expect("Failed to get report descriptor");
+        info!("  Got HID report descriptor!!!!");
 
         //if desc.id_vendor == 0x3434 || desc.id_vendor == 0x32AC {
         //    //set_key_led(&usb_handle, &desc, 0);
