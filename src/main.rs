@@ -15,7 +15,30 @@ use uefi::{Char16, Identify, Result};
 //use ptr_meta::Pointee;
 use core::mem::MaybeUninit;
 
+pub const HID_ELEMENT_TAG_LONG: u8 = 15;
+
 const TIMEOUT: u32 = 3000;
+const VERBOSE: bool = true;
+
+struct HidDevice {}
+
+pub enum UsagePage {
+    GenericDesktop = 0x01,
+    Keyboard = 0x07,
+    Led = 0x08,
+    Button = 0x09,
+    Consumer = 0x0C,
+    Sensors = 0x20,
+    LightingAndIllumination = 0x59,
+    QmkConsole = 0xFF31,
+    Raw = 0xFF60,
+}
+
+#[repr(u16)]
+pub enum ReportFormat {
+    Short = 0x00,
+    Long = 0x01,
+}
 
 #[repr(C)]
 pub enum UsbDataDirection {
@@ -119,6 +142,81 @@ pub struct UsbEndpointDescriptor {
 pub struct UsbDescriptorHead {
     pub len: u8,
     pub desc_type: u8,
+}
+
+#[derive(Debug)]
+struct HidElement {
+    format: u16, // TODO: I don't think it needs to be u16. u8 should be fine
+    size: u8,
+    tag: HidTypeTag,
+    /// Can be anything from u8 to *const u8
+    data: Option<HidData>,
+}
+
+#[derive(Debug)]
+pub enum MainTag {
+    Input = 8,
+    Output = 9,
+    Feature = 10,
+    Collection = 11,
+    EndCollection = 12,
+}
+
+#[derive(Debug)]
+pub enum GlobalTag {
+    UsagePage = 0,
+    LogicalMinimum = 1,
+    LogicalMaximum = 2,
+    PhysicalMinimum = 3,
+    PhysicalMaximum = 4,
+    UnitExponent = 5,
+    Unit = 6,
+    ReportSize = 7,
+    ReportId = 8,
+    ReportCount = 9,
+    Push = 10,
+    Pop = 11,
+}
+
+#[derive(Debug)]
+pub enum LocalTag {
+    Usage = 0,
+    UsageMinimum = 1,
+    UsageMaximum = 2,
+    DesignatorIndex = 3,
+    DesignatorMinimum = 4,
+    DesignatorMaximum = 5,
+    StringIndex = 7,
+    StringMinimum = 8,
+    StringMaximum = 9,
+    Delimiter = 10,
+}
+
+#[derive(Debug)]
+enum HidTypeTag {
+    Main(MainTag),
+    Global(GlobalTag),
+    Local(LocalTag),
+    Reserved,
+}
+
+#[repr(u8)]
+enum HidType {
+    Main = 0x00,
+    Global = 0x01,
+    Local = 0x02,
+    Reserved = 0x03,
+}
+
+#[derive(Debug)]
+pub enum HidData {
+    Uint8(u8),
+    Uint16(u16),
+    Uint32(u32),
+    Int8(i8),
+    Int16(i16),
+    Int32(i32),
+    LongData(*const u8),
 }
 
 /// Foo
@@ -287,7 +385,7 @@ fn get_usb(bs: &BootServices) -> Result {
         .locate_handle_buffer(SearchType::ByProtocol(&UsbIo::GUID))
         .expect("UsbIo is missing");
 
-    //info!("Found {} UsbIo handles", (*usb_io_handles).len());
+    info!("Found {} UsbIo handles", (*usb_io_handles).len());
     for handle in &*usb_io_handles {
         //info!("  Iterating through UsbIo handles");
 
@@ -307,8 +405,9 @@ fn get_usb(bs: &BootServices) -> Result {
             .get_device_descriptor()
             .expect("Failed to get Device Descriptor");
 
-        // Currently only interested in Keychron/Framework keyboards
-        if desc.id_vendor != 0x3434 && desc.id_vendor != 0x32AC {
+        // Currently only interested in Keychron/Framework/Logitech keyboards
+        // To avoid spamming the output
+        if ![0x3434, 0x32AC, 0x046D].contains(&{ desc.id_vendor }) {
             continue;
         }
         info!("{:04X}:{:04X}", { desc.id_vendor }, { desc.id_product });
@@ -356,7 +455,12 @@ fn get_usb(bs: &BootServices) -> Result {
         let config_desc = usb_handle
             .get_config_descriptor()
             .expect("Failed to get Config Descriptor");
-        info!("  Config Desc Total Len: {}", { config_desc.total_length });
+        //info!("  Config Desc Total Len: {}", { config_desc.total_length });
+
+        if interface.interface_class != 3 {
+            info!("Skipping interface, not HID class");
+            continue;
+        }
 
         let mut all_descriptors = Vec::with_capacity(config_desc.total_length as usize);
         all_descriptors.resize(config_desc.total_length as usize, 0);
@@ -378,7 +482,7 @@ fn get_usb(bs: &BootServices) -> Result {
                 &mut all_descriptors,
             )
             .expect("Failed to get all descriptors :( :(");
-        info!("Successfully got all descriptors!!!!");
+        //info!("Successfully got all descriptors!!!!");
 
         let mut all_desc_byte = 0;
         let mut after_interface_desc = false;
@@ -436,27 +540,157 @@ fn get_usb(bs: &BootServices) -> Result {
             index: interface.interface_number as u16,
             length: hid_desc.hid_class_desc[0].descriptor_length,
         };
-        usb_handle
-            .control_transfer(
-                &mut request,
-                UsbDataDirection::DataIn,
-                TIMEOUT,
-                &mut report_desc,
-            )
-            .expect("Failed to get report descriptor");
-        info!("  Got HID report descriptor!!!!");
+        let status = usb_handle.control_transfer(
+            &mut request,
+            UsbDataDirection::DataIn,
+            TIMEOUT,
+            &mut report_desc,
+        );
+        //.expect("Failed to get report descriptor");
+        if let Err(_) = status {
+            info!("  Failed to get HID report descriptor! ({:?}", status);
+            continue;
+        }
+        info!("  Got HID report descriptor!");
 
-        //if desc.id_vendor == 0x3434 || desc.id_vendor == 0x32AC {
-        //    //set_key_led(&usb_handle, &desc, 0);
-        //    //set_key_led(&usb_handle, &desc, 1);
-        //    //set_key_led(&usb_handle, &desc, 2);
-        //    //set_key_led(&usb_handle, &desc, 3);
-        //}
+        let usage_page = parse_hid_descriptor(&mut usb_handle, report_desc.as_slice());
+        let generic = UsagePage::GenericDesktop as u8;
+        let keyboard = UsagePage::Keyboard as u8;
+        let qmk_console = UsagePage::QmkConsole as u16;
+        let raw = UsagePage::Raw as u16;
+        match usage_page {
+            //Some(HidData::Uint8(generic)) => {}
+            //Some(HidData::Uint8(keyboard)) => {}
+            //Some(HidData::Uint16(qmk_console)) => {}
+            Some(HidData::Uint16(raw)) => {
+                info!(
+                    "  Found raw usage page at interface {}",
+                    interface.interface_number
+                );
+            }
+            Some(data) => {
+                info!("  Found usage page: {:?}", data);
+            }
+            None => {
+                info!("  No usage page found??");
+            }
+        }
     }
     Ok(())
 }
 
-fn set_key_led(usb_handle: &ScopedProtocol<UsbIo>, desc: &UsbDeviceDescriptor, interface: u16) {}
+/// Returns the first usage page
+fn parse_hid_descriptor(
+    usb_handle: &mut ScopedProtocol<UsbIo>,
+    report_desc: &[u8],
+) -> Option<HidData> {
+    let mut usage_page = None;
+    let mut report_desc = report_desc;
+    let mut hid_element = None;
+    while !report_desc.is_empty() {
+        (report_desc, hid_element) = find_next_hid_element(report_desc);
+        let hid_element = hid_element.unwrap();
+
+        if VERBOSE {
+            info!(
+                "    Tag: {:X?} - Data: {:X?}",
+                hid_element.tag, hid_element.data
+            );
+        }
+        match hid_element.tag {
+            HidTypeTag::Main(_) => {}
+            HidTypeTag::Global(GlobalTag::UsagePage) => {
+                if usage_page.is_none() {
+                    usage_page = hid_element.data
+                }
+            }
+            HidTypeTag::Global(_) => {}
+            HidTypeTag::Local(_) => {}
+            HidTypeTag::Reserved => {}
+        };
+    }
+    usage_page
+}
+
+fn find_next_hid_element(report_desc: &[u8]) -> (&[u8], Option<HidElement>) {
+    // Parse first byte
+    let size = report_desc[0] & 0b11;
+    let hid_type = (report_desc[0] & 0b1100) >> 2;
+    let tag = (report_desc[0] & 0b11110000) >> 4;
+    let mut report_desc = &report_desc[1..];
+
+    assert!(tag != HID_ELEMENT_TAG_LONG, "Long tag not yet supported");
+
+    let mut hid_elem = HidElement {
+        format: ReportFormat::Short as u16,
+        size,
+        tag: match hid_type {
+            0 => HidTypeTag::Main(match tag {
+                // TODO: automatically decode
+                8 => MainTag::Input,
+                9 => MainTag::Output,
+                10 => MainTag::Feature,
+                11 => MainTag::Collection,
+                12 => MainTag::EndCollection,
+                _ => panic!("Invalid"),
+            }),
+            1 => HidTypeTag::Global(match tag {
+                // TODO: automatically decode
+                0 => GlobalTag::UsagePage,
+                1 => GlobalTag::LogicalMinimum,
+                2 => GlobalTag::LogicalMaximum,
+                3 => GlobalTag::PhysicalMinimum,
+                4 => GlobalTag::PhysicalMaximum,
+                5 => GlobalTag::UnitExponent,
+                6 => GlobalTag::Unit,
+                7 => GlobalTag::ReportSize,
+                8 => GlobalTag::ReportId,
+                9 => GlobalTag::ReportCount,
+                10 => GlobalTag::Push,
+                11 => GlobalTag::Pop,
+                _ => panic!("Invalid"),
+            }),
+            2 => HidTypeTag::Local(match tag {
+                // TODO: automatically decode
+                0 => LocalTag::Usage,
+                1 => LocalTag::UsageMinimum,
+                2 => LocalTag::UsageMaximum,
+                3 => LocalTag::DesignatorIndex,
+                4 => LocalTag::DesignatorMinimum,
+                5 => LocalTag::DesignatorMaximum,
+                7 => LocalTag::StringIndex,
+                8 => LocalTag::StringMinimum,
+                9 => LocalTag::StringMaximum,
+                10 => LocalTag::Delimiter,
+                _ => panic!("Invalid"),
+            }),
+            _ => panic!("Invalid"),
+        },
+        data: None,
+    };
+
+    match size {
+        0 => {}
+        1 => {
+            hid_elem.data = Some(HidData::Uint8((report_desc[0])));
+            report_desc = &report_desc[1..];
+        }
+        2 => {
+            hid_elem.data = Some(HidData::Uint16(u16::from_le_bytes(
+                (&report_desc[0..2]).try_into().unwrap(),
+            )));
+            report_desc = &report_desc[2..];
+        }
+        3 => {
+            hid_elem.data = Some(HidData::Uint32(u32::from_le_bytes(
+                (&report_desc[0..4]).try_into().unwrap(),
+            )));
+            report_desc = &report_desc[4..];
+        }
+        _ => panic!("Unhandled size"),
+    };
+    (report_desc, Some(hid_elem))
+}
 
 fn print_image_path(boot_services: &BootServices) -> Result {
     let loaded_image =
