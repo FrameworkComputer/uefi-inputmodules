@@ -1,4 +1,4 @@
-SOURCES=Cargo.toml Cargo.lock src/main.rs
+SOURCES=Cargo.toml Cargo.lock src/main.rs src/raw_hid.rs
 
 target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi: $(SOURCES)
 	mkdir -p esp/efi/boot

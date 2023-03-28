@@ -25,22 +25,31 @@ pub const HID_ELEMENT_TAG_LONG: u8 = 15;
 const TIMEOUT: u32 = 3000;
 const VERBOSE: bool = false;
 
+pub enum EndpointTypes {
+    Control = 0x00,
+    Isochronous = 0x01,
+    Bulk = 0x02,
+    Interrupt = 0x03,
+}
+
 pub enum UsbTransferResult {
-    NoError     = 0x00,
-    NotExecute  = 0x01,
-    Stall       = 0x02,
-    Buffer      = 0x04,
-    Babble      = 0x08,
-    Nak         = 0x10,
-    Crc         = 0x20,
-    Timeout     = 0x40,
-    Bitstuff    = 0x80,
-    System      = 0x100,
+    NoError = 0x00,
+    NotExecute = 0x01,
+    Stall = 0x02,
+    Buffer = 0x04,
+    Babble = 0x08,
+    Nak = 0x10,
+    Crc = 0x20,
+    Timeout = 0x40,
+    Bitstuff = 0x80,
+    System = 0x100,
 }
 
 pub struct HidDevice<'a> {
     usb_io: ScopedProtocol<'a, UsbIo>,
     interface_no: u8,
+    out_endpoint_addr: u8,
+    in_endpoint_addr: u8,
 }
 impl HidDevice<'_> {
     // TODO: data shouldn't need to be mut here
@@ -52,6 +61,7 @@ impl HidDevice<'_> {
             data[0],
             ReportType::Output,
             &mut data[1..],
+            self.out_endpoint_addr,
         )?;
         Ok(0) // TODO: Return proper value
     }
@@ -62,7 +72,9 @@ impl HidDevice<'_> {
             self.interface_no,
             data[0],
             ReportType::Input,
-            &mut data[1..],
+            //&mut data[1..],
+            data,
+            self.in_endpoint_addr,
         )?;
         Ok(0) // TODO: Return proper value
     }
@@ -196,6 +208,16 @@ pub struct UsbEndpointDescriptor {
     pub interval: u8,
 }
 
+impl UsbEndpointDescriptor {
+    pub fn is_in(&self) -> bool {
+        (self.endpoint_address & 0x80) == 0x80
+    }
+    // TODO: Generalize with all types, not just interrupt
+    pub fn is_interrupt(&self) -> bool {
+        (self.attributes & 0b11) == 0b11
+    }
+}
+
 #[repr(C, packed)]
 pub struct UsbDescriptorHead {
     pub len: u8,
@@ -258,14 +280,6 @@ enum HidTypeTag {
     Reserved,
 }
 
-#[repr(u8)]
-enum HidType {
-    Main = 0x00,
-    Global = 0x01,
-    Local = 0x02,
-    Reserved = 0x03,
-}
-
 #[derive(Debug)]
 pub enum HidData {
     Uint8(u8),
@@ -296,7 +310,7 @@ pub struct UsbIo {
     // TODO: usb_async_interrupt_transfer
     usb_async_interrupt_transfer: extern "efiapi" fn(&mut UsbIo) -> Status,
     usb_sync_interrupt_transfer:
-        extern "efiapi" fn(&mut UsbIo, u8, *mut u8, *mut usize, usize, u32) -> Status,
+        extern "efiapi" fn(&mut UsbIo, u8, *mut u8, *mut usize, usize, *mut u32) -> Status,
     usb_isochronous_transfer:
         extern "efiapi" fn(&mut UsbIo, u8, *mut u8, usize, *mut u32) -> Status,
     // TODO: async_isochronous_transfer
@@ -306,12 +320,41 @@ pub struct UsbIo {
     usb_get_interface_descriptor:
         extern "efiapi" fn(&mut UsbIo, *mut UsbInterfaceDescriptor) -> Status,
     usb_get_endpoint_descriptor:
-        extern "efiapi" fn(&mut UsbIo, *mut UsbEndpointDescriptor) -> Status,
+        extern "efiapi" fn(&mut UsbIo, u8, *mut UsbEndpointDescriptor) -> Status,
     usb_get_string_descriptor: extern "efiapi" fn(&mut UsbIo, u16, u8, *mut *mut Char16) -> Status,
     usb_get_supported_languages: extern "efiapi" fn(&mut UsbIo, *mut *mut u16, *mut u16) -> Status,
     usb_port_reset: extern "efiapi" fn(&mut UsbIo) -> Status,
 }
 impl UsbIo {
+    pub fn sync_interrupt_transfer(
+        &mut self,
+        endpoint: u8,
+        timeout: u32,
+        data: &mut [u8],
+    ) -> Result<(), usize> {
+        let mut buffer_size = data.len();
+        let mut transfer_result = 0; // TODO: Use this value?
+        (self.usb_sync_interrupt_transfer)(
+            self,
+            endpoint,
+            data.as_mut_ptr(),
+            &mut buffer_size,
+            timeout as usize,
+            &mut transfer_result,
+        )
+        .into_with(
+            || {
+                if buffer_size != data.len() {
+                    info!("!!!!sync_interrupt_transfer: buffer_size != data.len(), {}, {}", buffer_size, data.len())
+                }
+            },//debug_assert_eq!(buffer_size, data.len()),
+            |_| {
+                info!("Interrupt transfer failed with: {}", transfer_result);
+                buffer_size
+            },
+        )
+    }
+
     pub fn control_transfer(
         &mut self,
         request: &mut UsbDeviceRequest,
@@ -361,9 +404,9 @@ impl UsbIo {
             .into_with_val(|| unsafe { desc.assume_init() })
     }
 
-    pub fn get_endpoint_descriptor(&mut self) -> Result<UsbEndpointDescriptor> {
+    pub fn get_endpoint_descriptor(&mut self, index: u8) -> Result<UsbEndpointDescriptor> {
         let mut desc = MaybeUninit::<UsbEndpointDescriptor>::uninit();
-        (self.usb_get_endpoint_descriptor)(self, desc.as_mut_ptr())
+        (self.usb_get_endpoint_descriptor)(self, index, desc.as_mut_ptr())
             .into_with_val(|| unsafe { desc.assume_init() })
     }
 }
@@ -381,13 +424,13 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 }
 
 #[repr(u8)]
-enum UsbRequestType {
+pub enum UsbRequestType {
     HidGetRequest = 0xA1,
     HidSetRequest = 0x21,
     GetDescriptor = 0x80,
 }
 
-enum HidRequest {
+pub enum HidRequest {
     GetReportRequest = 0x01,
     GetIdleRequest = 0x02,
     GetProtocolRequest = 0x03,
@@ -396,7 +439,7 @@ enum HidRequest {
     SetProtocolRequest = 0x0b,
 }
 
-enum DeviceRequest {
+pub enum DeviceRequest {
     UsbGetDescriptor = 0x06,
     UsbSetDescriptor = 0x07,
 }
@@ -407,17 +450,22 @@ fn set_report_request(
     report_id: u8,
     report_type: ReportType,
     report: &mut [u8],
+    endpoint_addr: u8,
 ) -> Result {
     let mut request = UsbDeviceRequest {
         request_type: UsbRequestType::HidSetRequest as u8,
         request: HidRequest::SetReportRequest as u8,
-        value: ((report_type as u16) << 8) + report_id as u16,//u16::from_le_bytes([report_id, report_type as u8]), // TODO: Might be backwards
+        value: ((report_type as u16) << 8) + report_id as u16, //u16::from_le_bytes([report_id, report_type as u8]), // TODO: Might be backwards
         index: interface as u16,
         length: report.len() as u16,
     };
+    // TODO: If no interrupt endpoint use control transfer, otherwise use interrupt endpoing
+    // This is what hidapi does
+    //usb_io.control_transfer(&mut request, UsbDataDirection::DataOut, TIMEOUT, report);
+    info!("Writing to endpoint: {endpoint_addr:02X}");
     usb_io
-        .control_transfer(&mut request, UsbDataDirection::DataOut, TIMEOUT, report);
-        //.unwrap();
+        .sync_interrupt_transfer(endpoint_addr, TIMEOUT, report)
+        .unwrap();
     Ok(())
 }
 
@@ -427,6 +475,7 @@ fn get_report_request(
     report_id: u8,
     report_type: ReportType,
     report: &mut [u8],
+    endpoint_addr: u8,
 ) -> Result {
     let mut request = UsbDeviceRequest {
         request_type: UsbRequestType::HidGetRequest as u8,
@@ -435,9 +484,17 @@ fn get_report_request(
         index: interface as u16,
         length: report.len() as u16,
     };
-    usb_io
-        .control_transfer(&mut request, UsbDataDirection::DataIn, TIMEOUT, report)
-        .unwrap();
+    // TODO: If no interrupt endpoint use control transfer, otherwise use interrupt endpoing
+    // This is what hidapi does
+    //usb_io.control_transfer(&mut request, UsbDataDirection::DataIn, TIMEOUT, report).unwrap();
+    for i in 0..10 {
+        let res = usb_io
+            .sync_interrupt_transfer(endpoint_addr, TIMEOUT, report);
+        info!("get_report_request try: {}: {:?}", i, res);
+        if res.is_ok() {
+            break;
+        }
+    }
     Ok(())
 }
 
@@ -495,7 +552,7 @@ fn get_usb(bs: &BootServices) -> Result {
         info!("  Str Product:     {}", { desc.str_product });
         info!("  Configurations:  {}", { desc.num_configurations });
         // Should always be 64
-        //info!("  Max Packet Size: {}", { desc.max_packet_size0 });
+        info!("  Max Packet Size: {}", { desc.max_packet_size0 });
 
         let interface = usb_handle
             .get_interface_descriptor()
@@ -522,6 +579,8 @@ fn get_usb(bs: &BootServices) -> Result {
             info!("Skipping interface, not HID class");
             continue;
         }
+
+        let interrupt_endpoint = find_interrupt_endpoint(&mut usb_handle, interface.num_endpoints);
 
         let mut all_descriptors = Vec::with_capacity(config_desc.total_length as usize);
         all_descriptors.resize(config_desc.total_length as usize, 0);
@@ -614,6 +673,16 @@ fn get_usb(bs: &BootServices) -> Result {
         }
         info!("  Got HID report descriptor!");
 
+        let (in_endpoint_addr, out_endpoint_addr) =
+            if let Some((input, output)) = interrupt_endpoint {
+                assert!(input.is_in() && input.is_interrupt());
+                assert!(!output.is_in() && output.is_interrupt());
+                (input.endpoint_address, output.endpoint_address)
+            } else {
+                info!("Failed to find OUT Interrupt descriptor");
+                continue;
+            };
+
         let usage_page = parse_hid_descriptor(&mut usb_handle, report_desc.as_slice());
         let generic = UsagePage::GenericDesktop as u8;
         let keyboard = UsagePage::Keyboard as u8;
@@ -631,14 +700,16 @@ fn get_usb(bs: &BootServices) -> Result {
                 let mut dev = HidDevice {
                     usb_io: usb_handle,
                     interface_no: interface.interface_number,
+                    in_endpoint_addr,
+                    out_endpoint_addr,
                 };
-                info!("Jumping to bootloader");
-                bootloader_jump(&mut dev);
-                info!("Jumping to again");
-                bootloader_jump(&mut dev);
-                info!("Jumping to bootloader DONE");
+                //info!("Jumping to again");
+                //bootloader_jump(&mut dev);
+                //info!("Jumping to bootloader DONE");
                 let protocol_ver = get_protocol_ver(&mut dev);
                 info!("Protocol version: {:?}", protocol_ver);
+                info!("Jumping to bootloader");
+                bootloader_jump(&mut dev);
             }
             Some(data) => {
                 info!("  Found usage page: {:?}", data);
@@ -649,6 +720,43 @@ fn get_usb(bs: &BootServices) -> Result {
         }
     }
     Ok(())
+}
+
+/// Find Interrupt OUT endpoint
+fn find_interrupt_endpoint(
+    usb_handle: &mut ScopedProtocol<UsbIo>,
+    endpoints: u8,
+) -> Option<(UsbEndpointDescriptor, UsbEndpointDescriptor)> {
+    let mut input = None;
+    let mut output = None;
+    for i in 0..endpoints {
+        let endpoint = usb_handle
+            .get_endpoint_descriptor(i)
+            .expect("Failed to get endpoint descriptor");
+        info!("  Endpoint {i}");
+
+        let is_in = endpoint.is_in();
+        info!(
+            "    Address     {:02X}, Direction IN: {:?}",
+            endpoint.endpoint_address, is_in
+        );
+
+        let is_interrupt = endpoint.is_interrupt();
+        info!(
+            "    Attributes: {:02X}, Interrupt: {:?}",
+            endpoint.attributes, is_interrupt
+        );
+
+        if endpoint.is_interrupt() {
+            if endpoint.is_in() {
+                input = Some(endpoint);
+            } else {
+                output = Some(endpoint);
+            }
+        }
+    }
+
+    Some((input?, output?))
 }
 
 /// Returns the first usage page
@@ -744,7 +852,7 @@ fn find_next_hid_element(report_desc: &[u8]) -> (&[u8], Option<HidElement>) {
     match size {
         0 => {}
         1 => {
-            hid_elem.data = Some(HidData::Uint8((report_desc[0])));
+            hid_elem.data = Some(HidData::Uint8(report_desc[0]));
             report_desc = &report_desc[1..];
         }
         2 => {
