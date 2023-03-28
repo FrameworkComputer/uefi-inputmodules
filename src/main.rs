@@ -8,19 +8,77 @@ use alloc::vec::Vec;
 use log::info;
 use uefi::proto::device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly};
 use uefi::proto::loaded_image::LoadedImage;
-use uefi::proto::unsafe_protocol;
+use uefi::proto::{self, unsafe_protocol};
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
 use uefi::{prelude::*, CStr16};
 use uefi::{Char16, Identify, Result};
 //use ptr_meta::Pointee;
 use core::mem::MaybeUninit;
 
+use crate::raw_hid::{bootloader_jump, get_protocol_ver, send_message};
+
+mod raw_hid;
+//mod via;
+
 pub const HID_ELEMENT_TAG_LONG: u8 = 15;
 
 const TIMEOUT: u32 = 3000;
-const VERBOSE: bool = true;
+const VERBOSE: bool = false;
 
-struct HidDevice {}
+pub enum UsbTransferResult {
+    NoError     = 0x00,
+    NotExecute  = 0x01,
+    Stall       = 0x02,
+    Buffer      = 0x04,
+    Babble      = 0x08,
+    Nak         = 0x10,
+    Crc         = 0x20,
+    Timeout     = 0x40,
+    Bitstuff    = 0x80,
+    System      = 0x100,
+}
+
+pub struct HidDevice<'a> {
+    usb_io: ScopedProtocol<'a, UsbIo>,
+    interface_no: u8,
+}
+impl HidDevice<'_> {
+    // TODO: data shouldn't need to be mut here
+    pub fn write(&mut self, data: &mut [u8]) -> Result<usize> {
+        assert!(data.len() >= 1);
+        set_report_request(
+            &mut self.usb_io,
+            self.interface_no,
+            data[0],
+            ReportType::Output,
+            &mut data[1..],
+        )?;
+        Ok(0) // TODO: Return proper value
+    }
+    pub fn read(&mut self, data: &mut [u8]) -> Result<usize> {
+        assert!(data.len() >= 1);
+        get_report_request(
+            &mut self.usb_io,
+            self.interface_no,
+            data[0],
+            ReportType::Input,
+            &mut data[1..],
+        )?;
+        Ok(0) // TODO: Return proper value
+    }
+    // TODO: Implement feature set/get report
+    pub fn set_blocking_mode(&self, _: bool) -> Result<()> {
+        // Just to be compatible with hidapi
+        Ok(())
+    }
+}
+
+#[repr(u8)]
+pub enum ReportType {
+    Input = 1,
+    Output = 2,
+    Feature = 3,
+}
 
 pub enum UsagePage {
     GenericDesktop = 0x01,
@@ -262,7 +320,7 @@ impl UsbIo {
         data: &mut [u8],
     ) -> Result<(), usize> {
         let mut buffer_size = data.len();
-        let mut status = 0; // TODO: Use this value?
+        let mut transfer_result = 0; // TODO: Use this value?
         (self.usb_control_transfer)(
             self,
             request,
@@ -270,11 +328,14 @@ impl UsbIo {
             timeout,
             data.as_mut_ptr(),
             buffer_size,
-            &mut status,
+            &mut transfer_result,
         )
         .into_with(
             || debug_assert_eq!(buffer_size, data.len()),
-            |_| buffer_size,
+            |_| {
+                info!("control_transfer failed with: {}", transfer_result);
+                buffer_size
+            },
         )
     }
 
@@ -344,19 +405,19 @@ fn set_report_request(
     usb_io: &mut UsbIo,
     interface: u8,
     report_id: u8,
-    report_type: u8,
+    report_type: ReportType,
     report: &mut [u8],
 ) -> Result {
     let mut request = UsbDeviceRequest {
         request_type: UsbRequestType::HidSetRequest as u8,
         request: HidRequest::SetReportRequest as u8,
-        value: u16::from_le_bytes([report_type, report_id]),
+        value: ((report_type as u16) << 8) + report_id as u16,//u16::from_le_bytes([report_id, report_type as u8]), // TODO: Might be backwards
         index: interface as u16,
         length: report.len() as u16,
     };
     usb_io
-        .control_transfer(&mut request, UsbDataDirection::DataOut, TIMEOUT, report)
-        .unwrap();
+        .control_transfer(&mut request, UsbDataDirection::DataOut, TIMEOUT, report);
+        //.unwrap();
     Ok(())
 }
 
@@ -364,13 +425,13 @@ fn get_report_request(
     usb_io: &mut UsbIo,
     interface: u8,
     report_id: u8,
-    report_type: u8,
+    report_type: ReportType,
     report: &mut [u8],
 ) -> Result {
     let mut request = UsbDeviceRequest {
         request_type: UsbRequestType::HidGetRequest as u8,
         request: HidRequest::SetReportRequest as u8,
-        value: u16::from_le_bytes([report_type, report_id]),
+        value: u16::from_le_bytes([report_id, report_type as u8]), // TODO: Might be backwards
         index: interface as u16,
         length: report.len() as u16,
     };
@@ -567,6 +628,17 @@ fn get_usb(bs: &BootServices) -> Result {
                     "  Found raw usage page at interface {}",
                     interface.interface_number
                 );
+                let mut dev = HidDevice {
+                    usb_io: usb_handle,
+                    interface_no: interface.interface_number,
+                };
+                info!("Jumping to bootloader");
+                bootloader_jump(&mut dev);
+                info!("Jumping to again");
+                bootloader_jump(&mut dev);
+                info!("Jumping to bootloader DONE");
+                let protocol_ver = get_protocol_ver(&mut dev);
+                info!("Protocol version: {:?}", protocol_ver);
             }
             Some(data) => {
                 info!("  Found usage page: {:?}", data);
