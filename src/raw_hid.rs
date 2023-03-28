@@ -1,6 +1,6 @@
 //! Interact with the raw HID interface of QMK firmware
 
-use crate::{HidDevice, UsbIo};
+use crate::HidDevice;
 use alloc::vec;
 use alloc::vec::Vec;
 use log::info;
@@ -10,23 +10,6 @@ use uefi::table::boot::ScopedProtocol;
 // Currently I hardcoded it to ignore. But in upstream QMK/ChibiOS we have to send 33 bytes.
 // See raw_hid_send in tmk_core/protocol/chibios/usb_main.c
 pub const RAW_HID_BUFFER_SIZE: usize = 64;
-
-#[repr(u8)]
-pub enum ViaCommandId {
-    GetProtocolVersion = 0x01, // always 0x01
-    BootloaderJump = 0x0B,
-}
-pub fn bootloader_jump(dev: &mut HidDevice) -> Result<(), ()> {
-    let output = send_message(dev, ViaCommandId::BootloaderJump as u8, None, 0)?;
-    debug_assert_eq!(output.len(), 0);
-    Ok(())
-}
-
-pub fn get_protocol_ver(dev: &mut HidDevice) -> Result<u16, ()> {
-    let output = send_message(dev, ViaCommandId::GetProtocolVersion as u8, None, 2)?;
-    debug_assert_eq!(output.len(), 2);
-    Ok(u16::from_be_bytes(output.try_into().unwrap()))
-}
 
 pub fn send_message(
     dev: &mut HidDevice,

@@ -15,15 +15,42 @@ use uefi::{Char16, Identify, Result};
 //use ptr_meta::Pointee;
 use core::mem::MaybeUninit;
 
-use crate::raw_hid::{bootloader_jump, get_protocol_ver, send_message};
-
-mod raw_hid;
-//mod via;
+pub mod raw_hid;
+pub mod via;
 
 pub const HID_ELEMENT_TAG_LONG: u8 = 15;
 
 const TIMEOUT: u32 = 3000;
 const VERBOSE: bool = false;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Color {
+    /// 0° and 255° => 0
+    Red,
+    /// Yellow (120°) => 43
+    Yellow,
+    /// Green (120°) => 85
+    Green,
+    /// Cyan (180°) => 125
+    Cyan,
+    /// Blue (240°) => 170
+    Blue,
+    /// Purple (300°) => 213
+    Purple,
+    /// Saturation 0
+    White,
+}
+fn color_as_hue(color: Color) -> u8 {
+    match color {
+        Color::Red => 0,
+        Color::Yellow => 43,
+        Color::Green => 85,
+        Color::Cyan => 125,
+        Color::Blue => 170,
+        Color::Purple => 213,
+        Color::White => 0, // Doesn't matter, only hue needs to be 0
+    }
+}
 
 pub enum EndpointTypes {
     Control = 0x00,
@@ -225,7 +252,7 @@ pub struct UsbDescriptorHead {
 }
 
 #[derive(Debug)]
-struct HidElement {
+pub struct HidElement {
     format: u16, // TODO: I don't think it needs to be u16. u8 should be fine
     size: u8,
     tag: HidTypeTag,
@@ -273,7 +300,7 @@ pub enum LocalTag {
 }
 
 #[derive(Debug)]
-enum HidTypeTag {
+pub enum HidTypeTag {
     Main(MainTag),
     Global(GlobalTag),
     Local(LocalTag),
@@ -345,9 +372,13 @@ impl UsbIo {
         .into_with(
             || {
                 if buffer_size != data.len() {
-                    info!("!!!!sync_interrupt_transfer: buffer_size != data.len(), {}, {}", buffer_size, data.len())
+                    info!(
+                        "!!!!sync_interrupt_transfer: buffer_size != data.len(), {}, {}",
+                        buffer_size,
+                        data.len()
+                    )
                 }
-            },//debug_assert_eq!(buffer_size, data.len()),
+            }, //debug_assert_eq!(buffer_size, data.len()),
             |_| {
                 info!("Interrupt transfer failed with: {}", transfer_result);
                 buffer_size
@@ -362,7 +393,7 @@ impl UsbIo {
         timeout: u32,
         data: &mut [u8],
     ) -> Result<(), usize> {
-        let mut buffer_size = data.len();
+        let buffer_size = data.len();
         let mut transfer_result = 0; // TODO: Use this value?
         (self.usb_control_transfer)(
             self,
@@ -452,14 +483,14 @@ fn set_report_request(
     report: &mut [u8],
     endpoint_addr: u8,
 ) -> Result {
-    let mut request = UsbDeviceRequest {
-        request_type: UsbRequestType::HidSetRequest as u8,
-        request: HidRequest::SetReportRequest as u8,
-        value: ((report_type as u16) << 8) + report_id as u16, //u16::from_le_bytes([report_id, report_type as u8]), // TODO: Might be backwards
-        index: interface as u16,
-        length: report.len() as u16,
-    };
     // TODO: If no interrupt endpoint use control transfer, otherwise use interrupt endpoing
+    //let mut request = UsbDeviceRequest {
+    //    request_type: UsbRequestType::HidSetRequest as u8,
+    //    request: HidRequest::SetReportRequest as u8,
+    //    value: ((report_type as u16) << 8) + report_id as u16, //u16::from_le_bytes([report_id, report_type as u8]), // TODO: Might be backwards
+    //    index: interface as u16,
+    //    length: report.len() as u16,
+    //};
     // This is what hidapi does
     //usb_io.control_transfer(&mut request, UsbDataDirection::DataOut, TIMEOUT, report);
     info!("Writing to endpoint: {endpoint_addr:02X}");
@@ -477,19 +508,18 @@ fn get_report_request(
     report: &mut [u8],
     endpoint_addr: u8,
 ) -> Result {
-    let mut request = UsbDeviceRequest {
-        request_type: UsbRequestType::HidGetRequest as u8,
-        request: HidRequest::SetReportRequest as u8,
-        value: u16::from_le_bytes([report_id, report_type as u8]), // TODO: Might be backwards
-        index: interface as u16,
-        length: report.len() as u16,
-    };
     // TODO: If no interrupt endpoint use control transfer, otherwise use interrupt endpoing
+    //let mut request = UsbDeviceRequest {
+    //    request_type: UsbRequestType::HidGetRequest as u8,
+    //    request: HidRequest::SetReportRequest as u8,
+    //    value: u16::from_le_bytes([report_id, report_type as u8]), // TODO: Might be backwards
+    //    index: interface as u16,
+    //    length: report.len() as u16,
+    //};
     // This is what hidapi does
     //usb_io.control_transfer(&mut request, UsbDataDirection::DataIn, TIMEOUT, report).unwrap();
     for i in 0..10 {
-        let res = usb_io
-            .sync_interrupt_transfer(endpoint_addr, TIMEOUT, report);
+        let res = usb_io.sync_interrupt_transfer(endpoint_addr, TIMEOUT, report);
         info!("get_report_request try: {}: {:?}", i, res);
         if res.is_ok() {
             break;
@@ -540,19 +570,21 @@ fn get_usb(bs: &BootServices) -> Result {
             minor,
             patch
         );
-        info!("  Protocol:        0x{:02X}", { desc.device_protocol });
+        // What's this?
+        //info!("  Protocol:        0x{:02X}", { desc.device_protocol });
         // 0 and 0 means look at the interface descriptor
         info!(
             "  Device Class:    {}, Subclass: {}",
             { desc.device_class },
             { desc.device_sub_class }
         );
-        info!("  Num Configs:     {}", { desc.num_configurations });
-        info!("  Str Manufactr:   {}", { desc.str_manufacturer });
-        info!("  Str Product:     {}", { desc.str_product });
+        // TODO: Get string
+        //info!("  Str Manufactr:   {}", { desc.str_manufacturer });
+        //info!("  Str Product:     {}", { desc.str_product });
+        // Is expected to be 1
         info!("  Configurations:  {}", { desc.num_configurations });
-        // Should always be 64
-        info!("  Max Packet Size: {}", { desc.max_packet_size0 });
+        // Is expected to be always be 64
+        //info!("  Max Packet Size: {}", { desc.max_packet_size0 });
 
         let interface = usb_handle
             .get_interface_descriptor()
@@ -566,9 +598,9 @@ fn get_usb(bs: &BootServices) -> Result {
             { interface.interface_class },
             { interface.interface_sub_class }
         );
-        info!("    Interface Protocol: {}", {
-            interface.interface_protocol
-        });
+        //info!("    Interface Protocol: {}", {
+        //    interface.interface_protocol
+        //});
 
         let config_desc = usb_handle
             .get_config_descriptor()
@@ -683,7 +715,7 @@ fn get_usb(bs: &BootServices) -> Result {
                 continue;
             };
 
-        let usage_page = parse_hid_descriptor(&mut usb_handle, report_desc.as_slice());
+        let usage_page = parse_hid_descriptor(report_desc.as_slice());
         let generic = UsagePage::GenericDesktop as u8;
         let keyboard = UsagePage::Keyboard as u8;
         let qmk_console = UsagePage::QmkConsole as u16;
@@ -692,7 +724,7 @@ fn get_usb(bs: &BootServices) -> Result {
             //Some(HidData::Uint8(generic)) => {}
             //Some(HidData::Uint8(keyboard)) => {}
             //Some(HidData::Uint16(qmk_console)) => {}
-            Some(HidData::Uint16(raw)) => {
+            Some(HidData::Uint16(0xFF60)) => {
                 info!(
                     "  Found raw usage page at interface {}",
                     interface.interface_number
@@ -706,10 +738,22 @@ fn get_usb(bs: &BootServices) -> Result {
                 //info!("Jumping to again");
                 //bootloader_jump(&mut dev);
                 //info!("Jumping to bootloader DONE");
-                let protocol_ver = get_protocol_ver(&mut dev);
+                let protocol_ver = via::get_protocol_ver(&mut dev);
                 info!("Protocol version: {:?}", protocol_ver);
-                info!("Jumping to bootloader");
-                bootloader_jump(&mut dev);
+
+                info!("Setting effect 1");
+                via::set_rgb_u8(&mut dev, via::ViaRgbMatrixValue::Effect as u8, 1).unwrap();
+                info!("Setting color yellow");
+                via::set_rgb_color(&mut dev, Some(color_as_hue(Color::Yellow)), Some(255)).unwrap();
+                //info!("Jumping to bootloader");
+                //via::bootloader_jump(&mut dev);
+                break;
+            }
+            Some(HidData::Uint16(page)) => {
+                info!(
+                    "  Found usage page {page:04X} at interface {}",
+                    interface.interface_number
+                );
             }
             Some(data) => {
                 info!("  Found usage page: {:?}", data);
@@ -733,19 +777,17 @@ fn find_interrupt_endpoint(
         let endpoint = usb_handle
             .get_endpoint_descriptor(i)
             .expect("Failed to get endpoint descriptor");
-        info!("  Endpoint {i}");
+        //info!("  Endpoint {i}");
 
-        let is_in = endpoint.is_in();
-        info!(
-            "    Address     {:02X}, Direction IN: {:?}",
-            endpoint.endpoint_address, is_in
-        );
+        //info!(
+        //    "    Address     {:02X}, Direction IN: {:?}",
+        //    endpoint.endpoint_address, endpoint.is_in()
+        //);
 
-        let is_interrupt = endpoint.is_interrupt();
-        info!(
-            "    Attributes: {:02X}, Interrupt: {:?}",
-            endpoint.attributes, is_interrupt
-        );
+        //info!(
+        //    "    Attributes: {:02X}, Interrupt: {:?}",
+        //    endpoint.attributes, endpoint.is_interrupt()
+        //);
 
         if endpoint.is_interrupt() {
             if endpoint.is_in() {
@@ -760,13 +802,10 @@ fn find_interrupt_endpoint(
 }
 
 /// Returns the first usage page
-fn parse_hid_descriptor(
-    usb_handle: &mut ScopedProtocol<UsbIo>,
-    report_desc: &[u8],
-) -> Option<HidData> {
+fn parse_hid_descriptor(report_desc: &[u8]) -> Option<HidData> {
     let mut usage_page = None;
     let mut report_desc = report_desc;
-    let mut hid_element = None;
+    let mut hid_element;
     while !report_desc.is_empty() {
         (report_desc, hid_element) = find_next_hid_element(report_desc);
         let hid_element = hid_element.unwrap();
@@ -870,30 +909,4 @@ fn find_next_hid_element(report_desc: &[u8]) -> (&[u8], Option<HidElement>) {
         _ => panic!("Unhandled size"),
     };
     (report_desc, Some(hid_elem))
-}
-
-fn print_image_path(boot_services: &BootServices) -> Result {
-    let loaded_image =
-        boot_services.open_protocol_exclusive::<LoadedImage>(boot_services.image_handle())?;
-
-    let device_path_to_text_handle = *boot_services
-        .locate_handle_buffer(SearchType::ByProtocol(&DevicePathToText::GUID))?
-        .first()
-        .expect("DevicePathToText is missing");
-
-    let device_path_to_text =
-        boot_services.open_protocol_exclusive::<DevicePathToText>(device_path_to_text_handle)?;
-
-    let image_device_path = loaded_image.file_path().expect("File path is not set");
-    let image_device_path_text = device_path_to_text
-        .convert_device_path_to_text(
-            boot_services,
-            image_device_path,
-            DisplayOnly(true),
-            AllowShortcuts(false),
-        )
-        .expect("convert_device_path_to_text failed");
-
-    info!("Image path: {}", &*image_device_path_text);
-    Ok(())
 }
