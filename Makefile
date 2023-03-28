@@ -1,8 +1,11 @@
-SOURCES=Cargo.toml Cargo.lock src/main.rs src/raw_hid.rs
+SOURCES=Cargo.toml Cargo.lock src/main.rs src/raw_hid.rs src/via.rs src/uefi_usb.rs
 
 target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi: $(SOURCES)
 	mkdir -p esp/efi/boot
 	cargo build --target x86_64-unknown-uefi
+
+clippy:
+	cargo clippy --target x86_64-unknown-uefi
 
 OVMF_CODE.fd:
 	cp /usr/share/OVMF/OVMF_CODE.fd .

@@ -4,12 +4,11 @@ use crate::HidDevice;
 use alloc::vec;
 use alloc::vec::Vec;
 use log::info;
-use uefi::table::boot::ScopedProtocol;
 
 // ChibiOS won't respond if we send 32.
 // Currently I hardcoded it to ignore. But in upstream QMK/ChibiOS we have to send 33 bytes.
 // See raw_hid_send in tmk_core/protocol/chibios/usb_main.c
-pub const RAW_HID_BUFFER_SIZE: usize = 64;
+pub const RAW_HID_BUFFER_SIZE: usize = 32;
 
 pub fn send_message(
     dev: &mut HidDevice,

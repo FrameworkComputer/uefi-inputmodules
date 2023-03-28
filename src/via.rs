@@ -1,6 +1,5 @@
 //! Implementing the VIA protocol supported by QMK keyboard firmware
 use alloc::vec;
-use alloc::vec::Vec;
 
 use crate::raw_hid::*;
 use crate::HidDevice;
