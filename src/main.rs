@@ -1,21 +1,23 @@
 #![no_main]
 #![no_std]
-
 #![allow(clippy::result_unit_err)]
 
 extern crate alloc;
 
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 
 use log::info;
-use uefi::prelude::*;
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
+use uefi::{prelude::*, CString16};
 use uefi::{Identify, Result};
 
+use crate::shell_params::*;
 use crate::uefi_usb::*;
+use crate::via::*;
 
 pub mod raw_hid;
+pub mod shell_params;
 pub mod uefi_usb;
 pub mod via;
 
@@ -39,7 +41,7 @@ pub enum Color {
     /// Saturation 0
     White,
 }
-fn color_as_hue(color: Color) -> u8 {
+pub fn color_as_hue(color: Color) -> u8 {
     match color {
         Color::Red => 0,
         Color::Yellow => 43,
@@ -56,22 +58,81 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
     let boot_services = system_table.boot_services();
 
-    get_usb(boot_services).unwrap();
-    //print_image_path(boot_services).unwrap();
+    let shell_params_h = boot_services
+        .locate_handle_buffer(SearchType::ByProtocol(&ShellParameters::GUID))
+        .unwrap();
+    //info!("Found {} ShellParams handles", (*shell_params_h).len());
+    for handle in &*shell_params_h {
+        let params_handle = unsafe {
+            boot_services
+                .open_protocol::<ShellParameters>(
+                    OpenProtocolParams {
+                        handle: *handle,
+                        agent: boot_services.image_handle(),
+                        controller: None,
+                    },
+                    OpenProtocolAttributes::GetProtocol,
+                )
+                .expect("Failed to open UsbIo handle")
+        };
+
+        // Ehm why are there two and one has no args?
+        if params_handle.argc == 0 {
+            continue;
+        }
+
+        let args = params_handle.get_args();
+        //info!("Args: {}", params_handle.argc);
+        //info!("Args: {:?}", params_handle.get_args());
+
+        if args.len() == 1 {
+            info!("Use args:");
+            info!(" --lsusb");
+            info!(" --verbose");
+            info!(" --bootloader");
+            info!(" --brightness-low");
+            info!(" --brightness-mid");
+            info!(" --brightness-high");
+            break;
+        }
+        for (i, _) in args.iter().enumerate() {
+            if i == 0 {
+                continue;
+            }
+            get_usb(boot_services, args).unwrap();
+            break;
+        }
+    }
 
     //boot_services.stall(10_000_000);
     Status::SUCCESS
 }
 
-fn get_usb(bs: &BootServices) -> Result {
-    let usb_io_handles = bs
-        .locate_handle_buffer(SearchType::ByProtocol(&UsbIo::GUID))
-        .expect("UsbIo is missing");
+fn get_usb(bs: &BootServices, args: Vec<CString16>) -> Result {
+    let usb_io_handles = bs.locate_handle_buffer(SearchType::ByProtocol(&UsbIo::GUID));
 
-    info!("Found {} UsbIo handles", (*usb_io_handles).len());
+    let usb_io_handles = if let Ok(usb_io_handles) = usb_io_handles {
+        usb_io_handles
+    } else {
+        info!("UsbIo protocol is missing");
+        return Ok(());
+    };
+
+    let mut lsusb = false;
+    let mut verbose = false;
+    for arg in args.clone() {
+        if arg.as_ref() == cstr16!("--lsusb") {
+            lsusb = true;
+        }
+        if arg.as_ref() == cstr16!("--verbose") {
+            verbose = true;
+        }
+    }
+
+    if verbose {
+        info!("Found {} UsbIo handles", (*usb_io_handles).len());
+    }
     for handle in &*usb_io_handles {
-        //info!("  Iterating through UsbIo handles");
-
         let mut usb_handle = unsafe {
             bs.open_protocol::<UsbIo>(
                 OpenProtocolParams {
@@ -93,49 +154,55 @@ fn get_usb(bs: &BootServices) -> Result {
         if ![0x3434, 0x32AC, 0x046D].contains(&{ desc.id_vendor }) {
             continue;
         }
-        info!("{:04X}:{:04X}", { desc.id_vendor }, { desc.id_product });
+        if lsusb {
+            info!("{:04X}:{:04X}", { desc.id_vendor }, { desc.id_product });
+        }
 
         let major = (desc.bcd_device & 0xFF00) >> 8;
         let minor = (desc.bcd_device & 0xF0) >> 4;
         let patch = desc.bcd_device & 0x0F;
-        info!(
-            "  bcdDevice:       0x{:04X} ({:>2}.{:02}.{:02})",
-            { desc.bcd_device },
-            major,
-            minor,
-            patch
-        );
-        // What's this?
-        //info!("  Protocol:        0x{:02X}", { desc.device_protocol });
-        // 0 and 0 means look at the interface descriptor
-        info!(
-            "  Device Class:    {}, Subclass: {}",
-            { desc.device_class },
-            { desc.device_sub_class }
-        );
-        // TODO: Get string
-        //info!("  Str Manufactr:   {}", { desc.str_manufacturer });
-        //info!("  Str Product:     {}", { desc.str_product });
-        // Is expected to be 1
-        info!("  Configurations:  {}", { desc.num_configurations });
-        // Is expected to be always be 64
-        //info!("  Max Packet Size: {}", { desc.max_packet_size0 });
+        if lsusb {
+            info!(
+                "  bcdDevice:       0x{:04X} ({:>2}.{:02}.{:02})",
+                { desc.bcd_device },
+                major,
+                minor,
+                patch
+            );
+            // What's this?
+            //info!("  Protocol:        0x{:02X}", { desc.device_protocol });
+            // 0 and 0 means look at the interface descriptor
+            info!(
+                "  Device Class:    {}, Subclass: {}",
+                { desc.device_class },
+                { desc.device_sub_class }
+            );
+            // TODO: Get string
+            //info!("  Str Manufactr:   {}", { desc.str_manufacturer });
+            //info!("  Str Product:     {}", { desc.str_product });
+            // Is expected to be 1
+            info!("  Configurations:  {}", { desc.num_configurations });
+            // Is expected to be always be 64
+            //info!("  Max Packet Size: {}", { desc.max_packet_size0 });
+        }
 
         let interface = usb_handle
             .get_interface_descriptor()
             .expect("Failed to get Interface Descriptor");
 
-        info!("  Interface #{}", { interface.interface_number });
-        info!("    Endpoints:          {}", { interface.num_endpoints });
-        info!("    Interface:          {}", { interface.interface });
-        info!(
-            "    Interface Class:    {}, Subclass: {}",
-            { interface.interface_class },
-            { interface.interface_sub_class }
-        );
-        //info!("    Interface Protocol: {}", {
-        //    interface.interface_protocol
-        //});
+        if lsusb {
+            info!("  Interface #{}", { interface.interface_number });
+            info!("    Endpoints:          {}", { interface.num_endpoints });
+            info!("    Interface:          {}", { interface.interface });
+            info!(
+                "    Interface Class:    {}, Subclass: {}",
+                { interface.interface_class },
+                { interface.interface_sub_class }
+            );
+            //info!("    Interface Protocol: {}", {
+            //    interface.interface_protocol
+            //});
+        }
 
         let config_desc = usb_handle
             .get_config_descriptor()
@@ -212,10 +279,13 @@ fn get_usb(bs: &BootServices) -> Result {
             info!("  Failed to find HID descriptor");
             continue;
         };
-        info!("  Found HID descriptor");
-        info!("    Desc Type: {}", {
-            hid_desc.hid_class_desc[0].descriptor_type
-        });
+
+        if lsusb {
+            info!("  Found HID descriptor");
+            info!("    Desc Type: {}", {
+                hid_desc.hid_class_desc[0].descriptor_type
+            });
+        }
 
         let mut report_desc = Vec::new();
         report_desc.resize(hid_desc.hid_class_desc[0].descriptor_length as usize, 0);
@@ -237,7 +307,9 @@ fn get_usb(bs: &BootServices) -> Result {
             info!("  Failed to get HID report descriptor! ({:?}", status);
             continue;
         }
-        info!("  Got HID report descriptor!");
+        if verbose {
+            info!("  Got HID report descriptor!");
+        }
 
         let (in_endpoint_addr, out_endpoint_addr) =
             if let Some((input, output)) = interrupt_endpoint {
@@ -259,28 +331,76 @@ fn get_usb(bs: &BootServices) -> Result {
             //Some(HidData::Uint8(keyboard)) => {}
             //Some(HidData::Uint16(qmk_console)) => {}
             Some(HidData::Uint16(0xFF60)) => {
-                info!(
-                    "  Found raw usage page at interface {}",
-                    interface.interface_number
-                );
+                if verbose {
+                    info!(
+                        "  Found raw usage page at interface {}",
+                        interface.interface_number
+                    );
+                }
                 let mut dev = HidDevice {
                     usb_io: usb_handle,
                     interface_no: interface.interface_number,
                     in_endpoint_addr,
                     out_endpoint_addr,
                 };
-                //info!("Jumping to again");
-                //bootloader_jump(&mut dev);
-                //info!("Jumping to bootloader DONE");
-                let protocol_ver = via::get_protocol_ver(&mut dev);
-                info!("Protocol version: {:?}", protocol_ver);
 
-                info!("Setting effect 1");
-                via::set_rgb_u8(&mut dev, via::ViaRgbMatrixValue::Effect as u8, 1).unwrap();
-                info!("Setting color yellow");
-                via::set_rgb_color(&mut dev, Some(color_as_hue(Color::Yellow)), Some(255)).unwrap();
-                //info!("Jumping to bootloader");
-                //via::bootloader_jump(&mut dev);
+                let protocol_ver = get_protocol_ver(&mut dev);
+                info!("Protocol version: {:?}", protocol_ver);
+                for (i, arg) in args.iter().enumerate() {
+                    if arg.as_ref() == cstr16!("--bootloader") {
+                        info!("Jumping to bootloader");
+                        bootloader_jump(&mut dev).unwrap();
+                    } else if arg.as_ref() == cstr16!("--brightness-low") {
+                        if i + 1 >= args.len() {
+                            let percentage = 0;
+                            let brightness = (255 * percentage) / 100;
+                            set_rgb_u8(
+                                &mut dev,
+                                ViaRgbMatrixValue::Brightness as u8,
+                                brightness as u8,
+                            )
+                            .unwrap();
+                        }
+
+                        let brightness =
+                            get_rgb_u8(&mut dev, ViaRgbMatrixValue::Brightness as u8).unwrap();
+                        let percentage = (100 * brightness) / 255;
+                        info!("Brightness: {}%", percentage);
+                    } else if arg.as_ref() == cstr16!("--brightness-mid") {
+                        if i + 1 >= args.len() {
+                            let percentage = 50;
+                            let brightness = (255 * percentage) / 100;
+                            set_rgb_u8(
+                                &mut dev,
+                                ViaRgbMatrixValue::Brightness as u8,
+                                brightness as u8,
+                            )
+                            .unwrap();
+                        }
+
+                        let brightness =
+                            get_rgb_u8(&mut dev, ViaRgbMatrixValue::Brightness as u8).unwrap();
+                        let percentage = (100 * brightness) / 255;
+                        info!("Brightness: {}%", percentage);
+                    } else if arg.as_ref() == cstr16!("--brightness-high") {
+                        if i + 1 >= args.len() {
+                            let percentage = 100;
+                            let brightness = (255 * percentage) / 100;
+                            set_rgb_u8(
+                                &mut dev,
+                                ViaRgbMatrixValue::Brightness as u8,
+                                brightness as u8,
+                            )
+                            .unwrap();
+                        }
+
+                        let brightness =
+                            get_rgb_u8(&mut dev, ViaRgbMatrixValue::Brightness as u8).unwrap();
+                        let percentage = (100 * brightness as usize) / 255;
+                        info!("Brightness: {}%", percentage);
+                    }
+                }
+                // Don't care about other pages
                 break;
             }
             Some(HidData::Uint16(page)) => {
