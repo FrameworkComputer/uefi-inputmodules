@@ -222,7 +222,7 @@ fn parse_via_args<'a, I: Iterator<Item = &'a str>>(
     }
 
     //let args = opts.positionals().collect();
-    Ok(Subcommand::Via( ViaArgs {
+    Ok(Subcommand::Via(ViaArgs {
         info,
         bootloader,
         rgb_brightness,
@@ -250,7 +250,7 @@ fn parse_lsusb_args<'a, I: Iterator<Item = &'a str>>(
         }
     }
 
-    Ok(Subcommand::Lsusb( LsusbArgs{ vid, pid }))
+    Ok(Subcommand::Lsusb(LsusbArgs { vid, pid }))
 }
 
 #[entry]
@@ -294,7 +294,7 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
                 match a.subcommand {
                     Subcommand::Gui => {
                         info!("gui!");
-                        gui::draw_sierpinski(boot_services).unwrap();
+                        gui::draw_background(boot_services).unwrap();
                     }
                     Subcommand::Lsusb(_) => {
                         get_usb(boot_services, a);
@@ -395,7 +395,11 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
         return Ok(());
     };
 
-    let mut lsusb = if let Subcommand::Lsusb(_) = args.subcommand { true } else { false};
+    let mut lsusb = if let Subcommand::Lsusb(_) = args.subcommand {
+        true
+    } else {
+        false
+    };
     let mut verbose = args.verbosity > 0;
 
     if verbose {
@@ -621,7 +625,6 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
                         info!("Jumping to bootloader");
                         bootloader_jump(&mut dev).unwrap();
                     } else if let Some(br) = via_args.rgb_brightness {
-
                         if let Some(percentage) = br {
                             let brightness = (255 * percentage as usize) / 100;
                             set_rgb_u8(

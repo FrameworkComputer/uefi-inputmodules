@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+embedded-graphics = "0.7.1"
 getargs = { version = "0.5.0", default-features = false }
 log = "0.4"
+tinybmp = "0.4.0"
 uefi = { version = "0.20", features = ["alloc"] }
 uefi-services = "0.17"
 

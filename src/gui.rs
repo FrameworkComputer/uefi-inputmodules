@@ -10,22 +10,53 @@ use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::Identify;
 use uefi::Result;
 
-#[derive(Clone, Copy)]
-struct Point {
-    x: f32,
-    y: f32,
-}
-
-impl Point {
-    fn new(x: f32, y: f32) -> Self {
-        Self { x, y }
-    }
-}
+use core::convert::TryInto;
+use embedded_graphics::{
+    image::Image,
+    pixelcolor::{GrayColor, Rgb565},
+    prelude::*,
+    primitives::{Circle, PrimitiveStyle},
+};
+use tinybmp::Bmp;
 
 struct Buffer {
     width: usize,
     height: usize,
     pixels: Vec<BltPixel>,
+}
+
+impl OriginDimensions for Buffer {
+    fn size(&self) -> Size {
+        Size::new(self.width as u32, self.height as u32)
+    }
+}
+
+impl DrawTarget for Buffer {
+    type Color = Rgb565;
+    // `ExampleDisplay` uses a framebuffer and doesn't need to communicate with the display
+    // controller to draw pixel, which means that drawing operations can never fail. To reflect
+    // this the type `Infallible` was chosen as the `Error` type.
+    type Error = core::convert::Infallible;
+
+    fn draw_iter<I>(&mut self, pixels: I) -> core::result::Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        for Pixel(coord, color) in pixels.into_iter() {
+            // Check if the pixel coordinates are out of bounds (negative or greater than
+            // (63,63)). `DrawTarget` implementation are required to discard any out of bounds
+            // pixels without returning an error or causing a panic.
+            if coord.x < self.width as i32 && coord.y < self.height as i32 {
+                // Calculate the index in the framebuffer.
+                let pixel = self.pixel(coord.x as usize, coord.y as usize).unwrap();
+                pixel.red = color.r();
+                pixel.green = color.g();
+                pixel.blue = color.b();
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Buffer {
@@ -54,26 +85,15 @@ impl Buffer {
     }
 }
 
-/// Get a random `usize` value.
-fn get_random_usize(rng: &mut Rng) -> usize {
-    let mut buf = [0; mem::size_of::<usize>()];
-    rng.get_rng(None, &mut buf).expect("get_rng failed");
-    usize::from_le_bytes(buf)
-}
-
-pub fn draw_sierpinski(bt: &BootServices) -> Result {
-    info!("draw_sierpinski");
+pub fn draw_background(bs: &BootServices) -> Result {
     // Open graphics output protocol.
-    let gop_handle = bt.get_handle_for_protocol::<GraphicsOutput>()?;
-    let mut gop = bt.open_protocol_exclusive::<GraphicsOutput>(gop_handle)?;
+    let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>()?;
+    // open_protocol_exclusive will steal it from anyone else, meaning shell prints won't work anymore
+    let mut gop = bs.open_protocol_exclusive::<GraphicsOutput>(gop_handle)?;
 
     let mode = gop.current_mode_info();
     let (width, height) = mode.resolution();
-    info!("Resolution {}x{}", width, height);
-
-    // Open random number generator protocol.
-    //let rng_handle = bt.get_handle_for_protocol::<Rng>().unwrap();
-    //let mut rng = bt.open_protocol_exclusive::<Rng>(rng_handle).unwrap();
+    info!("Current Resolution {}x{}", width, height);
 
     // Create a buffer to draw into.
     let (width, height) = gop.current_mode_info().resolution();
@@ -91,37 +111,17 @@ pub fn draw_sierpinski(bt: &BootServices) -> Result {
         }
     }
 
-    let size = Point::new(width as f32, height as f32);
+    let bmp: Bmp<Rgb565> = Bmp::from_slice(include_bytes!(
+        "../../led_matrix_fw/fl16-inputmodules/assets/logo.bmp"
+    ))
+    .unwrap();
+    let image = Image::new(&bmp, Point::new(100, 100));
+    image.draw(&mut buffer).unwrap();
 
-    // Define the vertices of a big triangle.
-    let border = 20.0;
-    let triangle = [
-        Point::new(size.x / 2.0, border),
-        Point::new(border, size.y - border),
-        Point::new(size.x - border, size.y - border),
-    ];
-
-    // `p` is the point to draw. Start at the center of the triangle.
-    let mut p = Point::new(size.x / 2.0, size.y / 2.0);
-
-    // Loop forever, drawing the frame after each new point is changed.
+    // Draw the buffer to the screen.
+    buffer.blit(&mut gop)?;
     loop {
-        // Choose one of the triangle's vertices at random.
-        //let v = triangle[get_random_usize(&mut rng) % 3];
-        let v = triangle[0];
-
-        // Move `p` halfway to the chosen vertex.
-        p.x = (p.x + v.x) * 0.5;
-        p.y = (p.y + v.y) * 0.5;
-
-        // Set `p` to black.
-        let pixel = buffer.pixel(p.x as usize, p.y as usize).unwrap();
-        pixel.red = 0;
-        pixel.green = 100;
-        pixel.blue = 0;
-
-        // Draw the buffer to the screen.
-        buffer.blit(&mut gop)?;
+        bs.stall(10_000_000);
     }
-    Ok(())
+    unreachable!()
 }
