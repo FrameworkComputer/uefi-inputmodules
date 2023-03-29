@@ -4,25 +4,58 @@
 
 extern crate alloc;
 
+use alloc::string::String;
+use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use log::info;
+use log::{debug, error, info};
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::{prelude::*, CString16};
 use uefi::{Identify, Result};
 
+use crate::shell::*;
 use crate::shell_params::*;
 use crate::uefi_usb::*;
 use crate::via::*;
 
+mod gui;
 pub mod raw_hid;
+pub mod shell;
 pub mod shell_params;
 pub mod uefi_usb;
 pub mod via;
 
 const TIMEOUT: u32 = 3000;
 const VERBOSE: bool = false;
+
+/// Enable pagination in UEFI shell
+///
+/// Pagination is handled by the UEFI shell environment automatically, whenever
+/// the application prints more than fits on the screen.
+fn enable_page_break(boot_services: &BootServices) {
+    let shell_handles = boot_services.locate_handle_buffer(SearchType::ByProtocol(&Shell::GUID));
+    if let Ok(sh_buf) = shell_handles {
+        for handle in &*sh_buf {
+            //info!("Calling enable_page_break");
+            let mut shell_handle = unsafe {
+                boot_services
+                    .open_protocol::<Shell>(
+                        OpenProtocolParams {
+                            handle: *handle,
+                            agent: boot_services.image_handle(),
+                            controller: None,
+                        },
+                        OpenProtocolAttributes::GetProtocol,
+                    )
+                    .expect("Failed to open Shell handle")
+            };
+            shell_handle.enable_page_break();
+        }
+    } else {
+        assert!(false, "No shell handle found!");
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Color {
@@ -53,6 +86,166 @@ pub fn color_as_hue(color: Color) -> u8 {
     }
 }
 
+use getargs::{Error, Opt, Options};
+
+#[allow(unused)] // fields are not actually used in this example
+#[derive(Debug)]
+struct Arguments {
+    verbosity: u32,
+    paginate: bool,
+    subcommand: Subcommand,
+}
+
+#[allow(unused)] // fields are not actually used in this example
+#[derive(Debug)]
+enum Subcommand {
+    Gui,
+    Lsusb {
+        /// Filter by vendor ID
+        vid: Option<u16>,
+        /// Filter by product ID
+        pid: Option<u16>,
+    },
+    Via {
+        /// Get VIA protocol and config information (most likely NOT what you're looking for)
+        info: bool,
+
+        ///// Flash device indication (backlight) 3x
+        //device_indication: bool,
+        /// Set RGB brightness percentage or get, if no value provided
+        rgb_brightness: Option<Option<u8>>,
+
+        ///// Set RGB effect or get, if no value provided
+        //rgb_effect: Option<Option<u8>>,
+
+        ///// Set RGB effect speed or get, if no value provided (0-255)
+        //rgb_effect_speed: Option<Option<u8>>,
+
+        ///// Set RGB hue or get, if no value provided. (0-255)
+        //rgb_hue: Option<Option<u8>>,
+
+        ///// Set RGB color
+        //rgb_color: Option<Color>,
+
+        ///// Set RGB saturation or get, if no value provided. (0-255)
+        //rgb_saturation: Option<Option<u8>>,
+
+        ///// Set backlight brightness percentage or get, if no value provided
+        //backlight: Option<Option<u8>>,
+
+        ///// Set backlight breathing or get, if no value provided
+        //backlight_breathing: Option<Option<bool>>,
+
+        ///// Save RGB/backlight value, otherwise it won't persist through keyboard reboot. Can be used
+        ///// by itself or together with other argument.
+        //save: bool,
+
+        ///// Reset the EEPROM contents (Not supported by all firmware)
+        //eeprom_reset: bool,
+        /// Jump to the bootloader (Not supported by all firmware)
+        bootloader: bool,
+    },
+}
+
+/// Parse all the arguments
+fn parse_args<'a, I: Iterator<Item = &'a str>>(
+    opts: &mut Options<&'a str, I>,
+) -> core::result::Result<Arguments, ()> {
+    let mut verbosity = 0;
+    // TODO: Run
+    // gEfiShellProtocol->EnablePageBreak ();
+    let mut paginate = false;
+
+    // Parse the top-level options
+    while let Some(opt) = opts.next_opt().unwrap() {
+        match opt {
+            Opt::Short('h') | Opt::Long("help") => return Err(()),
+            Opt::Short('b') => paginate = true,
+            Opt::Short('v') | Opt::Long("verbose") => verbosity += 1,
+            _ => {
+                info!("got unknown option {opt:?}");
+                return Err(());
+            }
+        }
+    }
+
+    let subcommand_name = opts.next_positional().ok_or(())?;
+    let subcommand = match subcommand_name {
+        "lsusb" => parse_lsusb_args(opts)?,
+        "gui" => parse_gui_args(opts)?,
+        "via" => parse_via_args(opts)?,
+        _ => {
+            info!("got unknown subcommand {subcommand_name:?}");
+            return Err(());
+        }
+    };
+
+    Ok(Arguments {
+        verbosity,
+        subcommand,
+        paginate,
+    })
+}
+
+/// Parse the arguments for the 'via' subcommand
+fn parse_via_args<'a, I: Iterator<Item = &'a str>>(
+    opts: &mut Options<&'a str, I>,
+) -> core::result::Result<Subcommand, ()> {
+    // TODO: Use Subcommand::default();
+    let mut info = false;
+    let mut bootloader = false;
+    let mut rgb_brightness = None;
+    while let Some(opt) = opts.next_opt().unwrap() {
+        match opt {
+            Opt::Long("info") => {
+                info = true;
+            }
+            Opt::Long("bootloader") => {
+                info = true;
+            }
+            Opt::Long("rgb-brightness") => {
+                rgb_brightness = if let Ok(arg) = opts.value() {
+                    Some(arg.parse::<u8>().ok())
+                } else {
+                    Some(None)
+                };
+            }
+            _ => return Err(()),
+        }
+    }
+
+    //let args = opts.positionals().collect();
+    Ok(Subcommand::Via {
+        info,
+        bootloader,
+        rgb_brightness,
+    })
+}
+
+/// Parse the arguments for the 'lsusb' subcommand
+fn parse_gui_args<'a, I: Iterator<Item = &'a str>>(
+    opts: &mut Options<&'a str, I>,
+) -> core::result::Result<Subcommand, ()> {
+    Ok(Subcommand::Gui {})
+}
+
+/// Parse the arguments for the 'lsusb' subcommand
+fn parse_lsusb_args<'a, I: Iterator<Item = &'a str>>(
+    opts: &mut Options<&'a str, I>,
+) -> core::result::Result<Subcommand, ()> {
+    let mut pid = None;
+    let mut vid = None;
+    while let Some(opt) = opts.next_opt().unwrap() {
+        match opt {
+            Opt::Long("vid") => vid = u16::from_str_radix(opts.value().unwrap(), 16).ok(),
+            Opt::Long("pid") => pid = u16::from_str_radix(opts.value().unwrap(), 16).ok(),
+            _ => return Err(()),
+        }
+    }
+
+    Ok(Subcommand::Lsusb { vid, pid })
+}
+
 #[entry]
 fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
@@ -81,9 +274,80 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
             continue;
         }
 
-        let args = params_handle.get_args();
-        //info!("Args: {}", params_handle.argc);
-        //info!("Args: {:?}", params_handle.get_args());
+        let args = params_handle.get_str_args();
+
+        //let args: Vec<_> = std::env::args().skip(1).collect();
+        let mut opts = Options::new(args.iter().map(String::as_str));
+        let arguments = parse_args(&mut opts);
+        match arguments {
+            Ok(a) => {
+                if a.paginate {
+                    enable_page_break(boot_services);
+                }
+                match a.subcommand {
+                    Subcommand::Gui => {
+                        info!("gui!");
+                        gui::draw_sierpinski(boot_services).unwrap();
+                    }
+                    _ => {
+                        for _ in 0..20 {
+                            info!("{a:#?}")
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                info!(
+                    r"Usage: complete [-h] [-vvvv] SUBCOMMAND
+    Argument parsing demo. This does not actually create or delete anything.
+    Options:
+        -h, --help      help
+        -v, --verbose   verbose (specify multiple times for more verbosity)
+    SUBCOMMAND is one of:
+        create [-o OUTPUT] [FILE ...]"
+                );
+            }
+            Err(_) => {
+                //info!("Usage error: {e}");
+                info!("Try '--help' for help");
+                return Status::INVALID_PARAMETER;
+            }
+        }
+    }
+    Status::SUCCESS
+}
+
+//#[entry]
+fn main_foo(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
+    uefi_services::init(&mut system_table).unwrap();
+    let boot_services = system_table.boot_services();
+
+    let shell_params_h = boot_services
+        .locate_handle_buffer(SearchType::ByProtocol(&ShellParameters::GUID))
+        .unwrap();
+    //info!("Found {} ShellParams handles", (*shell_params_h).len());
+    for handle in &*shell_params_h {
+        let params_handle = unsafe {
+            boot_services
+                .open_protocol::<ShellParameters>(
+                    OpenProtocolParams {
+                        handle: *handle,
+                        agent: boot_services.image_handle(),
+                        controller: None,
+                    },
+                    OpenProtocolAttributes::GetProtocol,
+                )
+                .expect("Failed to open UsbIo handle")
+        };
+
+        // Ehm why are there two and one has no args?
+        if params_handle.argc == 0 {
+            continue;
+        }
+
+        let args = params_handle.get_str_args();
+        info!("Args: {}", params_handle.argc);
+        info!("Args: {:?}", params_handle.get_str_args());
 
         if args.len() == 1 {
             info!("Use args:");
@@ -95,12 +359,12 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
             info!(" --brightness-high");
             break;
         }
-        for (i, _) in args.iter().enumerate() {
+        for (i, arg) in args.iter().enumerate() {
             if i == 0 {
                 continue;
             }
-            get_usb(boot_services, args).unwrap();
-            break;
+            //get_usb(boot_services, args).unwrap();
+            //break;
         }
     }
 

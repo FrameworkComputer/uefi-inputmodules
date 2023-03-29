@@ -1,5 +1,9 @@
 # uefi-experiments
 
+Pre-requisites:
+
+- [Rustup](https://rustup.rs/)
+
 Build:
 
 ```

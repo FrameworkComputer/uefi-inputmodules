@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+getargs = { version = "0.5.0", default-features = false }
 log = "0.4"
 uefi = { version = "0.20", features = ["alloc"] }
 uefi-services = "0.17"

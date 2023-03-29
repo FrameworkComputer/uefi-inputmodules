@@ -3,6 +3,8 @@ use core::ffi::c_void;
 use uefi::proto::unsafe_protocol;
 use uefi::{CStr16, CString16, Char16};
 
+use alloc::string::String;
+use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -20,9 +22,20 @@ pub struct ShellParameters {
 impl ShellParameters {
     pub fn get_args(&self) -> Vec<CString16> {
         let mut args = vec![];
-        for i in 0..self.argc {
+        // Skip first one, which is the executable's name
+        for i in 1..self.argc {
             let str = unsafe { CStr16::from_ptr(*self.argv.add(i)) };
             let string = str.to_owned();
+            args.push(string);
+        }
+        args
+    }
+    pub fn get_str_args(&self) -> Vec<String> {
+        let mut args = vec![];
+        // Skip first one, which is the executable's name
+        for i in 1..self.argc {
+            let str = unsafe { CStr16::from_ptr(*self.argv.add(i)) };
+            let string = str.to_string();
             args.push(string);
         }
         args
