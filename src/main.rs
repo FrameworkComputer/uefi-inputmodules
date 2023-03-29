@@ -364,7 +364,7 @@ fn get_usb(bs: &BootServices, args: Vec<CString16>) -> Result {
 
                         let brightness =
                             get_rgb_u8(&mut dev, ViaRgbMatrixValue::Brightness as u8).unwrap();
-                        let percentage = (100 * brightness) / 255;
+                        let percentage = (100 * brightness as usize) / 255;
                         info!("Brightness: {}%", percentage);
                     } else if arg.as_ref() == cstr16!("--brightness-mid") {
                         if i + 1 >= args.len() {
@@ -380,7 +380,7 @@ fn get_usb(bs: &BootServices, args: Vec<CString16>) -> Result {
 
                         let brightness =
                             get_rgb_u8(&mut dev, ViaRgbMatrixValue::Brightness as u8).unwrap();
-                        let percentage = (100 * brightness) / 255;
+                        let percentage = (100 * brightness as usize) / 255;
                         info!("Brightness: {}%", percentage);
                     } else if arg.as_ref() == cstr16!("--brightness-high") {
                         if i + 1 >= args.len() {
