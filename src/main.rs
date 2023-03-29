@@ -5,14 +5,13 @@
 extern crate alloc;
 
 use alloc::string::String;
-use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use getargs::Arg;
+#[allow(unused_imports)]
 use log::{debug, error, info};
+use uefi::prelude::*;
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
-use uefi::{prelude::*, CString16};
 use uefi::{Identify, Result};
 
 use crate::shell::*;
@@ -39,7 +38,7 @@ fn enable_page_break(boot_services: &BootServices) {
     if let Ok(sh_buf) = shell_handles {
         for handle in &*sh_buf {
             //info!("Calling enable_page_break");
-            let mut shell_handle = unsafe {
+            let shell_handle = unsafe {
                 boot_services
                     .open_protocol::<Shell>(
                         OpenProtocolParams {
@@ -54,7 +53,7 @@ fn enable_page_break(boot_services: &BootServices) {
             shell_handle.enable_page_break();
         }
     } else {
-        assert!(false, "No shell handle found!");
+        panic!("No shell handle found!");
     }
 }
 
@@ -87,7 +86,7 @@ pub fn color_as_hue(color: Color) -> u8 {
     }
 }
 
-use getargs::{Error, Opt, Options};
+use getargs::{Opt, Options};
 
 #[allow(unused)] // fields are not actually used in this example
 #[derive(Debug)]
@@ -208,7 +207,7 @@ fn parse_via_args<'a, I: Iterator<Item = &'a str>>(
                 info = true;
             }
             Opt::Long("bootloader") => {
-                info = true;
+                bootloader = true;
             }
             Opt::Long("rgb-brightness") => {
                 rgb_brightness = if let Ok(arg) = opts.value() {
@@ -231,7 +230,7 @@ fn parse_via_args<'a, I: Iterator<Item = &'a str>>(
 
 /// Parse the arguments for the 'lsusb' subcommand
 fn parse_gui_args<'a, I: Iterator<Item = &'a str>>(
-    opts: &mut Options<&'a str, I>,
+    _opts: &mut Options<&'a str, I>,
 ) -> core::result::Result<Subcommand, ()> {
     Ok(Subcommand::Gui {})
 }
@@ -297,15 +296,10 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
                         gui::draw_background(boot_services).unwrap();
                     }
                     Subcommand::Lsusb(_) => {
-                        get_usb(boot_services, a);
+                        get_usb(boot_services, a).unwrap();
                     }
                     Subcommand::Via(_) => {
-                        get_usb(boot_services, a);
-                    }
-                    _ => {
-                        for _ in 0..20 {
-                            info!("{a:#?}")
-                        }
+                        get_usb(boot_services, a).unwrap();
                     }
                 }
             }
@@ -319,69 +313,10 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     SUBCOMMAND is one of:
         create [-o OUTPUT] [FILE ...]"
                 );
-            }
-            Err(_) => {
-                //info!("Usage error: {e}");
-                info!("Try '--help' for help");
                 return Status::INVALID_PARAMETER;
             }
         }
     }
-    Status::SUCCESS
-}
-
-//#[entry]
-fn main_foo(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    uefi_services::init(&mut system_table).unwrap();
-    let boot_services = system_table.boot_services();
-
-    let shell_params_h = boot_services
-        .locate_handle_buffer(SearchType::ByProtocol(&ShellParameters::GUID))
-        .unwrap();
-    //info!("Found {} ShellParams handles", (*shell_params_h).len());
-    for handle in &*shell_params_h {
-        let params_handle = unsafe {
-            boot_services
-                .open_protocol::<ShellParameters>(
-                    OpenProtocolParams {
-                        handle: *handle,
-                        agent: boot_services.image_handle(),
-                        controller: None,
-                    },
-                    OpenProtocolAttributes::GetProtocol,
-                )
-                .expect("Failed to open UsbIo handle")
-        };
-
-        // Ehm why are there two and one has no args?
-        if params_handle.argc == 0 {
-            continue;
-        }
-
-        let args = params_handle.get_str_args();
-        info!("Args: {}", params_handle.argc);
-        info!("Args: {:?}", params_handle.get_str_args());
-
-        if args.len() == 1 {
-            info!("Use args:");
-            info!(" --lsusb");
-            info!(" --verbose");
-            info!(" --bootloader");
-            info!(" --brightness-low");
-            info!(" --brightness-mid");
-            info!(" --brightness-high");
-            break;
-        }
-        for (i, arg) in args.iter().enumerate() {
-            if i == 0 {
-                continue;
-            }
-            //get_usb(boot_services, args).unwrap();
-            //break;
-        }
-    }
-
-    //boot_services.stall(10_000_000);
     Status::SUCCESS
 }
 
@@ -395,12 +330,8 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
         return Ok(());
     };
 
-    let mut lsusb = if let Subcommand::Lsusb(_) = args.subcommand {
-        true
-    } else {
-        false
-    };
-    let mut verbose = args.verbosity > 0;
+    let lsusb = matches!(args.subcommand, Subcommand::Lsusb(_));
+    let verbose = args.verbosity > 0;
 
     if verbose {
         info!("Found {} UsbIo handles", (*usb_io_handles).len());
@@ -421,6 +352,21 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
         let desc = usb_handle
             .get_device_descriptor()
             .expect("Failed to get Device Descriptor");
+
+        if let Subcommand::Lsusb(lsusb_args) = &args.subcommand {
+            if let Some(pid) = lsusb_args.pid {
+                // Filter by PID and PID isn't the selected one
+                if pid != desc.id_product {
+                    continue;
+                }
+            }
+            if let Some(vid) = lsusb_args.vid {
+                // Filter by VID and VID isn't the selected one
+                if vid != desc.id_vendor {
+                    continue;
+                }
+            }
+        }
 
         // Currently only interested in Keychron/Framework/Logitech keyboards
         // To avoid spamming the output
@@ -624,6 +570,25 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
                     if via_args.bootloader {
                         info!("Jumping to bootloader");
                         bootloader_jump(&mut dev).unwrap();
+                    } else if via_args.info {
+                        let prot_ver = get_protocol_ver(&mut dev).unwrap();
+                        let uptime =
+                            get_keyboard_value(&mut dev, ViaKeyboardValueId::Uptime).unwrap();
+                        let layout_opts =
+                            get_keyboard_value(&mut dev, ViaKeyboardValueId::LayoutOptions)
+                                .unwrap();
+                        let matrix_state =
+                            get_keyboard_value(&mut dev, ViaKeyboardValueId::SwitchMatrixState)
+                                .unwrap();
+                        let fw_ver =
+                            get_keyboard_value(&mut dev, ViaKeyboardValueId::FirmwareVersion)
+                                .unwrap();
+
+                        info!("Uptime:               {:?}s", uptime / 1000);
+                        info!("VIA Protocol Version: 0x{prot_ver:04X}");
+                        info!("Layout Options:       0x{layout_opts:08X}");
+                        info!("Switch Matrix State:  0x{matrix_state:08X}"); // TODO: Decode
+                        info!("VIA FWVER:            0x{fw_ver:08X}");
                     } else if let Some(br) = via_args.rgb_brightness {
                         if let Some(percentage) = br {
                             let brightness = (255 * percentage as usize) / 100;

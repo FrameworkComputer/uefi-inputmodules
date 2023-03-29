@@ -1,22 +1,14 @@
 use alloc::vec;
 use alloc::vec::Vec;
-use core::mem;
+#[allow(unused_imports)]
 use log::{debug, error, info};
+#[allow(unused_imports)]
 use uefi::prelude::*;
 use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
-use uefi::proto::rng::Rng;
 use uefi::table::boot::BootServices;
-use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
-use uefi::Identify;
 use uefi::Result;
 
-use core::convert::TryInto;
-use embedded_graphics::{
-    image::Image,
-    pixelcolor::{GrayColor, Rgb565},
-    prelude::*,
-    primitives::{Circle, PrimitiveStyle},
-};
+use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
 use tinybmp::Bmp;
 
 struct Buffer {
@@ -123,5 +115,4 @@ pub fn draw_background(bs: &BootServices) -> Result {
     loop {
         bs.stall(10_000_000);
     }
-    unreachable!()
 }
