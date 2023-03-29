@@ -23,8 +23,19 @@ Boot to UEFI shell and run:
 # Switch to partition
 fs0:
 
-# Run
-uefi-qmk-hid.efi
+# Run one of
 
-# Should display some info about USB devices
+# GUI. Use the arrow keys to move the logo around
+uefi-qmk-hid.efi gui
+
+# Get info about USB devices
+uefi-qmk-hid.efi lsusb
+uefi-qmk-hid.efi lsusb -v
+
+# Control QMK keyboard
+uefi-qmk-hid.efi lsusb via --bootloader
+uefi-qmk-hid.efi lsusb via --rgb-brightness
+uefi-qmk-hid.efi lsusb via --rgb-brightness 100
+uefi-qmk-hid.efi lsusb via --rgb-brightness 50
+uefi-qmk-hid.efi lsusb via --rgb-brightness 0
 ```
