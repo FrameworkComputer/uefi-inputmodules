@@ -8,7 +8,7 @@ use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
 use uefi::table::boot::BootServices;
 use uefi::Result;
 
-use embedded_graphics::{image::Image, pixelcolor::Rgb565, prelude::*};
+use embedded_graphics::{image::Image, pixelcolor::Rgb888, prelude::*};
 use tinybmp::Bmp;
 
 struct Buffer {
@@ -24,7 +24,7 @@ impl OriginDimensions for Buffer {
 }
 
 impl DrawTarget for Buffer {
-    type Color = Rgb565;
+    type Color = Rgb888;
     // `ExampleDisplay` uses a framebuffer and doesn't need to communicate with the display
     // controller to draw pixel, which means that drawing operations can never fail. To reflect
     // this the type `Infallible` was chosen as the `Error` type.
@@ -103,10 +103,11 @@ pub fn draw_background(bs: &BootServices) -> Result {
         }
     }
 
-    let bmp: Bmp<Rgb565> = Bmp::from_slice(include_bytes!(
+    let bmp: Bmp<Rgb888> = Bmp::from_slice(include_bytes!(
         "../../led_matrix_fw/fl16-inputmodules/assets/logo.bmp"
     ))
-    .unwrap();
+    .unwrap()
+    .into();
     let image = Image::new(&bmp, Point::new(100, 100));
     image.draw(&mut buffer).unwrap();
 
