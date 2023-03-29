@@ -2,11 +2,12 @@ use alloc::vec;
 use alloc::vec::Vec;
 #[allow(unused_imports)]
 use log::{debug, error, info};
-#[allow(unused_imports)]
-use uefi::prelude::*;
 use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
+use uefi::proto::console::text::{Input, Key, ScanCode};
 use uefi::table::boot::BootServices;
 use uefi::Result;
+#[allow(unused_imports)]
+use uefi::{prelude::*, Char16};
 
 use embedded_graphics::{image::Image, pixelcolor::Rgb888, prelude::*};
 use tinybmp::Bmp;
@@ -106,14 +107,54 @@ pub fn draw_background(bs: &BootServices) -> Result {
     let bmp: Bmp<Rgb888> = Bmp::from_slice(include_bytes!(
         "../../led_matrix_fw/fl16-inputmodules/assets/logo.bmp"
     ))
-    .unwrap()
-    .into();
+    .unwrap();
     let image = Image::new(&bmp, Point::new(100, 100));
     image.draw(&mut buffer).unwrap();
 
     // Draw the buffer to the screen.
     buffer.blit(&mut gop)?;
+
+    let input_handle = bs.get_handle_for_protocol::<Input>().unwrap();
+    let mut input = bs.open_protocol_exclusive::<Input>(input_handle).unwrap();
+
+    let mut x = 0;
+    let mut y = 0;
     loop {
-        bs.stall(10_000_000);
+        // Pause until a keyboard event occurs.
+        let mut events = unsafe { [input.wait_for_key_event().unsafe_clone()] };
+        bs.wait_for_event(&mut events).discard_errdata().unwrap();
+
+        //let u_key = Char16::try_from('u').unwrap();
+        match input.read_key().unwrap() {
+            // Example of handling a printable key: print a message when
+            // the 'u' key is pressed.
+            //Some(Key::Printable(key)) if key == u_key => {
+            //    info!("the 'u' key was pressed");
+            //}
+            Some(Key::Special(ScanCode::LEFT)) => {
+                y -= 10;
+            }
+            Some(Key::Special(ScanCode::RIGHT)) => {
+                y += 10;
+            }
+            Some(Key::Special(ScanCode::UP)) => {
+                x -= 10;
+            }
+            Some(Key::Special(ScanCode::DOWN)) => {
+                x += 10;
+            }
+
+            // Example of handling a special key: exit the loop when the
+            // escape key is pressed.
+            Some(Key::Special(ScanCode::ESCAPE)) => {
+                break;
+            }
+            _ => {}
+        };
+        // X and Y are exchanged?
+        let image = Image::new(&bmp, Point::new(100, 100) + Point::new(y, x));
+        image.draw(&mut buffer).unwrap();
+        buffer.blit(&mut gop)?;
     }
+    Ok(())
 }
