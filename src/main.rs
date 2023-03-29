@@ -9,6 +9,7 @@ use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
 
+use getargs::Arg;
 use log::{debug, error, info};
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::{prelude::*, CString16};
@@ -96,55 +97,61 @@ struct Arguments {
     subcommand: Subcommand,
 }
 
+#[derive(Debug)]
+struct ViaArgs {
+    /// Get VIA protocol and config information (most likely NOT what you're looking for)
+    info: bool,
+
+    ///// Flash device indication (backlight) 3x
+    //device_indication: bool,
+    /// Set RGB brightness percentage or get, if no value provided
+    rgb_brightness: Option<Option<u8>>,
+
+    ///// Set RGB effect or get, if no value provided
+    //rgb_effect: Option<Option<u8>>,
+
+    ///// Set RGB effect speed or get, if no value provided (0-255)
+    //rgb_effect_speed: Option<Option<u8>>,
+
+    ///// Set RGB hue or get, if no value provided. (0-255)
+    //rgb_hue: Option<Option<u8>>,
+
+    ///// Set RGB color
+    //rgb_color: Option<Color>,
+
+    ///// Set RGB saturation or get, if no value provided. (0-255)
+    //rgb_saturation: Option<Option<u8>>,
+
+    ///// Set backlight brightness percentage or get, if no value provided
+    //backlight: Option<Option<u8>>,
+
+    ///// Set backlight breathing or get, if no value provided
+    //backlight_breathing: Option<Option<bool>>,
+
+    ///// Save RGB/backlight value, otherwise it won't persist through keyboard reboot. Can be used
+    ///// by itself or together with other argument.
+    //save: bool,
+
+    ///// Reset the EEPROM contents (Not supported by all firmware)
+    //eeprom_reset: bool,
+    /// Jump to the bootloader (Not supported by all firmware)
+    bootloader: bool,
+}
+
+#[derive(Debug)]
+struct LsusbArgs {
+    /// Filter by vendor ID
+    vid: Option<u16>,
+    /// Filter by product ID
+    pid: Option<u16>,
+}
+
 #[allow(unused)] // fields are not actually used in this example
 #[derive(Debug)]
 enum Subcommand {
     Gui,
-    Lsusb {
-        /// Filter by vendor ID
-        vid: Option<u16>,
-        /// Filter by product ID
-        pid: Option<u16>,
-    },
-    Via {
-        /// Get VIA protocol and config information (most likely NOT what you're looking for)
-        info: bool,
-
-        ///// Flash device indication (backlight) 3x
-        //device_indication: bool,
-        /// Set RGB brightness percentage or get, if no value provided
-        rgb_brightness: Option<Option<u8>>,
-
-        ///// Set RGB effect or get, if no value provided
-        //rgb_effect: Option<Option<u8>>,
-
-        ///// Set RGB effect speed or get, if no value provided (0-255)
-        //rgb_effect_speed: Option<Option<u8>>,
-
-        ///// Set RGB hue or get, if no value provided. (0-255)
-        //rgb_hue: Option<Option<u8>>,
-
-        ///// Set RGB color
-        //rgb_color: Option<Color>,
-
-        ///// Set RGB saturation or get, if no value provided. (0-255)
-        //rgb_saturation: Option<Option<u8>>,
-
-        ///// Set backlight brightness percentage or get, if no value provided
-        //backlight: Option<Option<u8>>,
-
-        ///// Set backlight breathing or get, if no value provided
-        //backlight_breathing: Option<Option<bool>>,
-
-        ///// Save RGB/backlight value, otherwise it won't persist through keyboard reboot. Can be used
-        ///// by itself or together with other argument.
-        //save: bool,
-
-        ///// Reset the EEPROM contents (Not supported by all firmware)
-        //eeprom_reset: bool,
-        /// Jump to the bootloader (Not supported by all firmware)
-        bootloader: bool,
-    },
+    Lsusb(LsusbArgs),
+    Via(ViaArgs),
 }
 
 /// Parse all the arguments
@@ -215,11 +222,11 @@ fn parse_via_args<'a, I: Iterator<Item = &'a str>>(
     }
 
     //let args = opts.positionals().collect();
-    Ok(Subcommand::Via {
+    Ok(Subcommand::Via( ViaArgs {
         info,
         bootloader,
         rgb_brightness,
-    })
+    }))
 }
 
 /// Parse the arguments for the 'lsusb' subcommand
@@ -243,7 +250,7 @@ fn parse_lsusb_args<'a, I: Iterator<Item = &'a str>>(
         }
     }
 
-    Ok(Subcommand::Lsusb { vid, pid })
+    Ok(Subcommand::Lsusb( LsusbArgs{ vid, pid }))
 }
 
 #[entry]
@@ -288,6 +295,12 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
                     Subcommand::Gui => {
                         info!("gui!");
                         gui::draw_sierpinski(boot_services).unwrap();
+                    }
+                    Subcommand::Lsusb(_) => {
+                        get_usb(boot_services, a);
+                    }
+                    Subcommand::Via(_) => {
+                        get_usb(boot_services, a);
                     }
                     _ => {
                         for _ in 0..20 {
@@ -372,7 +385,7 @@ fn main_foo(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
     Status::SUCCESS
 }
 
-fn get_usb(bs: &BootServices, args: Vec<CString16>) -> Result {
+fn get_usb(bs: &BootServices, args: Arguments) -> Result {
     let usb_io_handles = bs.locate_handle_buffer(SearchType::ByProtocol(&UsbIo::GUID));
 
     let usb_io_handles = if let Ok(usb_io_handles) = usb_io_handles {
@@ -382,16 +395,8 @@ fn get_usb(bs: &BootServices, args: Vec<CString16>) -> Result {
         return Ok(());
     };
 
-    let mut lsusb = false;
-    let mut verbose = false;
-    for arg in args.clone() {
-        if arg.as_ref() == cstr16!("--lsusb") {
-            lsusb = true;
-        }
-        if arg.as_ref() == cstr16!("--verbose") {
-            verbose = true;
-        }
-    }
+    let mut lsusb = if let Subcommand::Lsusb(_) = args.subcommand { true } else { false};
+    let mut verbose = args.verbosity > 0;
 
     if verbose {
         info!("Found {} UsbIo handles", (*usb_io_handles).len());
@@ -608,48 +613,17 @@ fn get_usb(bs: &BootServices, args: Vec<CString16>) -> Result {
                     out_endpoint_addr,
                 };
 
-                let protocol_ver = get_protocol_ver(&mut dev);
-                info!("Protocol version: {:?}", protocol_ver);
-                for (i, arg) in args.iter().enumerate() {
-                    if arg.as_ref() == cstr16!("--bootloader") {
+                if let Subcommand::Via(via_args) = args.subcommand {
+                    let protocol_ver = get_protocol_ver(&mut dev);
+                    info!("Protocol version: {:?}", protocol_ver);
+
+                    if via_args.bootloader {
                         info!("Jumping to bootloader");
                         bootloader_jump(&mut dev).unwrap();
-                    } else if arg.as_ref() == cstr16!("--brightness-low") {
-                        if i + 1 >= args.len() {
-                            let percentage = 0;
-                            let brightness = (255 * percentage) / 100;
-                            set_rgb_u8(
-                                &mut dev,
-                                ViaRgbMatrixValue::Brightness as u8,
-                                brightness as u8,
-                            )
-                            .unwrap();
-                        }
+                    } else if let Some(br) = via_args.rgb_brightness {
 
-                        let brightness =
-                            get_rgb_u8(&mut dev, ViaRgbMatrixValue::Brightness as u8).unwrap();
-                        let percentage = (100 * brightness as usize) / 255;
-                        info!("Brightness: {}%", percentage);
-                    } else if arg.as_ref() == cstr16!("--brightness-mid") {
-                        if i + 1 >= args.len() {
-                            let percentage = 50;
-                            let brightness = (255 * percentage) / 100;
-                            set_rgb_u8(
-                                &mut dev,
-                                ViaRgbMatrixValue::Brightness as u8,
-                                brightness as u8,
-                            )
-                            .unwrap();
-                        }
-
-                        let brightness =
-                            get_rgb_u8(&mut dev, ViaRgbMatrixValue::Brightness as u8).unwrap();
-                        let percentage = (100 * brightness as usize) / 255;
-                        info!("Brightness: {}%", percentage);
-                    } else if arg.as_ref() == cstr16!("--brightness-high") {
-                        if i + 1 >= args.len() {
-                            let percentage = 100;
-                            let brightness = (255 * percentage) / 100;
+                        if let Some(percentage) = br {
+                            let brightness = (255 * percentage as usize) / 100;
                             set_rgb_u8(
                                 &mut dev,
                                 ViaRgbMatrixValue::Brightness as u8,

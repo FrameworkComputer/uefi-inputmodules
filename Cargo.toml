@@ -12,3 +12,6 @@ uefi-services = "0.17"
 #[dependencies.ptr_meta]
 #version = "0.2.0"
 #default-features = false
+
+[profile.release]
+lto = true
