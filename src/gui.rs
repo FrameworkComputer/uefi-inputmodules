@@ -4,7 +4,9 @@ use alloc::vec::Vec;
 use log::{debug, error, info};
 use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
 use uefi::proto::console::text::{Input, Key, ScanCode};
-use uefi::table::boot::BootServices;
+use uefi::proto::device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly};
+use uefi::proto::device_path::DevicePath;
+use uefi::table::boot::{BootServices, ScopedProtocol};
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::Identify;
 use uefi::Result;
@@ -86,11 +88,62 @@ impl Buffer {
     }
 }
 
-pub fn draw_background(bs: &BootServices) -> Result {
-    // Open graphics output protocol.
-    let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>()?;
-    // open_protocol_exclusive will steal it from anyone else, meaning shell prints won't work anymore
-    let mut gop = bs.open_protocol_exclusive::<GraphicsOutput>(gop_handle)?;
+// Just experimenting
+pub fn _draw_console(st: &mut SystemTable<Boot>) -> Result {
+    let stdout = st.stdout();
+    stdout.reset(false).unwrap();
+    stdout.set_cursor_position(0, 0).unwrap();
+    stdout.output_string(cstr16!("string")).unwrap();
+    stdout.set_cursor_position(10, 10).unwrap();
+    stdout.output_string(cstr16!("foo")).unwrap();
+    stdout.set_cursor_position(20, 20).unwrap();
+    stdout.output_string(cstr16!("bar")).unwrap();
+    Ok(())
+}
+
+pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
+    //// Open graphics output protocol.
+    //let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>()?;
+    //// open_protocol_exclusive will steal it from anyone else, meaning shell prints won't work anymore
+    //let mut gop = bs.open_protocol_exclusive::<GraphicsOutput>(gop_handle)?;
+
+    //let mut gop = unsafe {
+    //    bs.open_protocol::<GraphicsOutput>(
+    //        OpenProtocolParams {
+    //            handle: *st.stdout_handle(),
+    //            agent: bs.image_handle(),
+    //            controller: None,
+    //        },
+    //        OpenProtocolAttributes::GetProtocol,
+    //    )
+    //    .expect("Failed to open GraphicsOutput handle")
+    //};
+
+    let gop_handles = if let Ok(gop_handles) =
+        bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
+    {
+        gop_handles
+    } else {
+        info!("GraphicsOutput protocol is missing");
+        return Ok(());
+    };
+
+    let mut gop = if let Some(handle) = gop_handles.iter().next() {
+        unsafe {
+            bs.open_protocol::<GraphicsOutput>(
+                OpenProtocolParams {
+                    handle: *handle,
+                    agent: bs.image_handle(),
+                    controller: None,
+                },
+                OpenProtocolAttributes::GetProtocol,
+            )
+            .expect("Failed to open GraphicsOutput handle")
+        }
+    } else {
+        info!("No GOP handles found");
+        return Ok(());
+    };
 
     let mode = gop.current_mode_info();
     let (width, height) = mode.resolution();
@@ -181,9 +234,9 @@ pub fn print_gop_modes(bs: &BootServices) -> Result {
     // open_protocol_exclusive will steal it from anyone else, meaning shell prints won't work anymore
     //let mut gop = bs.open_protocol_exclusive::<GraphicsOutput>(gop_handle)?;
 
-    let gop_handles = bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID));
-
-    let gop_handles = if let Ok(gop_handles) = gop_handles {
+    let gop_handles = if let Ok(gop_handles) =
+        bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
+    {
         gop_handles
     } else {
         info!("GraphicsOutput protocol is missing");
@@ -192,7 +245,23 @@ pub fn print_gop_modes(bs: &BootServices) -> Result {
 
     // TODO: Why are there two? I think we can just use the first one?
     // They seem to have the same information
-    if let Some(handle) = gop_handles.iter().next() {
+    //if let Some(handle) = gop_handles.iter().next() {
+    for handle in gop_handles.iter() {
+        if let Ok(dp) = unsafe {
+            bs.open_protocol::<DevicePath>(
+                OpenProtocolParams {
+                    handle: *handle,
+                    agent: bs.image_handle(),
+                    controller: None,
+                },
+                OpenProtocolAttributes::GetProtocol,
+            )
+        } {
+            print_dp(bs, &dp);
+        } else {
+            error!("No DP for this GOP handle");
+        };
+
         let gop = unsafe {
             bs.open_protocol::<GraphicsOutput>(
                 OpenProtocolParams {
@@ -228,4 +297,22 @@ pub fn print_gop_modes(bs: &BootServices) -> Result {
         }
     }
     Ok(())
+}
+
+fn print_dp(bs: &BootServices, dp: &ScopedProtocol<DevicePath>) {
+    let device_path_to_text_handle = *bs
+        .locate_handle_buffer(SearchType::ByProtocol(&DevicePathToText::GUID))
+        .unwrap()
+        .first()
+        .expect("DevicePathToText is missing");
+
+    let device_path_to_text = bs
+        .open_protocol_exclusive::<DevicePathToText>(device_path_to_text_handle)
+        .unwrap();
+
+    let image_device_path_text = device_path_to_text
+        .convert_device_path_to_text(bs, dp, DisplayOnly(true), AllowShortcuts(false))
+        .expect("convert_device_path_to_text failed");
+
+    info!("DevicePath: {}", &*image_device_path_text);
 }

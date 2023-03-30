@@ -298,7 +298,10 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
                 match a.subcommand {
                     Subcommand::Gui => {
                         info!("gui!");
-                        gui::draw_background(boot_services).unwrap();
+                        gui::draw_background(boot_services, &system_table).unwrap();
+
+                        //let mut st = unsafe { system_table.unsafe_clone() };
+                        //gui::draw_console(&mut st).unwrap();
                     }
                     Subcommand::Lsusb(_) => {
                         get_usb(boot_services, a).unwrap();

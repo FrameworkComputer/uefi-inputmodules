@@ -1,4 +1,4 @@
-SOURCES=Cargo.toml Cargo.lock $(wildcard src/*.rs)
+SOURCES=Cargo.toml $(wildcard src/*.rs)
 
 target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi: $(SOURCES)
 	cargo build --target x86_64-unknown-uefi
