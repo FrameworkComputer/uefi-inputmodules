@@ -11,11 +11,12 @@ use alloc::vec::Vec;
 #[allow(unused_imports)]
 use log::{debug, error, info};
 use uefi::prelude::*;
+use uefi::proto::shell_params::*;
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::{Identify, Result};
 
 use crate::shell::*;
-use crate::shell_params::*;
+//use crate::shell_params::*;
 use crate::uefi_usb::*;
 use crate::via::*;
 
@@ -149,6 +150,7 @@ struct LsusbArgs {
 #[derive(Debug)]
 enum Subcommand {
     Gui,
+    Gop,
     Lsusb(LsusbArgs),
     Via(ViaArgs),
 }
@@ -179,6 +181,7 @@ fn parse_args<'a, I: Iterator<Item = &'a str>>(
     let subcommand = match subcommand_name {
         "lsusb" => parse_lsusb_args(opts)?,
         "gui" => parse_gui_args(opts)?,
+        "gop" => Subcommand::Gop,
         "via" => parse_via_args(opts)?,
         _ => {
             info!("got unknown subcommand {subcommand_name:?}");
@@ -257,6 +260,7 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
     let boot_services = system_table.boot_services();
 
+    // TODO: I think i should open this from the ImageHandle?
     let shell_params_h = boot_services
         .locate_handle_buffer(SearchType::ByProtocol(&ShellParameters::GUID))
         .unwrap();
@@ -276,11 +280,12 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         };
 
         // Ehm why are there two and one has no args?
+        // Maybe one is the shell itself?
         if params_handle.argc == 0 {
             continue;
         }
 
-        let args = params_handle.get_str_args();
+        let args = params_handle.get_args();
 
         //let args: Vec<_> = std::env::args().skip(1).collect();
         let mut opts = Options::new(args.iter().map(String::as_str));
@@ -300,6 +305,9 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
                     }
                     Subcommand::Via(_) => {
                         get_usb(boot_services, a).unwrap();
+                    }
+                    Subcommand::Gop => {
+                        gui::print_gop_modes(boot_services).unwrap();
                     }
                 }
             }

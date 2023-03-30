@@ -5,11 +5,19 @@ use log::{debug, error, info};
 use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
 use uefi::proto::console::text::{Input, Key, ScanCode};
 use uefi::table::boot::BootServices;
+use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
+use uefi::Identify;
 use uefi::Result;
 #[allow(unused_imports)]
 use uefi::{prelude::*, Char16};
 
-use embedded_graphics::{image::Image, pixelcolor::Rgb888, prelude::*};
+use embedded_graphics::{
+    image::Image,
+    mono_font::{ascii::FONT_9X15, MonoTextStyle},
+    pixelcolor::Rgb888,
+    prelude::*,
+    text::Text,
+};
 use tinybmp::Bmp;
 
 struct Buffer {
@@ -111,6 +119,14 @@ pub fn draw_background(bs: &BootServices) -> Result {
     let image = Image::new(&bmp, Point::new(100, 100));
     image.draw(&mut buffer).unwrap();
 
+    let text = Text::new(
+        "Welcome from Rust embedded-graphics!",
+        Point::new(30, 30),
+        MonoTextStyle::new(&FONT_9X15, Rgb888::BLACK),
+    );
+
+    text.draw(&mut buffer).unwrap();
+
     // Draw the buffer to the screen.
     buffer.blit(&mut gop)?;
 
@@ -155,6 +171,61 @@ pub fn draw_background(bs: &BootServices) -> Result {
         let image = Image::new(&bmp, Point::new(100, 100) + Point::new(y, x));
         image.draw(&mut buffer).unwrap();
         buffer.blit(&mut gop)?;
+    }
+    Ok(())
+}
+
+pub fn print_gop_modes(bs: &BootServices) -> Result {
+    // Open graphics output protocol.
+    //let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>()?;
+    // open_protocol_exclusive will steal it from anyone else, meaning shell prints won't work anymore
+    //let mut gop = bs.open_protocol_exclusive::<GraphicsOutput>(gop_handle)?;
+
+    let gop_handles = bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID));
+
+    let gop_handles = if let Ok(gop_handles) = gop_handles {
+        gop_handles
+    } else {
+        info!("GraphicsOutput protocol is missing");
+        return Ok(());
+    };
+
+    // TODO: Why are there two? I think we can just use the first one?
+    // They seem to have the same information
+    if let Some(handle) = gop_handles.iter().next() {
+        let gop = unsafe {
+            bs.open_protocol::<GraphicsOutput>(
+                OpenProtocolParams {
+                    handle: *handle,
+                    agent: bs.image_handle(),
+                    controller: None,
+                },
+                OpenProtocolAttributes::GetProtocol,
+            )
+            .expect("Failed to open GraphicsOutput handle")
+        };
+
+        let cur_mode_info = gop.current_mode_info();
+        let (width, height) = cur_mode_info.resolution();
+        info!("Current Resolution {}x{}", width, height);
+
+        for (index, mode) in gop.modes().enumerate() {
+            let info = mode.info();
+            let (width, height) = info.resolution();
+            info!(
+                "{}{}Mode Resolution {}x{}, Stride: {}",
+                index,
+                if *info == cur_mode_info { "*" } else { " " },
+                width,
+                height,
+                info.stride()
+            );
+            info!(
+                "  Pixel format: {:?}, bitmask: {:?}",
+                info.pixel_format(),
+                info.pixel_bitmask()
+            );
+        }
     }
     Ok(())
 }

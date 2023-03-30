@@ -28,6 +28,9 @@ fs0:
 # GUI. Use the arrow keys to move the logo around
 uefi-qmk-hid.efi gui
 
+# Display information about GOP protocol
+uefi-qmk-hid.efi -b gop
+
 # Get info about USB devices
 uefi-qmk-hid.efi lsusb
 uefi-qmk-hid.efi lsusb -v
