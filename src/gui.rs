@@ -1,5 +1,6 @@
 use alloc::vec;
 use alloc::vec::Vec;
+use embedded_graphics::primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle};
 #[allow(unused_imports)]
 use log::{debug, error, info};
 use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
@@ -172,9 +173,43 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let image = Image::new(&bmp, Point::new(100, 100));
     image.draw(&mut buffer).unwrap();
 
+    // Have to export in GIMP as RGB888
+    let background_bmp: Bmp<Rgb888> = Bmp::from_slice(include_bytes!(
+        "/home/zoid/Downloads/framework-laptop-16-input-module-topdown.bmp"
+    ))
+    .unwrap();
+    let image = Image::new(&background_bmp, Point::new(0, 0));
+    image.draw(&mut buffer).unwrap();
+
+    let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
+        .fill_color(Rgb888::CSS_GRAY)
+        .build();
+
+    let left_c1_rect: Rectangle =
+        Rectangle::with_corners(Point::new(255, 360), Point::new(310, 545));
+    let middle_a1_rect: Rectangle =
+        Rectangle::with_corners(Point::new(311, 360), Point::new(775, 545));
+    let right_c1_rect: Rectangle =
+        Rectangle::with_corners(Point::new(776, 360), Point::new(830, 545));
+
+    left_c1_rect
+        .into_styled(blank_style)
+        .draw(&mut buffer)
+        .unwrap();
+
+    middle_a1_rect
+        .into_styled(blank_style)
+        .draw(&mut buffer)
+        .unwrap();
+
+    right_c1_rect
+        .into_styled(blank_style)
+        .draw(&mut buffer)
+        .unwrap();
+
     let text = Text::new(
-        "Welcome from Rust embedded-graphics!",
-        Point::new(30, 30),
+        "Framework Laptop 16 Input Deck - Missing Modules",
+        Point::new(250, 30),
         MonoTextStyle::new(&FONT_9X15, Rgb888::BLACK),
     );
 
@@ -188,6 +223,16 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
 
     let mut x = 0;
     let mut y = 0;
+    let mut game = false;
+    let one_key = Char16::try_from('1').unwrap();
+    let two_key = Char16::try_from('2').unwrap();
+    let three_key = Char16::try_from('3').unwrap();
+    let left_c1_sprite = background_bmp.sub_image(&left_c1_rect);
+    let middle_a1_sprite = background_bmp.sub_image(&middle_a1_rect);
+    let right_c1_sprite = background_bmp.sub_image(&right_c1_rect);
+    let mut left_c1_state = false;
+    let mut middle_a1_state = false;
+    let mut right_c1_state = false;
     loop {
         // Pause until a keyboard event occurs.
         let mut events = unsafe { [input.wait_for_key_event().unsafe_clone()] };
@@ -200,17 +245,60 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             //Some(Key::Printable(key)) if key == u_key => {
             //    info!("the 'u' key was pressed");
             //}
+            Some(Key::Printable(key)) if key == one_key => {
+                left_c1_state = !left_c1_state;
+                if left_c1_state {
+                    Image::new(&left_c1_sprite, left_c1_rect.top_left)
+                        .draw(&mut buffer)
+                        .unwrap();
+                } else {
+                    left_c1_rect
+                        .into_styled(blank_style)
+                        .draw(&mut buffer)
+                        .unwrap();
+                }
+            }
+            Some(Key::Printable(key)) if key == two_key => {
+                middle_a1_state = !middle_a1_state;
+                if middle_a1_state {
+                    Image::new(&middle_a1_sprite, middle_a1_rect.top_left)
+                        .draw(&mut buffer)
+                        .unwrap();
+                } else {
+                    middle_a1_rect
+                        .into_styled(blank_style)
+                        .draw(&mut buffer)
+                        .unwrap();
+                }
+            }
+            Some(Key::Printable(key)) if key == three_key => {
+                right_c1_state = !right_c1_state;
+                if right_c1_state {
+                    Image::new(&right_c1_sprite, right_c1_rect.top_left)
+                        .draw(&mut buffer)
+                        .unwrap();
+                } else {
+                    right_c1_rect
+                        .into_styled(blank_style)
+                        .draw(&mut buffer)
+                        .unwrap();
+                }
+            }
             Some(Key::Special(ScanCode::LEFT)) => {
                 y -= 10;
+                game = true;
             }
             Some(Key::Special(ScanCode::RIGHT)) => {
                 y += 10;
+                game = true;
             }
             Some(Key::Special(ScanCode::UP)) => {
                 x -= 10;
+                game = true;
             }
             Some(Key::Special(ScanCode::DOWN)) => {
                 x += 10;
+                game = true;
             }
 
             // Example of handling a special key: exit the loop when the
@@ -221,8 +309,10 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             _ => {}
         };
         // X and Y are exchanged?
-        let image = Image::new(&bmp, Point::new(100, 100) + Point::new(y, x));
-        image.draw(&mut buffer).unwrap();
+        if game {
+            let image = Image::new(&bmp, Point::new(100, 100) + Point::new(y, x));
+            image.draw(&mut buffer).unwrap();
+        }
         buffer.blit(&mut gop)?;
     }
     Ok(())
