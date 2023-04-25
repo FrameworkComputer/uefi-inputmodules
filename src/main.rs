@@ -8,7 +8,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use framework_lib::chromium_ec::{CrosEc, print_err};
+use framework_lib::chromium_ec::{print_err, CrosEc};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::prelude::*;
@@ -162,7 +162,7 @@ enum Subcommand {
     Gop,
     Lsusb(LsusbArgs),
     Via(ViaArgs),
-    Tool(ToolArgs)
+    Tool(ToolArgs),
 }
 
 /// Parse all the arguments
@@ -278,13 +278,10 @@ fn parse_tool_args<'a, I: Iterator<Item = &'a str>>(
             }
             _ => return Err(()),
         }
-
     }
 
     //let args = opts.positionals().collect();
-    Ok(Subcommand::Tool(ToolArgs {
-        inputmodules,
-    }))
+    Ok(Subcommand::Tool(ToolArgs { inputmodules }))
 }
 
 #[entry]

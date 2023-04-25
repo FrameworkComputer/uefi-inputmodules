@@ -2,12 +2,10 @@ use alloc::vec;
 use alloc::vec::Vec;
 use embedded_graphics::image::SubImage;
 use embedded_graphics::primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle};
-use framework_lib::chromium_ec::{CrosEc, input_deck};
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
+use framework_lib::chromium_ec::{input_deck, CrosEc};
 #[allow(unused_imports)]
 use log::{debug, error, info};
-#[allow(unused_imports)]
-use uefi_services::{print, println};
 use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
 use uefi::proto::console::text::{Input, Key, ScanCode};
 use uefi::proto::device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly};
@@ -18,6 +16,8 @@ use uefi::Identify;
 use uefi::Result;
 #[allow(unused_imports)]
 use uefi::{prelude::*, Char16};
+#[allow(unused_imports)]
+use uefi_services::{print, println};
 
 use embedded_graphics::{
     image::Image,
@@ -107,25 +107,31 @@ pub fn _draw_console(st: &mut SystemTable<Boot>) -> Result {
     Ok(())
 }
 
-fn show_top(show: bool, pos: usize, buffer: &mut Buffer, sprites: &[&SubImage<Bmp<Rgb888>>], rects: &[Rectangle]) {
+fn show_top(
+    show: bool,
+    pos: usize,
+    buffer: &mut Buffer,
+    sprites: &[&SubImage<Bmp<Rgb888>>],
+    rects: &[Rectangle],
+) {
     let sprite = sprites[pos];
     let rect = rects[pos];
     let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
         .fill_color(Rgb888::CSS_GRAY)
         .build();
     if show {
-        Image::new(sprite, rect.top_left)
-            .draw(buffer)
-            .unwrap();
+        Image::new(sprite, rect.top_left).draw(buffer).unwrap();
     } else {
-        rect
-            .into_styled(blank_style)
-            .draw(buffer)
-            .unwrap();
+        rect.into_styled(blank_style).draw(buffer).unwrap();
     }
 }
 
-fn show_touchpad(show: bool, buffer: &mut Buffer, touchpad_sprite: &SubImage<Bmp<Rgb888>>, touchpad_rect: &Rectangle) {
+fn show_touchpad(
+    show: bool,
+    buffer: &mut Buffer,
+    touchpad_sprite: &SubImage<Bmp<Rgb888>>,
+    touchpad_rect: &Rectangle,
+) {
     let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
         .fill_color(Rgb888::CSS_GRAY)
         .build();
@@ -134,10 +140,7 @@ fn show_touchpad(show: bool, buffer: &mut Buffer, touchpad_sprite: &SubImage<Bmp
             .draw(buffer)
             .unwrap();
     } else {
-        touchpad_rect
-            .into_styled(blank_style)
-            .draw(buffer)
-            .unwrap();
+        touchpad_rect.into_styled(blank_style).draw(buffer).unwrap();
     }
 }
 
@@ -207,9 +210,10 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     }
 
     // Rects for QEMU (1024 x 768 x 24)
-    let background_image = include_bytes!("/home/zoid/Downloads/framework-laptop-16-input-module-topdown.bmp");
+    let background_image =
+        include_bytes!("/home/zoid/Downloads/framework-laptop-16-input-module-topdown.bmp");
     let y_top = 360;
-    let y_bottom = 545 ;
+    let y_bottom = 545;
     let x_left = 255;
     let c_width = 310 - 255;
     let a_width = 464;
@@ -232,8 +236,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     image.draw(&mut buffer).unwrap();
 
     // Have to export in GIMP as RGB888
-    let background_bmp: Bmp<Rgb888> = Bmp::from_slice(background_image)
-    .unwrap();
+    let background_bmp: Bmp<Rgb888> = Bmp::from_slice(background_image).unwrap();
     let image = Image::new(&background_bmp, Point::new(0, 0));
     image.draw(&mut buffer).unwrap();
 
@@ -241,22 +244,41 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         .fill_color(Rgb888::CSS_GRAY)
         .build();
 
-    let left_c1_rect: Rectangle =
-        Rectangle::with_corners(Point::new(x_left, y_top), Point::new(x_left + c_width, y_bottom));
-    let left2_c1_rect: Rectangle =
-        Rectangle::with_corners(Point::new(x_left+c_width+1, y_top), Point::new(x_left+ c_width*2+1, y_bottom));
-    let left_a1_rect: Rectangle =
-        Rectangle::with_corners(Point::new(x_left, y_top), Point::new(x_left + a_width, y_bottom));
-    let middle_a1_rect: Rectangle =
-        Rectangle::with_corners(Point::new(x_left + c_width+1, y_top), Point::new(x_left + c_width+1 + a_width, y_bottom));
-    let right_a1_rect: Rectangle =
-        Rectangle::with_corners(Point::new(x_left + 2*c_width+2, y_top), Point::new(x_left + 2 * c_width+2 + a_width, y_bottom));
-    let right0_c1_rect: Rectangle =
-        Rectangle::with_corners(Point::new(x_left + a_width+1, y_top), Point::new(x_left + a_width+1 + c_width, y_bottom));
-    let right_c1_rect: Rectangle =
-        Rectangle::with_corners(Point::new(x_left + a_width+1 + c_width+1, y_top), Point::new(x_left + a_width+1 + 2*c_width+1, y_bottom));
-     let touchpad_rect: Rectangle =
-         Rectangle::with_corners(Point::new(x_left + c_width+1, y_bottom + 1), Point::new(x_left + c_width+1 + a_width, y_bottom + 1 + touchpad_height));
+    let left_c1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left, y_top),
+        Point::new(x_left + c_width, y_bottom),
+    );
+    let left2_c1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + c_width + 1, y_top),
+        Point::new(x_left + c_width * 2 + 1, y_bottom),
+    );
+    let left_a1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left, y_top),
+        Point::new(x_left + a_width, y_bottom),
+    );
+    let middle_a1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + c_width + 1, y_top),
+        Point::new(x_left + c_width + 1 + a_width, y_bottom),
+    );
+    let right_a1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + 2 * c_width + 2, y_top),
+        Point::new(x_left + 2 * c_width + 2 + a_width, y_bottom),
+    );
+    let right0_c1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + a_width + 1, y_top),
+        Point::new(x_left + a_width + 1 + c_width, y_bottom),
+    );
+    let right_c1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + a_width + 1 + c_width + 1, y_top),
+        Point::new(x_left + a_width + 1 + 2 * c_width + 1, y_bottom),
+    );
+    let touchpad_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + c_width + 1, y_bottom + 1),
+        Point::new(
+            x_left + c_width + 1 + a_width,
+            y_bottom + 1 + touchpad_height,
+        ),
+    );
 
     left_c1_rect
         .into_styled(blank_style)
@@ -303,7 +325,12 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let middle_a1_sprite = background_bmp.sub_image(&middle_a1_rect);
     let right_c1_sprite = background_bmp.sub_image(&right_c1_rect);
     let touchpad_sprite = background_bmp.sub_image(&touchpad_rect);
-    let c1_sprites = [&left_c1_sprite, &left_c1_sprite, &right_c1_sprite, &right_c1_sprite];
+    let c1_sprites = [
+        &left_c1_sprite,
+        &left_c1_sprite,
+        &right_c1_sprite,
+        &right_c1_sprite,
+    ];
     let c1_rects = [left_c1_rect, left2_c1_rect, right0_c1_rect, right_c1_rect];
     let a1_sprites = [&middle_a1_sprite, &middle_a1_sprite, &middle_a1_sprite];
     let a1_rects = [left_a1_rect, middle_a1_rect, right_a1_rect];
@@ -326,7 +353,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     pos2: input_deck::InputModuleType::Disconnected,
                     pos3: input_deck::InputModuleType::Disconnected,
                     pos4: input_deck::InputModuleType::Disconnected,
-                }
+                },
             }
         };
         //println!("InputDeckStatus: {:?}", input_deck);
@@ -339,12 +366,16 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         show_top(false, 3, &mut buffer, &c1_sprites, &c1_rects);
 
         touchpad_state = input_deck.touchpad_present;
-        show_touchpad(touchpad_state, &mut buffer, &touchpad_sprite, &touchpad_rect);
+        show_touchpad(
+            touchpad_state,
+            &mut buffer,
+            &touchpad_sprite,
+            &touchpad_rect,
+        );
         if input_deck.top_row.pos0 == InputModuleType::GenericC {
             show_top(true, 0, &mut buffer, &c1_sprites, &c1_rects);
         }
         if input_deck.top_row.pos1 == InputModuleType::GenericC {
-
             show_top(true, 1, &mut buffer, &c1_sprites, &c1_rects);
         }
         if input_deck.top_row.pos3 == InputModuleType::GenericC {
@@ -354,28 +385,37 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             show_top(true, 3, &mut buffer, &c1_sprites, &c1_rects);
         }
 
-        if input_deck.top_row.pos0 == InputModuleType::GenericA || input_deck.top_row.pos0 == InputModuleType::KeyboardA {
+        if input_deck.top_row.pos0 == InputModuleType::GenericA
+            || input_deck.top_row.pos0 == InputModuleType::KeyboardA
+        {
             show_top(true, 0, &mut buffer, &a1_sprites, &a1_rects);
         }
-        if input_deck.top_row.pos1 == InputModuleType::GenericA || input_deck.top_row.pos1 == InputModuleType::KeyboardA {
+        if input_deck.top_row.pos1 == InputModuleType::GenericA
+            || input_deck.top_row.pos1 == InputModuleType::KeyboardA
+        {
             show_top(true, 1, &mut buffer, &a1_sprites, &a1_rects);
         }
-        if input_deck.top_row.pos2 == InputModuleType::GenericA || input_deck.top_row.pos2 == InputModuleType::KeyboardA {
+        if input_deck.top_row.pos2 == InputModuleType::GenericA
+            || input_deck.top_row.pos2 == InputModuleType::KeyboardA
+        {
             show_top(true, 2, &mut buffer, &a1_sprites, &a1_rects);
         }
 
-        if input_deck.top_row.pos0 == InputModuleType::GenericB || input_deck.top_row.pos0 == InputModuleType::KeyboardB {
+        if input_deck.top_row.pos0 == InputModuleType::GenericB
+            || input_deck.top_row.pos0 == InputModuleType::KeyboardB
+        {
             // Just show two A1 for now
             // TODO: Make it clear that it's a single module
             show_top(true, 0, &mut buffer, &c1_sprites, &c1_rects);
             show_top(true, 1, &mut buffer, &c1_sprites, &c1_rects);
         }
-        if input_deck.top_row.pos3 == InputModuleType::GenericB || input_deck.top_row.pos3 == InputModuleType::KeyboardB {
+        if input_deck.top_row.pos3 == InputModuleType::GenericB
+            || input_deck.top_row.pos3 == InputModuleType::KeyboardB
+        {
             // Just show two A1 for now
             // TODO: Make it clear that it's a single module
             show_top(true, 2, &mut buffer, &c1_sprites, &c1_rects);
             show_top(true, 3, &mut buffer, &c1_sprites, &c1_rects);
-
         }
 
         buffer.blit(&mut gop)?;
@@ -383,7 +423,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         if input_deck.fully_populated() {
             println!("Fully populated! Continuing boot");
             bs.stall(1_000_000);
-            return Ok(())
+            return Ok(());
         }
 
         // Pause until a keyboard event occurs.
@@ -461,7 +501,11 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     Ok(())
 }
 
-fn show_input_deck(buffer: &mut Buffer, gop: &mut ScopedProtocol<GraphicsOutput>, input_deck: &InputDeckStatus) -> Result {
+fn show_input_deck(
+    buffer: &mut Buffer,
+    gop: &mut ScopedProtocol<GraphicsOutput>,
+    input_deck: &InputDeckStatus,
+) -> Result {
     //buffer.blit(gop)?;
     Ok(())
 }

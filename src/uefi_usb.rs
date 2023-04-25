@@ -396,7 +396,8 @@ impl UsbIo {
         .into_with(
             || debug_assert_eq!(buffer_size, data.len()),
             |_| {
-                error!("control_transfer failed with: {:?}",
+                error!(
+                    "control_transfer failed with: {:?}",
                     UsbTransferResult::try_from(transfer_result).unwrap()
                 );
                 buffer_size
