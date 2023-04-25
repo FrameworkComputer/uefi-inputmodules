@@ -15,6 +15,11 @@ uefi-services = "0.17"
 uefi = { path = "/home/zoid/clone/uefi-rs/uefi" }
 uefi-services = { path = "/home/zoid/clone/uefi-rs/uefi-services" }
 
+[dependencies.framework_lib]
+path = "/home/zoid/clone/framework-system/framework_lib"
+features = ["uefi"]
+default-features = false
+
 #[dependencies.ptr_meta]
 #version = "0.2.0"
 #default-features = false

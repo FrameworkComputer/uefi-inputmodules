@@ -1,8 +1,13 @@
 use alloc::vec;
 use alloc::vec::Vec;
+use embedded_graphics::image::SubImage;
 use embedded_graphics::primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle};
+use framework_lib::chromium_ec::{CrosEc, input_deck};
+use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
 #[allow(unused_imports)]
 use log::{debug, error, info};
+#[allow(unused_imports)]
+use uefi_services::{print, println};
 use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
 use uefi::proto::console::text::{Input, Key, ScanCode};
 use uefi::proto::device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly};
@@ -102,7 +107,42 @@ pub fn _draw_console(st: &mut SystemTable<Boot>) -> Result {
     Ok(())
 }
 
+fn show_top(show: bool, pos: usize, buffer: &mut Buffer, sprites: &[&SubImage<Bmp<Rgb888>>], rects: &[Rectangle]) {
+    let sprite = sprites[pos];
+    let rect = rects[pos];
+    let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
+        .fill_color(Rgb888::CSS_GRAY)
+        .build();
+    if show {
+        Image::new(sprite, rect.top_left)
+            .draw(buffer)
+            .unwrap();
+    } else {
+        rect
+            .into_styled(blank_style)
+            .draw(buffer)
+            .unwrap();
+    }
+}
+
+fn show_touchpad(show: bool, buffer: &mut Buffer, touchpad_sprite: &SubImage<Bmp<Rgb888>>, touchpad_rect: &Rectangle) {
+    let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
+        .fill_color(Rgb888::CSS_GRAY)
+        .build();
+    if show {
+        Image::new(touchpad_sprite, touchpad_rect.top_left)
+            .draw(buffer)
+            .unwrap();
+    } else {
+        touchpad_rect
+            .into_styled(blank_style)
+            .draw(buffer)
+            .unwrap();
+    }
+}
+
 pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
+    let ec = CrosEc::new();
     //// Open graphics output protocol.
     //let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>()?;
     //// open_protocol_exclusive will steal it from anyone else, meaning shell prints won't work anymore
@@ -166,6 +206,24 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         }
     }
 
+    // Rects for QEMU (1024 x 768 x 24)
+    let background_image = include_bytes!("/home/zoid/Downloads/framework-laptop-16-input-module-topdown.bmp");
+    let y_top = 360;
+    let y_bottom = 545 ;
+    let x_left = 255;
+    let c_width = 310 - 255;
+    let a_width = 464;
+    let touchpad_height = 729 - 546;
+
+    // Rects for Lotus (2560 x 1600 x 24)
+    //let background_image = include_bytes!("/home/zoid/Downloads/framework-laptop-16-input-module-topdown-2560x1600.bmp");
+    //let y_top = 736;
+    //let y_bottom = 1113;
+    //let x_left = 706;
+    //let c_width = 110;
+    //let a_width = 945;
+    //let touchpad_height = 372;
+
     let bmp: Bmp<Rgb888> = Bmp::from_slice(include_bytes!(
         "../../led_matrix_fw/fl16-inputmodules/assets/logo.bmp"
     ))
@@ -174,9 +232,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     image.draw(&mut buffer).unwrap();
 
     // Have to export in GIMP as RGB888
-    let background_bmp: Bmp<Rgb888> = Bmp::from_slice(include_bytes!(
-        "/home/zoid/Downloads/framework-laptop-16-input-module-topdown.bmp"
-    ))
+    let background_bmp: Bmp<Rgb888> = Bmp::from_slice(background_image)
     .unwrap();
     let image = Image::new(&background_bmp, Point::new(0, 0));
     image.draw(&mut buffer).unwrap();
@@ -186,11 +242,21 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         .build();
 
     let left_c1_rect: Rectangle =
-        Rectangle::with_corners(Point::new(255, 360), Point::new(310, 545));
+        Rectangle::with_corners(Point::new(x_left, y_top), Point::new(x_left + c_width, y_bottom));
+    let left2_c1_rect: Rectangle =
+        Rectangle::with_corners(Point::new(x_left+c_width+1, y_top), Point::new(x_left+ c_width*2+1, y_bottom));
+    let left_a1_rect: Rectangle =
+        Rectangle::with_corners(Point::new(x_left, y_top), Point::new(x_left + a_width, y_bottom));
     let middle_a1_rect: Rectangle =
-        Rectangle::with_corners(Point::new(311, 360), Point::new(775, 545));
+        Rectangle::with_corners(Point::new(x_left + c_width+1, y_top), Point::new(x_left + c_width+1 + a_width, y_bottom));
+    let right_a1_rect: Rectangle =
+        Rectangle::with_corners(Point::new(x_left + 2*c_width+2, y_top), Point::new(x_left + 2 * c_width+2 + a_width, y_bottom));
+    let right0_c1_rect: Rectangle =
+        Rectangle::with_corners(Point::new(x_left + a_width+1, y_top), Point::new(x_left + a_width+1 + c_width, y_bottom));
     let right_c1_rect: Rectangle =
-        Rectangle::with_corners(Point::new(776, 360), Point::new(830, 545));
+        Rectangle::with_corners(Point::new(x_left + a_width+1 + c_width+1, y_top), Point::new(x_left + a_width+1 + 2*c_width+1, y_bottom));
+     let touchpad_rect: Rectangle =
+         Rectangle::with_corners(Point::new(x_left + c_width+1, y_bottom + 1), Point::new(x_left + c_width+1 + a_width, y_bottom + 1 + touchpad_height));
 
     left_c1_rect
         .into_styled(blank_style)
@@ -203,6 +269,11 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         .unwrap();
 
     right_c1_rect
+        .into_styled(blank_style)
+        .draw(&mut buffer)
+        .unwrap();
+
+    touchpad_rect
         .into_styled(blank_style)
         .draw(&mut buffer)
         .unwrap();
@@ -227,16 +298,100 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let one_key = Char16::try_from('1').unwrap();
     let two_key = Char16::try_from('2').unwrap();
     let three_key = Char16::try_from('3').unwrap();
+    let four_key = Char16::try_from('4').unwrap();
     let left_c1_sprite = background_bmp.sub_image(&left_c1_rect);
     let middle_a1_sprite = background_bmp.sub_image(&middle_a1_rect);
     let right_c1_sprite = background_bmp.sub_image(&right_c1_rect);
+    let touchpad_sprite = background_bmp.sub_image(&touchpad_rect);
+    let c1_sprites = [&left_c1_sprite, &left_c1_sprite, &right_c1_sprite, &right_c1_sprite];
+    let c1_rects = [left_c1_rect, left2_c1_rect, right0_c1_rect, right_c1_rect];
+    let a1_sprites = [&middle_a1_sprite, &middle_a1_sprite, &middle_a1_sprite];
+    let a1_rects = [left_a1_rect, middle_a1_rect, right_a1_rect];
     let mut left_c1_state = false;
     let mut middle_a1_state = false;
     let mut right_c1_state = false;
+    let mut touchpad_state = false;
     loop {
+        let input_deck = ec.get_input_deck_status();
+        let input_deck = if let Ok(input_deck) = input_deck {
+            input_deck
+        } else {
+            //println!("Emulated deck data");
+            InputDeckStatus {
+                state: input_deck::InputDeckState::On,
+                touchpad_present: false,
+                top_row: input_deck::TopRowPositions {
+                    pos0: input_deck::InputModuleType::GenericC,
+                    pos1: input_deck::InputModuleType::GenericA,
+                    pos2: input_deck::InputModuleType::Disconnected,
+                    pos3: input_deck::InputModuleType::Disconnected,
+                    pos4: input_deck::InputModuleType::Disconnected,
+                }
+            }
+        };
+        //println!("InputDeckStatus: {:?}", input_deck);
+        //println!("Touchpad present: {:?}", input_deck.touchpad_present);
+        //show_input_deck(&mut buffer, &mut gop, &input_deck).unwrap();
+
+        // Reset to no modules, otherwise we can't reset what's shown
+        show_top(false, 0, &mut buffer, &a1_sprites, &a1_rects);
+        show_top(false, 2, &mut buffer, &c1_sprites, &c1_rects);
+        show_top(false, 3, &mut buffer, &c1_sprites, &c1_rects);
+
+        touchpad_state = input_deck.touchpad_present;
+        show_touchpad(touchpad_state, &mut buffer, &touchpad_sprite, &touchpad_rect);
+        if input_deck.top_row.pos0 == InputModuleType::GenericC {
+            show_top(true, 0, &mut buffer, &c1_sprites, &c1_rects);
+        }
+        if input_deck.top_row.pos1 == InputModuleType::GenericC {
+
+            show_top(true, 1, &mut buffer, &c1_sprites, &c1_rects);
+        }
+        if input_deck.top_row.pos3 == InputModuleType::GenericC {
+            show_top(true, 2, &mut buffer, &c1_sprites, &c1_rects);
+        }
+        if input_deck.top_row.pos4 == InputModuleType::GenericC {
+            show_top(true, 3, &mut buffer, &c1_sprites, &c1_rects);
+        }
+
+        if input_deck.top_row.pos0 == InputModuleType::GenericA || input_deck.top_row.pos0 == InputModuleType::KeyboardA {
+            show_top(true, 0, &mut buffer, &a1_sprites, &a1_rects);
+        }
+        if input_deck.top_row.pos1 == InputModuleType::GenericA || input_deck.top_row.pos1 == InputModuleType::KeyboardA {
+            show_top(true, 1, &mut buffer, &a1_sprites, &a1_rects);
+        }
+        if input_deck.top_row.pos2 == InputModuleType::GenericA || input_deck.top_row.pos2 == InputModuleType::KeyboardA {
+            show_top(true, 2, &mut buffer, &a1_sprites, &a1_rects);
+        }
+
+        if input_deck.top_row.pos0 == InputModuleType::GenericB || input_deck.top_row.pos0 == InputModuleType::KeyboardB {
+            // Just show two A1 for now
+            // TODO: Make it clear that it's a single module
+            show_top(true, 0, &mut buffer, &c1_sprites, &c1_rects);
+            show_top(true, 1, &mut buffer, &c1_sprites, &c1_rects);
+        }
+        if input_deck.top_row.pos3 == InputModuleType::GenericB || input_deck.top_row.pos3 == InputModuleType::KeyboardB {
+            // Just show two A1 for now
+            // TODO: Make it clear that it's a single module
+            show_top(true, 2, &mut buffer, &c1_sprites, &c1_rects);
+            show_top(true, 3, &mut buffer, &c1_sprites, &c1_rects);
+
+        }
+
+        buffer.blit(&mut gop)?;
+
+        if input_deck.fully_populated() {
+            println!("Fully populated! Continuing boot");
+            bs.stall(1_000_000);
+            return Ok(())
+        }
+
         // Pause until a keyboard event occurs.
-        let mut events = unsafe { [input.wait_for_key_event().unsafe_clone()] };
-        bs.wait_for_event(&mut events).discard_errdata().unwrap();
+        //let mut events = unsafe { [input.wait_for_key_event().unsafe_clone()] };
+        //bs.wait_for_event(&mut events).discard_errdata().unwrap();
+
+        // Update once a second
+        bs.stall(1_000_000);
 
         //let u_key = Char16::try_from('u').unwrap();
         match input.read_key().unwrap() {
@@ -245,45 +400,32 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             //Some(Key::Printable(key)) if key == u_key => {
             //    info!("the 'u' key was pressed");
             //}
-            Some(Key::Printable(key)) if key == one_key => {
-                left_c1_state = !left_c1_state;
-                if left_c1_state {
-                    Image::new(&left_c1_sprite, left_c1_rect.top_left)
-                        .draw(&mut buffer)
-                        .unwrap();
-                } else {
-                    left_c1_rect
-                        .into_styled(blank_style)
-                        .draw(&mut buffer)
-                        .unwrap();
-                }
-            }
-            Some(Key::Printable(key)) if key == two_key => {
-                middle_a1_state = !middle_a1_state;
-                if middle_a1_state {
-                    Image::new(&middle_a1_sprite, middle_a1_rect.top_left)
-                        .draw(&mut buffer)
-                        .unwrap();
-                } else {
-                    middle_a1_rect
-                        .into_styled(blank_style)
-                        .draw(&mut buffer)
-                        .unwrap();
-                }
-            }
-            Some(Key::Printable(key)) if key == three_key => {
-                right_c1_state = !right_c1_state;
-                if right_c1_state {
-                    Image::new(&right_c1_sprite, right_c1_rect.top_left)
-                        .draw(&mut buffer)
-                        .unwrap();
-                } else {
-                    right_c1_rect
-                        .into_styled(blank_style)
-                        .draw(&mut buffer)
-                        .unwrap();
-                }
-            }
+            //Some(Key::Printable(key)) if key == one_key => {
+            //    left_c1_state = !left_c1_state;
+            //    show_top(left_c1_state, 0, &mut buffer, &c1_sprites, &c1_rects);
+            //}
+            //Some(Key::Printable(key)) if key == two_key => {
+            //    middle_a1_state = !middle_a1_state;
+            //    if middle_a1_state {
+            //        Image::new(&middle_a1_sprite, middle_a1_rect.top_left)
+            //            .draw(&mut buffer)
+            //            .unwrap();
+            //    } else {
+            //        middle_a1_rect
+            //            .into_styled(blank_style)
+            //            .draw(&mut buffer)
+            //            .unwrap();
+            //    }
+            //}
+            //Some(Key::Printable(key)) if key == three_key => {
+            //    right_c1_state = !right_c1_state;
+            //    // TODO: Update number
+            //    show_top(right_c1_state, 1, &mut buffer, &c1_sprites, &c1_rects);
+            //}
+            //Some(Key::Printable(key)) if key == four_key => {
+            //    touchpad_state = !touchpad_state;
+            //    show_touchpad(touchpad_state, &mut buffer, &touchpad_sprite, &touchpad_rect);
+            //}
             Some(Key::Special(ScanCode::LEFT)) => {
                 y -= 10;
                 game = true;
@@ -313,8 +455,14 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             let image = Image::new(&bmp, Point::new(100, 100) + Point::new(y, x));
             image.draw(&mut buffer).unwrap();
         }
+
         buffer.blit(&mut gop)?;
     }
+    Ok(())
+}
+
+fn show_input_deck(buffer: &mut Buffer, gop: &mut ScopedProtocol<GraphicsOutput>, input_deck: &InputDeckStatus) -> Result {
+    //buffer.blit(gop)?;
     Ok(())
 }
 

@@ -8,12 +8,15 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
+use framework_lib::chromium_ec::{CrosEc, print_err};
 #[allow(unused_imports)]
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use uefi::prelude::*;
 use uefi::proto::shell_params::*;
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::{Identify, Result};
+#[allow(unused_imports)]
+use uefi_services::{print, println};
 
 use crate::shell::*;
 //use crate::shell_params::*;
@@ -38,7 +41,7 @@ fn enable_page_break(boot_services: &BootServices) {
     let shell_handles = boot_services.locate_handle_buffer(SearchType::ByProtocol(&Shell::GUID));
     if let Ok(sh_buf) = shell_handles {
         for handle in &*sh_buf {
-            //info!("Calling enable_page_break");
+            trace!("Calling enable_page_break");
             let shell_handle = unsafe {
                 boot_services
                     .open_protocol::<Shell>(
@@ -146,6 +149,12 @@ struct LsusbArgs {
     pid: Option<u16>,
 }
 
+#[derive(Debug)]
+struct ToolArgs {
+    /// Show input module status
+    inputmodules: bool,
+}
+
 #[allow(unused)] // fields are not actually used in this example
 #[derive(Debug)]
 enum Subcommand {
@@ -153,6 +162,7 @@ enum Subcommand {
     Gop,
     Lsusb(LsusbArgs),
     Via(ViaArgs),
+    Tool(ToolArgs)
 }
 
 /// Parse all the arguments
@@ -183,6 +193,7 @@ fn parse_args<'a, I: Iterator<Item = &'a str>>(
         "gui" => parse_gui_args(opts)?,
         "gop" => Subcommand::Gop,
         "via" => parse_via_args(opts)?,
+        "tool" => parse_tool_args(opts)?,
         _ => {
             info!("got unknown subcommand {subcommand_name:?}");
             return Err(());
@@ -255,6 +266,27 @@ fn parse_lsusb_args<'a, I: Iterator<Item = &'a str>>(
     Ok(Subcommand::Lsusb(LsusbArgs { vid, pid }))
 }
 
+fn parse_tool_args<'a, I: Iterator<Item = &'a str>>(
+    opts: &mut Options<&'a str, I>,
+) -> core::result::Result<Subcommand, ()> {
+    // TODO: Use Subcommand::default();
+    let mut inputmodules = false;
+    while let Some(opt) = opts.next_opt().unwrap() {
+        match opt {
+            Opt::Long("inputmodules") => {
+                inputmodules = true;
+            }
+            _ => return Err(()),
+        }
+
+    }
+
+    //let args = opts.positionals().collect();
+    Ok(Subcommand::Tool(ToolArgs {
+        inputmodules,
+    }))
+}
+
 #[entry]
 fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
@@ -264,7 +296,7 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     let shell_params_h = boot_services
         .locate_handle_buffer(SearchType::ByProtocol(&ShellParameters::GUID))
         .unwrap();
-    //info!("Found {} ShellParams handles", (*shell_params_h).len());
+    trace!("Found {} ShellParams handles", (*shell_params_h).len());
     for handle in &*shell_params_h {
         let params_handle = unsafe {
             boot_services
@@ -311,6 +343,9 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
                     }
                     Subcommand::Gop => {
                         gui::print_gop_modes(boot_services).unwrap();
+                    }
+                    Subcommand::Tool(args) => {
+                        handle_tool(args);
                     }
                 }
             }
@@ -384,14 +419,14 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
         if ![0x3434, 0x32AC, 0x046D].contains(&{ desc.id_vendor }) {
             continue;
         }
-        if lsusb {
+        if verbose || lsusb {
             info!("{:04X}:{:04X}", { desc.id_vendor }, { desc.id_product });
         }
 
         let major = (desc.bcd_device & 0xFF00) >> 8;
         let minor = (desc.bcd_device & 0xF0) >> 4;
         let patch = desc.bcd_device & 0x0F;
-        if lsusb {
+        if verbose || lsusb {
             info!(
                 "  bcdDevice:       0x{:04X} ({:>2}.{:02}.{:02})",
                 { desc.bcd_device },
@@ -400,7 +435,7 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
                 patch
             );
             // What's this?
-            //info!("  Protocol:        0x{:02X}", { desc.device_protocol });
+            debug!("  Protocol:        0x{:02X}", { desc.device_protocol });
             // 0 and 0 means look at the interface descriptor
             info!(
                 "  Device Class:    {}, Subclass: {}",
@@ -420,7 +455,7 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
             .get_interface_descriptor()
             .expect("Failed to get Interface Descriptor");
 
-        if lsusb {
+        if verbose || lsusb {
             info!("  Interface #{}", { interface.interface_number });
             info!("    Endpoints:          {}", { interface.num_endpoints });
             info!("    Interface:          {}", { interface.interface });
@@ -429,15 +464,15 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
                 { interface.interface_class },
                 { interface.interface_sub_class }
             );
-            //info!("    Interface Protocol: {}", {
-            //    interface.interface_protocol
-            //});
+            debug!("    Interface Protocol: {}", {
+                interface.interface_protocol
+            });
         }
 
         let config_desc = usb_handle
             .get_config_descriptor()
             .expect("Failed to get Config Descriptor");
-        //info!("  Config Desc Total Len: {}", { config_desc.total_length });
+        trace!("  Config Desc Total Len: {}", { config_desc.total_length });
 
         if interface.interface_class != 3 {
             info!("Skipping interface, not HID class");
@@ -465,7 +500,7 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
                 &mut all_descriptors,
             )
             .expect("Failed to get all descriptors :( :(");
-        //info!("Successfully got all descriptors!!!!");
+        debug!("Successfully got all descriptors!!!!");
 
         let mut all_desc_byte = 0;
         let mut after_interface_desc = false;
@@ -510,7 +545,7 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
             continue;
         };
 
-        if lsusb {
+        if verbose || lsusb {
             info!("  Found HID descriptor");
             info!("    Desc Type: {}", {
                 hid_desc.hid_class_desc[0].descriptor_type
@@ -547,7 +582,7 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
                 assert!(!output.is_in() && output.is_interrupt());
                 (input.endpoint_address, output.endpoint_address)
             } else {
-                info!("Failed to find OUT Interrupt descriptor");
+                info!("Failed to find IN/OUT Interrupt descriptor");
                 continue;
             };
 
@@ -573,6 +608,10 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
                     in_endpoint_addr,
                     out_endpoint_addr,
                 };
+                info!(
+                    "Using interface {}, IN: 0x{:02X}, OUT: 0x{:02X}",
+                    dev.interface_no, dev.in_endpoint_addr, dev.out_endpoint_addr
+                );
 
                 if let Subcommand::Via(via_args) = args.subcommand {
                     let protocol_ver = get_protocol_ver(&mut dev);
@@ -635,4 +674,24 @@ fn get_usb(bs: &BootServices, args: Arguments) -> Result {
         }
     }
     Ok(())
+}
+
+fn handle_tool(args: ToolArgs) {
+    let ec = CrosEc::new();
+
+    if args.inputmodules {
+        println!("Input Module Status:");
+        if let Some(status) = print_err(ec.get_input_deck_status()) {
+            println!("Input Deck State: {:?}", status.state);
+            println!("Touchpad present: {:?}", status.touchpad_present);
+            println!("Positions:");
+            println!("  Pos 0: {:?}", status.top_row.pos0);
+            println!("  Pos 1: {:?}", status.top_row.pos1);
+            println!("  Pos 2: {:?}", status.top_row.pos2);
+            println!("  Pos 3: {:?}", status.top_row.pos3);
+            println!("  Pos 4: {:?}", status.top_row.pos4);
+        } else {
+            println!("  Unable to tell");
+        }
+    }
 }

@@ -1,5 +1,6 @@
+use core::convert::TryFrom;
 use core::mem::MaybeUninit;
-use log::info;
+use log::{debug, error, info};
 use uefi::prelude::*;
 use uefi::proto::unsafe_protocol;
 use uefi::table::boot::ScopedProtocol;
@@ -10,6 +11,8 @@ use crate::VERBOSE;
 
 pub const HID_ELEMENT_TAG_LONG: u8 = 15;
 
+const USE_CONTROL_TRANSFER: bool = false;
+
 pub enum EndpointTypes {
     Control = 0x00,
     Isochronous = 0x01,
@@ -17,6 +20,8 @@ pub enum EndpointTypes {
     Interrupt = 0x03,
 }
 
+#[repr(u32)]
+#[derive(Debug)]
 pub enum UsbTransferResult {
     NoError = 0x00,
     NotExecute = 0x01,
@@ -29,6 +34,27 @@ pub enum UsbTransferResult {
     Bitstuff = 0x80,
     System = 0x100,
 }
+
+impl TryFrom<u32> for UsbTransferResult {
+    type Error = ();
+
+    fn try_from(v: u32) -> core::result::Result<Self, Self::Error> {
+        match v {
+            x if x == UsbTransferResult::NoError as u32 => Ok(UsbTransferResult::NoError),
+            x if x == UsbTransferResult::NotExecute as u32 => Ok(UsbTransferResult::NotExecute),
+            x if x == UsbTransferResult::Stall as u32 => Ok(UsbTransferResult::Stall),
+            x if x == UsbTransferResult::Buffer as u32 => Ok(UsbTransferResult::Buffer),
+            x if x == UsbTransferResult::Babble as u32 => Ok(UsbTransferResult::Babble),
+            x if x == UsbTransferResult::Nak as u32 => Ok(UsbTransferResult::Nak),
+            x if x == UsbTransferResult::Crc as u32 => Ok(UsbTransferResult::Crc),
+            x if x == UsbTransferResult::Timeout as u32 => Ok(UsbTransferResult::Timeout),
+            x if x == UsbTransferResult::Bitstuff as u32 => Ok(UsbTransferResult::Bitstuff),
+            x if x == UsbTransferResult::System as u32 => Ok(UsbTransferResult::System),
+            _ => core::result::Result::Err(()),
+        }
+    }
+}
+
 pub struct HidDevice<'a> {
     pub usb_io: ScopedProtocol<'a, UsbIo>,
     pub interface_no: u8,
@@ -47,7 +73,8 @@ impl HidDevice<'_> {
             ReportType::Output,
             &mut data[1..],
             self.out_endpoint_addr,
-        )?;
+        )
+        .unwrap();
         Ok(0) // TODO: Return proper value
     }
     pub fn read(&mut self, data: &mut [u8]) -> Result<usize> {
@@ -60,7 +87,8 @@ impl HidDevice<'_> {
             //&mut data[1..],
             data,
             self.in_endpoint_addr,
-        )?;
+        )
+        .unwrap();
         Ok(0) // TODO: Return proper value
     }
     // TODO: Implement feature set/get report
@@ -330,7 +358,7 @@ impl UsbIo {
         .into_with(
             || {
                 if buffer_size != data.len() {
-                    info!(
+                    error!(
                         "!!!!sync_interrupt_transfer: buffer_size != data.len(), {}, {}",
                         buffer_size,
                         data.len()
@@ -338,7 +366,10 @@ impl UsbIo {
                 }
             }, //debug_assert_eq!(buffer_size, data.len()),
             |_| {
-                info!("Interrupt transfer failed with: {}", transfer_result);
+                error!(
+                    "Interrupt transfer failed with: {:?}",
+                    UsbTransferResult::try_from(transfer_result).unwrap()
+                );
                 buffer_size
             },
         )
@@ -365,7 +396,9 @@ impl UsbIo {
         .into_with(
             || debug_assert_eq!(buffer_size, data.len()),
             |_| {
-                info!("control_transfer failed with: {}", transfer_result);
+                error!("control_transfer failed with: {:?}",
+                    UsbTransferResult::try_from(transfer_result).unwrap()
+                );
                 buffer_size
             },
         )
@@ -428,22 +461,22 @@ fn set_report_request(
     _report_type: ReportType,
     report: &mut [u8],
     endpoint_addr: u8,
-) -> Result {
+) -> Result<(), usize> {
     // TODO: If no interrupt endpoint use control transfer, otherwise use interrupt endpoing
-    //let mut request = UsbDeviceRequest {
-    //    request_type: UsbRequestType::HidSetRequest as u8,
-    //    request: HidRequest::SetReportRequest as u8,
-    //    value: ((report_type as u16) << 8) + report_id as u16, //u16::from_le_bytes([report_id, report_type as u8]), // TODO: Might be backwards
-    //    index: interface as u16,
-    //    length: report.len() as u16,
-    //};
     // This is what hidapi does
-    //usb_io.control_transfer(&mut request, UsbDataDirection::DataOut, TIMEOUT, report);
-    info!("Writing to endpoint: {endpoint_addr:02X}");
-    usb_io
-        .sync_interrupt_transfer(endpoint_addr, TIMEOUT, report)
-        .unwrap();
-    Ok(())
+    if USE_CONTROL_TRANSFER {
+        let mut request = UsbDeviceRequest {
+            request_type: UsbRequestType::HidSetRequest as u8,
+            request: HidRequest::SetReportRequest as u8,
+            value: ((_report_type as u16) << 8) + _report_id as u16, //u16::from_le_bytes([report_id, report_type as u8]), // TODO: Might be backwards
+            index: _interface as u16,
+            length: report.len() as u16,
+        };
+        usb_io.control_transfer(&mut request, UsbDataDirection::DataOut, TIMEOUT, report)
+    } else {
+        info!("Writing to endpoint: {endpoint_addr:02X}");
+        usb_io.sync_interrupt_transfer(endpoint_addr, TIMEOUT, report)
+    }
 }
 
 fn get_report_request(
@@ -453,25 +486,29 @@ fn get_report_request(
     _report_type: ReportType,
     report: &mut [u8],
     endpoint_addr: u8,
-) -> Result {
+) -> Result<(), usize> {
     // TODO: If no interrupt endpoint use control transfer, otherwise use interrupt endpoing
-    //let mut request = UsbDeviceRequest {
-    //    request_type: UsbRequestType::HidGetRequest as u8,
-    //    request: HidRequest::SetReportRequest as u8,
-    //    value: u16::from_le_bytes([report_id, report_type as u8]), // TODO: Might be backwards
-    //    index: interface as u16,
-    //    length: report.len() as u16,
-    //};
     // This is what hidapi does
-    //usb_io.control_transfer(&mut request, UsbDataDirection::DataIn, TIMEOUT, report).unwrap();
-    for i in 0..10 {
-        let res = usb_io.sync_interrupt_transfer(endpoint_addr, TIMEOUT, report);
-        info!("get_report_request try: {}: {:?}", i, res);
-        if res.is_ok() {
-            break;
+    if USE_CONTROL_TRANSFER {
+        let mut request = UsbDeviceRequest {
+            request_type: UsbRequestType::HidGetRequest as u8,
+            request: HidRequest::SetReportRequest as u8,
+            value: u16::from_le_bytes([_report_id, _report_type as u8]), // TODO: Might be backwards
+            index: _interface as u16,
+            length: report.len() as u16,
+        };
+        usb_io.control_transfer(&mut request, UsbDataDirection::DataIn, TIMEOUT, report)
+    } else {
+        let mut res = Ok(());
+        for i in 0..10 {
+            res = usb_io.sync_interrupt_transfer(endpoint_addr, TIMEOUT, report);
+            info!("get_report_request try: {}: {:?}", i, res);
+            if res.is_ok() {
+                break;
+            }
         }
+        res
     }
-    Ok(())
 }
 
 /// Find Interrupt OUT endpoint
@@ -485,17 +522,21 @@ pub fn find_interrupt_endpoint(
         let endpoint = usb_handle
             .get_endpoint_descriptor(i)
             .expect("Failed to get endpoint descriptor");
-        //info!("  Endpoint {i}");
+        debug!("  Endpoint {i}");
 
-        //info!(
-        //    "    Address     {:02X}, Direction IN: {:?}",
-        //    endpoint.endpoint_address, endpoint.is_in()
-        //);
+        debug!(
+            "    Address           0x{:02X}, Direction IN: {:?}",
+            endpoint.endpoint_address,
+            endpoint.is_in()
+        );
 
-        //info!(
-        //    "    Attributes: {:02X}, Interrupt: {:?}",
-        //    endpoint.attributes, endpoint.is_interrupt()
-        //);
+        debug!("  Max packet size: {}", { endpoint.max_packet_size });
+
+        debug!(
+            "    Attributes:       0x{:02X}, Interrupt: {:?}",
+            endpoint.attributes,
+            endpoint.is_interrupt()
+        );
 
         if endpoint.is_interrupt() {
             if endpoint.is_in() {

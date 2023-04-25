@@ -16,16 +16,22 @@ OVMF_CODE.fd:
 OVMF_VARS.fd:
 	cp /usr/share/OVMF/OVMF_VARS.fd .
 
+#	-usb -device usb-host,vendorid=0x32ac,productid=0x0012
 run: OVMF_CODE.fd OVMF_VARS.fd target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi
 	mkdir -p esp/efi/boot
 	cp target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi esp/uefi-qmk-hid.efi
 	cp ../firmware-update/res/shell.efi esp/efi/boot/bootx64.efi
-	qemu-system-x86_64 \
+	# Needs sudo in order to pass USB device through
+	sudo qemu-system-x86_64 \
 	  -enable-kvm \
 		-M q35 \
 		-m 1024 \
 		-net none \
-		-usb -device usb-host,vendorid=0x32ac,productid=0x0012 \
-    -drive if=pflash,format=raw,readonly=on,file=OVMF_CODE.fd \
-    -drive if=pflash,format=raw,readonly=on,file=OVMF_VARS.fd \
+		-serial stdio \
+		-debugcon file:debug.log -global isa-debugcon.iobase=0x402 \
+		-usb \
+		-device usb-ehci,id=ehci \
+		-device usb-host,bus=ehci.0,hostbus=3,hostport=2 \
+    -drive if=pflash,format=raw,readonly=on,file=ovmf/OVMF_CODE.fd \
+    -drive if=pflash,format=raw,readonly=on,file=ovmf/OVMF_VARS.fd \
     -drive format=raw,file=fat:rw:esp

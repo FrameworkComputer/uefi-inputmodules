@@ -36,9 +36,11 @@ uefi-qmk-hid.efi lsusb
 uefi-qmk-hid.efi lsusb -v
 
 # Control QMK keyboard
-uefi-qmk-hid.efi lsusb via --bootloader
-uefi-qmk-hid.efi lsusb via --rgb-brightness
-uefi-qmk-hid.efi lsusb via --rgb-brightness 100
-uefi-qmk-hid.efi lsusb via --rgb-brightness 50
-uefi-qmk-hid.efi lsusb via --rgb-brightness 0
+uefi-qmk-hid.efi via --bootloader
+uefi-qmk-hid.efi via --rgb-brightness
+uefi-qmk-hid.efi via --rgb-brightness 100
+uefi-qmk-hid.efi via --rgb-brightness 50
+uefi-qmk-hid.efi via --rgb-brightness 0
 ```
+
+Simulate in QEMU: `make run`
