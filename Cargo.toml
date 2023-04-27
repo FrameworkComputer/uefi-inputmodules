@@ -14,6 +14,19 @@ uefi-services = "0.17"
 [patch.crates-io]
 uefi = { path = "/home/zoid/clone/uefi-rs/uefi" }
 uefi-services = { path = "/home/zoid/clone/uefi-rs/uefi-services" }
+#zune-core = { path = "/home/zoid/clone/active/zune-image/zune-core" }
+zune-jpeg = { path = "/home/zoid/clone/active/zune-image/zune-jpeg" }
+
+#[dependencies.zune-core]
+#version = "0.2"
+#default-features = false
+#features = [] #[ "x86" ]
+
+[dependencies.zune-jpeg]
+version = "0.3"
+default-features = false
+# TODO: Compilation fails: https://github.com/rust-lang/rust/issues/61721
+#features = [ "x86" ]
 
 [dependencies.framework_lib]
 path = "/home/zoid/clone/framework-system/framework_lib"

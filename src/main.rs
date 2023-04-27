@@ -24,6 +24,7 @@ use crate::uefi_usb::*;
 use crate::via::*;
 
 mod gui;
+pub mod hii_image_decode;
 pub mod raw_hid;
 pub mod shell;
 pub mod shell_params;
@@ -160,6 +161,7 @@ struct ToolArgs {
 enum Subcommand {
     Gui,
     Gop,
+    Decoder,
     Lsusb(LsusbArgs),
     Via(ViaArgs),
     Tool(ToolArgs),
@@ -192,6 +194,7 @@ fn parse_args<'a, I: Iterator<Item = &'a str>>(
         "lsusb" => parse_lsusb_args(opts)?,
         "gui" => parse_gui_args(opts)?,
         "gop" => Subcommand::Gop,
+        "decoder" => Subcommand::Decoder,
         "via" => parse_via_args(opts)?,
         "tool" => parse_tool_args(opts)?,
         _ => {
@@ -340,6 +343,9 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
                     }
                     Subcommand::Gop => {
                         gui::print_gop_modes(boot_services).unwrap();
+                    }
+                    Subcommand::Decoder => {
+                        gui::print_image_decoders(boot_services).unwrap();
                     }
                     Subcommand::Tool(args) => {
                         handle_tool(args);

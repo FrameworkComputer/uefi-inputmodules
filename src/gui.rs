@@ -1,6 +1,6 @@
 use alloc::vec;
 use alloc::vec::Vec;
-use embedded_graphics::image::SubImage;
+use embedded_graphics::image::{SubImage, ImageRaw};
 use embedded_graphics::primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle};
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
 use framework_lib::chromium_ec::{input_deck, CrosEc};
@@ -27,6 +27,8 @@ use embedded_graphics::{
     text::Text,
 };
 use tinybmp::Bmp;
+
+use crate::hii_image_decode::HiiImageDecoder;
 
 struct Buffer {
     width: usize,
@@ -111,7 +113,7 @@ fn show_top(
     show: bool,
     pos: usize,
     buffer: &mut Buffer,
-    sprites: &[&SubImage<Bmp<Rgb888>>],
+    sprites: &[&SubImage<ImageRaw<Rgb888>>],
     rects: &[Rectangle],
 ) {
     let sprite = sprites[pos];
@@ -129,7 +131,7 @@ fn show_top(
 fn show_touchpad(
     show: bool,
     buffer: &mut Buffer,
-    touchpad_sprite: &SubImage<Bmp<Rgb888>>,
+    touchpad_sprite: &SubImage<ImageRaw<Rgb888>>,
     touchpad_rect: &Rectangle,
 ) {
     let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
@@ -210,8 +212,16 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     }
 
     // Rects for QEMU (1024 x 768 x 24)
-    let background_image =
-        include_bytes!("/home/zoid/Downloads/framework-laptop-16-input-module-topdown.bmp");
+    //let background_image =
+    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768.bmp");
+    //let background_image =
+    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.bmp");
+    //let jpeg =
+    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.jpg");
+    let jpeg =
+        include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600-noback.jpg");
+    let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
+    let background_image = decoder.decode().unwrap();
     let y_top = 360;
     let y_bottom = 545;
     let x_left = 255;
@@ -220,7 +230,9 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let touchpad_height = 729 - 546;
 
     // Rects for Lotus (2560 x 1600 x 24)
-    //let background_image = include_bytes!("/home/zoid/Downloads/framework-laptop-16-input-module-topdown-2560x1600.bmp");
+    //let background_image = include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600.bmp");
+    // let background_image =
+    //     include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600-noback.jpg");
     //let y_top = 736;
     //let y_bottom = 1113;
     //let x_left = 706;
@@ -228,15 +240,17 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     //let a_width = 945;
     //let touchpad_height = 372;
 
-    let bmp: Bmp<Rgb888> = Bmp::from_slice(include_bytes!(
-        "../../led_matrix_fw/fl16-inputmodules/assets/logo.bmp"
-    ))
-    .unwrap();
-    let image = Image::new(&bmp, Point::new(100, 100));
-    image.draw(&mut buffer).unwrap();
+    //let bmp: Bmp<Rgb888> = Bmp::from_slice(include_bytes!(
+    //    "../../led_matrix_fw/fl16-inputmodules/assets/logo.bmp"
+    //))
+    //.unwrap();
+    //let image = Image::new(&bmp, Point::new(100, 100));
+    //image.draw(&mut buffer).unwrap();
 
     // Have to export in GIMP as RGB888
-    let background_bmp: Bmp<Rgb888> = Bmp::from_slice(background_image).unwrap();
+    //let background_bmp: Bmp<Rgb888> = Bmp::from_slice(background_image).unwrap();
+    //let image = Image::new(&background_bmp, Point::new(0, 0));
+    let background_bmp = ImageRaw::<Rgb888>::new(&background_image, 1024);
     let image = Image::new(&background_bmp, Point::new(0, 0));
     image.draw(&mut buffer).unwrap();
 
@@ -491,10 +505,10 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             _ => {}
         };
         // X and Y are exchanged?
-        if game {
-            let image = Image::new(&bmp, Point::new(100, 100) + Point::new(y, x));
-            image.draw(&mut buffer).unwrap();
-        }
+        //if game {
+        //    let image = Image::new(&bmp, Point::new(100, 100) + Point::new(y, x));
+        //    image.draw(&mut buffer).unwrap();
+        //}
 
         buffer.blit(&mut gop)?;
     }
@@ -507,6 +521,50 @@ fn show_input_deck(
     input_deck: &InputDeckStatus,
 ) -> Result {
     //buffer.blit(gop)?;
+    Ok(())
+}
+
+pub fn print_image_decoders(bs: &BootServices) -> Result {
+    let decoder_handles = if let Ok(decoder_handles) =
+        bs.locate_handle_buffer(SearchType::ByProtocol(&HiiImageDecoder::GUID))
+    {
+        decoder_handles
+    } else {
+        error!("HiiImageDecoder protocol is missing");
+
+    //let bitmap =
+    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.bmp");
+    //println!("BMP Size: {}", bitmap.len());
+    //let background_image =
+    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.jpg");
+    //let mut decoder = zune_jpeg::JpegDecoder::new(background_image);
+    //let mut pixels = decoder.decode().unwrap();
+    //println!("actual pixels: {:?}, expected: pixels: {:?}", pixels.len(), 1024 * 768);
+        return Ok(());
+    };
+
+    for handle in decoder_handles.iter() {
+        let decoder = unsafe {
+            bs.open_protocol::<HiiImageDecoder>(
+                OpenProtocolParams {
+                    handle: *handle,
+                    agent: bs.image_handle(),
+                    controller: None,
+                },
+                OpenProtocolAttributes::GetProtocol,
+            )
+            .expect("Failed to open HiiImageDecoder handle")
+        };
+
+        println!("Found Decoder");
+
+        let decoder_names = decoder.get_image_decoder_names();
+        println!("  Has {} decoder names", decoder_names.len());
+        println!("  Decoders: {:?}", decoder_names);
+        //for decoder_name in decoder_names {
+        //}
+    };
+
     Ok(())
 }
 
