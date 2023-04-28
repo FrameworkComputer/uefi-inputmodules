@@ -123,7 +123,6 @@ dependencies = [
  "num-derive",
  "num-traits",
  "plain",
- "redox_dmi",
  "redox_hwio",
  "smbios-lib",
  "spin 0.9.8",
@@ -345,15 +344,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "redox_dmi"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a99ca13e2ee4afe0fa2a646db6ac800f6d077a789ee759085f7313092535a45f"
-dependencies = [
- "plain",
-]
-
-[[package]]
 name = "redox_hwio"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -514,6 +504,7 @@ dependencies = [
 name = "uefi-qmk-hid"
 version = "0.1.0"
 dependencies = [
+ "cfg-if",
  "embedded-graphics",
  "framework_lib",
  "getargs",

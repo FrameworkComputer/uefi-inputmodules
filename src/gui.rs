@@ -1,9 +1,11 @@
 use alloc::vec;
 use alloc::vec::Vec;
-use embedded_graphics::image::{SubImage, ImageRaw};
+use embedded_graphics::image::{ImageRaw, SubImage};
 use embedded_graphics::primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle};
+use framework_lib::chromium_ec::input_deck;
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
-use framework_lib::chromium_ec::{input_deck, CrosEc};
+#[cfg(not(feature = "qemu"))]
+use framework_lib::chromium_ec::CrosEc;
 #[allow(unused_imports)]
 use log::{debug, error, info};
 use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
@@ -26,6 +28,7 @@ use embedded_graphics::{
     prelude::*,
     text::Text,
 };
+#[cfg(feature = "bmp")]
 use tinybmp::Bmp;
 
 use crate::hii_image_decode::HiiImageDecoder;
@@ -147,6 +150,7 @@ fn show_touchpad(
 }
 
 pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
+    #[cfg(not(feature = "qemu"))]
     let ec = CrosEc::new();
     //// Open graphics output protocol.
     //let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>()?;
@@ -211,47 +215,61 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         }
     }
 
-    // Rects for QEMU (1024 x 768 x 24)
-    //let background_image =
-    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768.bmp");
-    //let background_image =
-    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.bmp");
-    //let jpeg =
-    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.jpg");
-    let jpeg =
-        include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600-noback.jpg");
-    let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
-    let background_image = decoder.decode().unwrap();
-    let y_top = 360;
-    let y_bottom = 545;
-    let x_left = 255;
-    let c_width = 310 - 255;
-    let a_width = 464;
-    let touchpad_height = 729 - 546;
-
-    // Rects for Lotus (2560 x 1600 x 24)
-    //let background_image = include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600.bmp");
-    // let background_image =
-    //     include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600-noback.jpg");
-    //let y_top = 736;
-    //let y_bottom = 1113;
-    //let x_left = 706;
-    //let c_width = 110;
-    //let a_width = 945;
-    //let touchpad_height = 372;
-
-    //let bmp: Bmp<Rgb888> = Bmp::from_slice(include_bytes!(
-    //    "../../led_matrix_fw/fl16-inputmodules/assets/logo.bmp"
-    //))
-    //.unwrap();
-    //let image = Image::new(&bmp, Point::new(100, 100));
-    //image.draw(&mut buffer).unwrap();
+    cfg_if::cfg_if! {
+        // Rects for QEMU (1024 x 768 x 24)
+        if #[cfg(feature = "qemu")] {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "bmp")] {
+                    //let background_image =
+                    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768.bmp");
+                    let background_image =
+                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.bmp");
+                } else {
+                    let jpeg =
+                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.jpg");
+                    let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
+                    let background_image = decoder.decode().unwrap();
+                }
+            }
+            let y_top = 360;
+            let y_bottom = 545;
+            let x_left = 255;
+            let c_width = 310 - 255;
+            let a_width = 464;
+            let touchpad_height = 729 - 546;
+            let text_pos = Point::new(250, 30);
+        } else {
+            // Rects for Lotus (2560 x 1600 x 24)
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "bmp")] {
+                    let background_image = include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600.bmp");
+                } else {
+                    let jpeg =
+                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600-noback.jpg");
+                    let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
+                    let background_image = decoder.decode().unwrap();
+                }
+            }
+            let y_top = 736;
+            let y_bottom = 1113;
+            let x_left = 706;
+            let c_width = 110;
+            let a_width = 945;
+            let touchpad_height = 372;
+            let text_pos = Point::new(500, 30);
+        }
+    }
 
     // Have to export in GIMP as RGB888
-    //let background_bmp: Bmp<Rgb888> = Bmp::from_slice(background_image).unwrap();
-    //let image = Image::new(&background_bmp, Point::new(0, 0));
-    let background_bmp = ImageRaw::<Rgb888>::new(&background_image, 1024);
-    let image = Image::new(&background_bmp, Point::new(0, 0));
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "bmp")] {
+            let background_bmp: Bmp<Rgb888> = Bmp::from_slice(background_image).unwrap();
+            let image = Image::new(&background_bmp, Point::new(0, 0));
+        } else {
+            let background_bmp = ImageRaw::<Rgb888>::new(&background_image, 1024);
+            let image = Image::new(&background_bmp, Point::new(0, 0));
+        }
+    }
     image.draw(&mut buffer).unwrap();
 
     let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
@@ -316,7 +334,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
 
     let text = Text::new(
         "Framework Laptop 16 Input Deck - Missing Modules",
-        Point::new(250, 30),
+        text_pos,
         MonoTextStyle::new(&FONT_9X15, Rgb888::BLACK),
     );
 
@@ -328,9 +346,6 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let input_handle = bs.get_handle_for_protocol::<Input>().unwrap();
     let mut input = bs.open_protocol_exclusive::<Input>(input_handle).unwrap();
 
-    let mut x = 0;
-    let mut y = 0;
-    let mut game = false;
     let one_key = Char16::try_from('1').unwrap();
     let two_key = Char16::try_from('2').unwrap();
     let three_key = Char16::try_from('3').unwrap();
@@ -348,40 +363,41 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let c1_rects = [left_c1_rect, left2_c1_rect, right0_c1_rect, right_c1_rect];
     let a1_sprites = [&middle_a1_sprite, &middle_a1_sprite, &middle_a1_sprite];
     let a1_rects = [left_a1_rect, middle_a1_rect, right_a1_rect];
-    let mut left_c1_state = false;
-    let mut middle_a1_state = false;
-    let mut right_c1_state = false;
-    let mut touchpad_state = false;
+    let mut emulated_deck = InputDeckStatus {
+        state: input_deck::InputDeckState::On,
+        hubboard_present: true,
+        touchpad_present: false,
+        top_row: input_deck::TopRowPositions {
+            pos0: input_deck::InputModuleType::Disconnected,
+            pos1: input_deck::InputModuleType::Disconnected,
+            pos2: input_deck::InputModuleType::Disconnected,
+            pos3: input_deck::InputModuleType::Disconnected,
+            pos4: input_deck::InputModuleType::Disconnected,
+        },
+    };
     loop {
+        #[cfg(not(feature = "qemu"))]
         let input_deck = ec.get_input_deck_status();
+        #[cfg(feature = "qemu")]
+        let input_deck: core::result::Result<InputDeckStatus, ()> = core::result::Result::Err(());
         let input_deck = if let Ok(input_deck) = input_deck {
+            //println!("Got it!");
             input_deck
         } else {
             //println!("Emulated deck data");
-            InputDeckStatus {
-                state: input_deck::InputDeckState::On,
-                touchpad_present: false,
-                top_row: input_deck::TopRowPositions {
-                    pos0: input_deck::InputModuleType::GenericC,
-                    pos1: input_deck::InputModuleType::GenericA,
-                    pos2: input_deck::InputModuleType::Disconnected,
-                    pos3: input_deck::InputModuleType::Disconnected,
-                    pos4: input_deck::InputModuleType::Disconnected,
-                },
-            }
+            emulated_deck.clone()
         };
-        //println!("InputDeckStatus: {:?}", input_deck);
-        //println!("Touchpad present: {:?}", input_deck.touchpad_present);
-        //show_input_deck(&mut buffer, &mut gop, &input_deck).unwrap();
+        //debug!("InputDeck State: {:?}", input_deck.state);
+        //debug!("Touchpad present: {:?}", input_deck.touchpad_present);
+        //debug!("Hubboard present: {:?}", input_deck.hubboard_present);
 
         // Reset to no modules, otherwise we can't reset what's shown
         show_top(false, 0, &mut buffer, &a1_sprites, &a1_rects);
         show_top(false, 2, &mut buffer, &c1_sprites, &c1_rects);
         show_top(false, 3, &mut buffer, &c1_sprites, &c1_rects);
 
-        touchpad_state = input_deck.touchpad_present;
         show_touchpad(
-            touchpad_state,
+            input_deck.touchpad_present,
             &mut buffer,
             &touchpad_sprite,
             &touchpad_rect,
@@ -454,47 +470,61 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             //Some(Key::Printable(key)) if key == u_key => {
             //    info!("the 'u' key was pressed");
             //}
-            //Some(Key::Printable(key)) if key == one_key => {
-            //    left_c1_state = !left_c1_state;
-            //    show_top(left_c1_state, 0, &mut buffer, &c1_sprites, &c1_rects);
-            //}
-            //Some(Key::Printable(key)) if key == two_key => {
-            //    middle_a1_state = !middle_a1_state;
-            //    if middle_a1_state {
-            //        Image::new(&middle_a1_sprite, middle_a1_rect.top_left)
-            //            .draw(&mut buffer)
-            //            .unwrap();
-            //    } else {
-            //        middle_a1_rect
-            //            .into_styled(blank_style)
-            //            .draw(&mut buffer)
-            //            .unwrap();
-            //    }
-            //}
-            //Some(Key::Printable(key)) if key == three_key => {
-            //    right_c1_state = !right_c1_state;
-            //    // TODO: Update number
-            //    show_top(right_c1_state, 1, &mut buffer, &c1_sprites, &c1_rects);
-            //}
-            //Some(Key::Printable(key)) if key == four_key => {
-            //    touchpad_state = !touchpad_state;
-            //    show_touchpad(touchpad_state, &mut buffer, &touchpad_sprite, &touchpad_rect);
-            //}
-            Some(Key::Special(ScanCode::LEFT)) => {
-                y -= 10;
-                game = true;
+            Some(Key::Printable(key)) if key == one_key => {
+                emulated_deck = InputDeckStatus {
+                    state: input_deck::InputDeckState::On,
+                    hubboard_present: true,
+                    touchpad_present: false,
+                    top_row: input_deck::TopRowPositions {
+                        pos0: input_deck::InputModuleType::GenericC,
+                        pos1: input_deck::InputModuleType::Disconnected,
+                        pos2: input_deck::InputModuleType::Disconnected,
+                        pos3: input_deck::InputModuleType::Disconnected,
+                        pos4: input_deck::InputModuleType::Disconnected,
+                    },
+                };
             }
-            Some(Key::Special(ScanCode::RIGHT)) => {
-                y += 10;
-                game = true;
+            Some(Key::Printable(key)) if key == two_key => {
+                emulated_deck = InputDeckStatus {
+                    state: input_deck::InputDeckState::On,
+                    hubboard_present: true,
+                    touchpad_present: false,
+                    top_row: input_deck::TopRowPositions {
+                        pos0: input_deck::InputModuleType::GenericC,
+                        pos1: input_deck::InputModuleType::GenericC,
+                        pos2: input_deck::InputModuleType::Disconnected,
+                        pos3: input_deck::InputModuleType::Disconnected,
+                        pos4: input_deck::InputModuleType::Disconnected,
+                    },
+                };
             }
-            Some(Key::Special(ScanCode::UP)) => {
-                x -= 10;
-                game = true;
+            Some(Key::Printable(key)) if key == three_key => {
+                emulated_deck = InputDeckStatus {
+                    state: input_deck::InputDeckState::On,
+                    hubboard_present: true,
+                    touchpad_present: false,
+                    top_row: input_deck::TopRowPositions {
+                        pos0: input_deck::InputModuleType::GenericC,
+                        pos1: input_deck::InputModuleType::GenericC,
+                        pos2: input_deck::InputModuleType::KeyboardA,
+                        pos3: input_deck::InputModuleType::Disconnected,
+                        pos4: input_deck::InputModuleType::Disconnected,
+                    },
+                };
             }
-            Some(Key::Special(ScanCode::DOWN)) => {
-                x += 10;
-                game = true;
+            Some(Key::Printable(key)) if key == four_key => {
+                emulated_deck = InputDeckStatus {
+                    state: input_deck::InputDeckState::On,
+                    hubboard_present: true,
+                    touchpad_present: true,
+                    top_row: input_deck::TopRowPositions {
+                        pos0: input_deck::InputModuleType::GenericC,
+                        pos1: input_deck::InputModuleType::GenericC,
+                        pos2: input_deck::InputModuleType::KeyboardA,
+                        pos3: input_deck::InputModuleType::Disconnected,
+                        pos4: input_deck::InputModuleType::Disconnected,
+                    },
+                };
             }
 
             // Example of handling a special key: exit the loop when the
@@ -504,23 +534,9 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             }
             _ => {}
         };
-        // X and Y are exchanged?
-        //if game {
-        //    let image = Image::new(&bmp, Point::new(100, 100) + Point::new(y, x));
-        //    image.draw(&mut buffer).unwrap();
-        //}
 
         buffer.blit(&mut gop)?;
     }
-    Ok(())
-}
-
-fn show_input_deck(
-    buffer: &mut Buffer,
-    gop: &mut ScopedProtocol<GraphicsOutput>,
-    input_deck: &InputDeckStatus,
-) -> Result {
-    //buffer.blit(gop)?;
     Ok(())
 }
 
@@ -532,14 +548,14 @@ pub fn print_image_decoders(bs: &BootServices) -> Result {
     } else {
         error!("HiiImageDecoder protocol is missing");
 
-    //let bitmap =
-    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.bmp");
-    //println!("BMP Size: {}", bitmap.len());
-    //let background_image =
-    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.jpg");
-    //let mut decoder = zune_jpeg::JpegDecoder::new(background_image);
-    //let mut pixels = decoder.decode().unwrap();
-    //println!("actual pixels: {:?}, expected: pixels: {:?}", pixels.len(), 1024 * 768);
+        //let bitmap =
+        //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.bmp");
+        //println!("BMP Size: {}", bitmap.len());
+        //let background_image =
+        //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.jpg");
+        //let mut decoder = zune_jpeg::JpegDecoder::new(background_image);
+        //let mut pixels = decoder.decode().unwrap();
+        //println!("actual pixels: {:?}, expected: pixels: {:?}", pixels.len(), 1024 * 768);
         return Ok(());
     };
 
@@ -563,7 +579,7 @@ pub fn print_image_decoders(bs: &BootServices) -> Result {
         println!("  Decoders: {:?}", decoder_names);
         //for decoder_name in decoder_names {
         //}
-    };
+    }
 
     Ok(())
 }

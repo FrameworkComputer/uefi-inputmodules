@@ -1,3 +1,5 @@
+//! Protocol to get the shell commandline parameters
+//! TODO: Upstream to rust-osdev/uefi-rs
 use alloc::borrow::ToOwned;
 use core::ffi::c_void;
 use uefi::proto::unsafe_protocol;

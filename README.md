@@ -28,8 +28,11 @@ fs0:
 # GUI. Use the arrow keys to move the logo around
 uefi-qmk-hid.efi gui
 
-# Display information about GOP protocol
+# Display information about installed GOP protocols
 uefi-qmk-hid.efi -b gop
+
+# Display information about installed HII Image decoder protocols
+uefi-qmk-hid.efi -b decoder
 
 # Get info about USB devices
 uefi-qmk-hid.efi lsusb

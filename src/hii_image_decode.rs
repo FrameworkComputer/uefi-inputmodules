@@ -1,3 +1,8 @@
+//! WIP Implementation of the HII_IMAGE_DECODER protocol
+//!
+//! Currently I haven't been able to make it work. QEMU and laptop FW does not
+//! seem to have this protocol installed. And I don't see where in EDK2 code
+//! that would happen.
 use core::ffi::c_void;
 use core::ptr;
 use uefi::proto::unsafe_protocol;
@@ -28,7 +33,7 @@ impl From<Guid> for DecoderName {
         if guid == HII_IMAGE_DECODER_NAME_PNG_GUID {
             return DecoderName::Png;
         }
-        return DecoderName::Other(guid);
+        DecoderName::Other(guid)
     }
 }
 
@@ -84,8 +89,8 @@ pub struct ImageOutput {
 }
 
 pub enum ImageOutputEnum {
-  //Bitmap(*mut BltPixel),
-  //Screen(*mut OutputProtocol),
+    //Bitmap(*mut BltPixel),
+    //Screen(*mut OutputProtocol),
 }
 
 #[repr(C)]
@@ -116,18 +121,18 @@ impl HiiImageDecoder {
         let mut decoder_names = ptr::null_mut();
         let mut decoder_num = 0;
         let names = [DecoderName::Empty; 3];
-        (self.get_image_decoder_name)(self, &mut decoder_names, &mut decoder_num);
+        _ = (self.get_image_decoder_name)(self, &mut decoder_names, &mut decoder_num);
         names
     }
     pub fn get_image_info(&self) -> ImageInfo {
         //(self.get_image_info)(self);
-        let header: ImageInfoHeader = unimplemented!();
-        match DecoderName::from(header.decoder_name) {
-            DecoderName::Jpeg => unimplemented!(), // ImageInfo::Jpeg {}
-            DecoderName::Png => unimplemented!(),  // ImageInfo::Png {}
-            DecoderName::Other(_) => unimplemented!(), //ImageInfo::Other {}
-            DecoderName::Empty => unreachable!(),
-        }
+        //let _header: ImageInfoHeader = unimplemented!();
+        //match DecoderName::from(header.decoder_name) {
+        //    DecoderName::Jpeg => unimplemented!(), // ImageInfo::Jpeg {}
+        //    DecoderName::Png => unimplemented!(),  // ImageInfo::Png {}
+        //    DecoderName::Other(_) => unimplemented!(), //ImageInfo::Other {}
+        //    DecoderName::Empty => unreachable!(),
+        //}
         unimplemented!()
     }
     /// Caller needs to deallocate returned image
@@ -135,7 +140,7 @@ impl HiiImageDecoder {
         let image_buffer = image.as_ptr() as *const c_void;
         let mut output_buffer = ptr::null_mut();
 
-        (self.decode_image)(self, image_buffer, image.len(), &mut output_buffer, false);
+        _ = (self.decode_image)(self, image_buffer, image.len(), &mut output_buffer, false);
 
         // TODO: Wrap and return output_buffer pointer
         unimplemented!()

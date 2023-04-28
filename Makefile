@@ -5,6 +5,12 @@ SOURCES=Cargo.toml $(wildcard src/*.rs)
 debug: target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi
 	@ls -lh $<
 
+qemu: $(SOURCES)
+	cargo build --target x86_64-unknown-uefi --features qemu
+
+bmp: $(SOURCES)
+	cargo build --target x86_64-unknown-uefi --features bmp
+
 target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi: $(SOURCES)
 	cargo build --target x86_64-unknown-uefi
 
@@ -25,6 +31,7 @@ OVMF_VARS.fd:
 #	-usb -device usb-host,vendorid=0x32ac,productid=0x0012
 run: OVMF_CODE.fd OVMF_VARS.fd target/x86_64-unknown-uefi/$(TARGET)/uefi-qmk-hid.efi
 	mkdir -p esp/efi/boot
+	cp ~/clone/uefi-rs/./target/x86_64-unknown-uefi/debug/examples/shell_params.efi esp/
 	cp target/x86_64-unknown-uefi/$(TARGET)/uefi-qmk-hid.efi esp/uefi-qmk-hid.efi
 	cp ../firmware-update/res/shell.efi esp/efi/boot/bootx64.efi
 	# Needs sudo in order to pass USB device through
