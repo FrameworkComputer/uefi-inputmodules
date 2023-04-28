@@ -464,7 +464,6 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         // Update once a second
         bs.stall(1_000_000);
 
-        //let u_key = Char16::try_from('u').unwrap();
         match input.read_key().unwrap() {
             Some(Key::Printable(key)) if key == zero_key => {
                 emulated_deck = InputDeckStatus {
@@ -544,8 +543,6 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             }
             _ => {}
         };
-
-        buffer.blit(&mut gop)?;
     }
     Ok(())
 }
@@ -557,15 +554,6 @@ pub fn print_image_decoders(bs: &BootServices) -> Result {
         decoder_handles
     } else {
         error!("HiiImageDecoder protocol is missing");
-
-        //let bitmap =
-        //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.bmp");
-        //println!("BMP Size: {}", bitmap.len());
-        //let background_image =
-        //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.jpg");
-        //let mut decoder = zune_jpeg::JpegDecoder::new(background_image);
-        //let mut pixels = decoder.decode().unwrap();
-        //println!("actual pixels: {:?}, expected: pixels: {:?}", pixels.len(), 1024 * 768);
         return Ok(());
     };
 
@@ -587,8 +575,9 @@ pub fn print_image_decoders(bs: &BootServices) -> Result {
         let decoder_names = decoder.get_image_decoder_names();
         println!("  Has {} decoder names", decoder_names.len());
         println!("  Decoders: {:?}", decoder_names);
-        //for decoder_name in decoder_names {
-        //}
+        // for decoder_name in decoder_names {
+        // TODO
+        // }
     }
 
     Ok(())

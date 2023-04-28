@@ -1,11 +1,17 @@
+use alloc::vec;
+use alloc::vec::Vec;
 use core::convert::TryFrom;
 use core::mem::MaybeUninit;
-use log::{debug, error, info};
+#[allow(unused_imports)]
+use log::{debug, error, info, trace};
 use uefi::prelude::*;
 use uefi::proto::unsafe_protocol;
 use uefi::table::boot::ScopedProtocol;
-use uefi::{Char16, Result};
+use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
+use uefi::{Char16, Identify, Result};
 
+use crate::commandline::*;
+use crate::via::*;
 use crate::TIMEOUT;
 use crate::VERBOSE;
 
@@ -659,4 +665,314 @@ fn find_next_hid_element(report_desc: &[u8]) -> (&[u8], Option<HidElement>) {
         _ => panic!("Unhandled size"),
     };
     (report_desc, Some(hid_elem))
+}
+
+pub fn get_usb(bs: &BootServices, args: Arguments) -> Result {
+    let usb_io_handles = bs.locate_handle_buffer(SearchType::ByProtocol(&UsbIo::GUID));
+
+    let usb_io_handles = if let Ok(usb_io_handles) = usb_io_handles {
+        usb_io_handles
+    } else {
+        info!("UsbIo protocol is missing");
+        return Ok(());
+    };
+
+    let lsusb = matches!(args.subcommand, Subcommand::Lsusb(_));
+    let verbose = args.verbosity > 0;
+
+    if verbose {
+        info!("Found {} UsbIo handles", (*usb_io_handles).len());
+    }
+    for handle in &*usb_io_handles {
+        let mut usb_handle = unsafe {
+            bs.open_protocol::<UsbIo>(
+                OpenProtocolParams {
+                    handle: *handle,
+                    agent: bs.image_handle(),
+                    controller: None,
+                },
+                OpenProtocolAttributes::GetProtocol,
+            )
+            .expect("Failed to open UsbIo handle")
+        };
+
+        let desc = usb_handle
+            .get_device_descriptor()
+            .expect("Failed to get Device Descriptor");
+
+        if let Subcommand::Lsusb(lsusb_args) = &args.subcommand {
+            if let Some(pid) = lsusb_args.pid {
+                // Filter by PID and PID isn't the selected one
+                if pid != desc.id_product {
+                    continue;
+                }
+            }
+            if let Some(vid) = lsusb_args.vid {
+                // Filter by VID and VID isn't the selected one
+                if vid != desc.id_vendor {
+                    continue;
+                }
+            }
+        }
+
+        // Currently only interested in Keychron/Framework/Logitech keyboards
+        // To avoid spamming the output
+        if ![0x3434, 0x32AC, 0x046D].contains(&{ desc.id_vendor }) {
+            continue;
+        }
+        if verbose || lsusb {
+            info!("{:04X}:{:04X}", { desc.id_vendor }, { desc.id_product });
+        }
+
+        let major = (desc.bcd_device & 0xFF00) >> 8;
+        let minor = (desc.bcd_device & 0xF0) >> 4;
+        let patch = desc.bcd_device & 0x0F;
+        if verbose || lsusb {
+            info!(
+                "  bcdDevice:       0x{:04X} ({:>2}.{:02}.{:02})",
+                { desc.bcd_device },
+                major,
+                minor,
+                patch
+            );
+            // What's this?
+            debug!("  Protocol:        0x{:02X}", { desc.device_protocol });
+            // 0 and 0 means look at the interface descriptor
+            info!(
+                "  Device Class:    {}, Subclass: {}",
+                { desc.device_class },
+                { desc.device_sub_class }
+            );
+            // TODO: Get string
+            //info!("  Str Manufactr:   {}", { desc.str_manufacturer });
+            //info!("  Str Product:     {}", { desc.str_product });
+            // Is expected to be 1
+            info!("  Configurations:  {}", { desc.num_configurations });
+            // Is expected to be always be 64
+            //info!("  Max Packet Size: {}", { desc.max_packet_size0 });
+        }
+
+        let interface = usb_handle
+            .get_interface_descriptor()
+            .expect("Failed to get Interface Descriptor");
+
+        if verbose || lsusb {
+            info!("  Interface #{}", { interface.interface_number });
+            info!("    Endpoints:          {}", { interface.num_endpoints });
+            info!("    Interface:          {}", { interface.interface });
+            info!(
+                "    Interface Class:    {}, Subclass: {}",
+                { interface.interface_class },
+                { interface.interface_sub_class }
+            );
+            debug!("    Interface Protocol: {}", {
+                interface.interface_protocol
+            });
+        }
+
+        let config_desc = usb_handle
+            .get_config_descriptor()
+            .expect("Failed to get Config Descriptor");
+        trace!("  Config Desc Total Len: {}", { config_desc.total_length });
+
+        if interface.interface_class != 3 {
+            info!("Skipping interface, not HID class");
+            continue;
+        }
+
+        let interrupt_endpoint = find_interrupt_endpoint(&mut usb_handle, interface.num_endpoints);
+
+        let mut all_descriptors = vec![0; config_desc.total_length as usize];
+        let mut request = UsbDeviceRequest {
+            request_type: UsbRequestType::GetDescriptor as u8,
+            request: DeviceRequest::UsbGetDescriptor as u8,
+            value: u16::from_le_bytes([
+                config_desc.configuration_value - 1,
+                UsbDescriptorType::Config as u8,
+            ]),
+            index: 0,
+            length: config_desc.total_length,
+        };
+        usb_handle
+            .control_transfer(
+                &mut request,
+                UsbDataDirection::DataIn,
+                TIMEOUT,
+                &mut all_descriptors,
+            )
+            .expect("Failed to get all descriptors :( :(");
+        debug!("Successfully got all descriptors!!!!");
+
+        let mut all_desc_byte = 0;
+        let mut after_interface_desc = false;
+        let mut hid_desc: Option<&HidDescriptor> = None;
+        while all_desc_byte < config_desc.total_length {
+            let desc_head = unsafe {
+                &*all_descriptors
+                    .as_ptr()
+                    .add(all_desc_byte as usize)
+                    .cast::<UsbDescriptorHead>()
+            };
+            if desc_head.desc_type == (UsbDescriptorType::Interface as u8) {
+                let found_int_desc = unsafe {
+                    &*all_descriptors
+                        .as_ptr()
+                        .add(all_desc_byte as usize)
+                        .cast::<UsbInterfaceDescriptor>()
+                };
+                if found_int_desc.interface_number == interface.interface_number
+                    && found_int_desc.alternate_setting == interface.alternate_setting
+                {
+                    after_interface_desc = true;
+                }
+            }
+            if after_interface_desc && desc_head.desc_type == (UsbDescriptorType::Endpoint as u8) {
+                break;
+            }
+            if after_interface_desc && desc_head.desc_type == (UsbDescriptorType::Hid as u8) {
+                hid_desc = Some(unsafe {
+                    &*all_descriptors
+                        .as_ptr()
+                        .add(all_desc_byte as usize)
+                        .cast::<HidDescriptor>()
+                });
+            }
+            all_desc_byte += desc_head.len as u16;
+        }
+        let hid_desc = if let Some(hid_desc) = hid_desc {
+            hid_desc
+        } else {
+            info!("  Failed to find HID descriptor");
+            continue;
+        };
+
+        if verbose || lsusb {
+            info!("  Found HID descriptor");
+            info!("    Desc Type: {}", {
+                hid_desc.hid_class_desc[0].descriptor_type
+            });
+        }
+
+        let mut report_desc = Vec::new();
+        report_desc.resize(hid_desc.hid_class_desc[0].descriptor_length as usize, 0);
+        let mut request = UsbDeviceRequest {
+            request_type: UsbRequestType::GetDescriptor as u8,
+            request: DeviceRequest::UsbGetDescriptor as u8,
+            value: u16::from_le_bytes([0, UsbDescriptorType::Report as u8]),
+            index: interface.interface_number as u16,
+            length: hid_desc.hid_class_desc[0].descriptor_length,
+        };
+        let status = usb_handle.control_transfer(
+            &mut request,
+            UsbDataDirection::DataIn,
+            TIMEOUT,
+            &mut report_desc,
+        );
+        //.expect("Failed to get report descriptor");
+        if status.is_err() {
+            info!("  Failed to get HID report descriptor! ({:?}", status);
+            continue;
+        }
+        if verbose {
+            info!("  Got HID report descriptor!");
+        }
+
+        let (in_endpoint_addr, out_endpoint_addr) =
+            if let Some((input, output)) = interrupt_endpoint {
+                assert!(input.is_in() && input.is_interrupt());
+                assert!(!output.is_in() && output.is_interrupt());
+                (input.endpoint_address, output.endpoint_address)
+            } else {
+                info!("Failed to find IN/OUT Interrupt descriptor");
+                continue;
+            };
+
+        let usage_page = parse_hid_descriptor(report_desc.as_slice());
+        let _generic = UsagePage::GenericDesktop as u8;
+        let _keyboard = UsagePage::Keyboard as u8;
+        let _qmk_console = UsagePage::QmkConsole as u16;
+        let _raw = UsagePage::Raw as u16;
+        match usage_page {
+            //Some(HidData::Uint8(generic)) => {}
+            //Some(HidData::Uint8(keyboard)) => {}
+            //Some(HidData::Uint16(qmk_console)) => {}
+            Some(HidData::Uint16(0xFF60)) => {
+                if verbose {
+                    info!(
+                        "  Found raw usage page at interface {}",
+                        interface.interface_number
+                    );
+                }
+                let mut dev = HidDevice {
+                    usb_io: usb_handle,
+                    interface_no: interface.interface_number,
+                    in_endpoint_addr,
+                    out_endpoint_addr,
+                };
+                info!(
+                    "Using interface {}, IN: 0x{:02X}, OUT: 0x{:02X}",
+                    dev.interface_no, dev.in_endpoint_addr, dev.out_endpoint_addr
+                );
+
+                if let Subcommand::Via(via_args) = args.subcommand {
+                    let protocol_ver = get_protocol_ver(&mut dev);
+                    info!("Protocol version: {:?}", protocol_ver);
+
+                    if via_args.bootloader {
+                        info!("Jumping to bootloader");
+                        bootloader_jump(&mut dev).unwrap();
+                    } else if via_args.info {
+                        let prot_ver = get_protocol_ver(&mut dev).unwrap();
+                        let uptime =
+                            get_keyboard_value(&mut dev, ViaKeyboardValueId::Uptime).unwrap();
+                        let layout_opts =
+                            get_keyboard_value(&mut dev, ViaKeyboardValueId::LayoutOptions)
+                                .unwrap();
+                        let matrix_state =
+                            get_keyboard_value(&mut dev, ViaKeyboardValueId::SwitchMatrixState)
+                                .unwrap();
+                        let fw_ver =
+                            get_keyboard_value(&mut dev, ViaKeyboardValueId::FirmwareVersion)
+                                .unwrap();
+
+                        info!("Uptime:               {:?}s", uptime / 1000);
+                        info!("VIA Protocol Version: 0x{prot_ver:04X}");
+                        info!("Layout Options:       0x{layout_opts:08X}");
+                        info!("Switch Matrix State:  0x{matrix_state:08X}"); // TODO: Decode
+                        info!("VIA FWVER:            0x{fw_ver:08X}");
+                    } else if let Some(br) = via_args.rgb_brightness {
+                        if let Some(percentage) = br {
+                            let brightness = (255 * percentage as usize) / 100;
+                            set_rgb_u8(
+                                &mut dev,
+                                ViaRgbMatrixValue::Brightness as u8,
+                                brightness as u8,
+                            )
+                            .unwrap();
+                        }
+
+                        let brightness =
+                            get_rgb_u8(&mut dev, ViaRgbMatrixValue::Brightness as u8).unwrap();
+                        let percentage = (100 * brightness as usize) / 255;
+                        info!("Brightness: {}%", percentage);
+                    }
+                }
+                // Don't care about other pages
+                break;
+            }
+            Some(HidData::Uint16(page)) => {
+                info!(
+                    "  Found usage page {page:04X} at interface {}",
+                    interface.interface_number
+                );
+            }
+            Some(data) => {
+                info!("  Found usage page: {:?}", data);
+            }
+            None => {
+                info!("  No usage page found??");
+            }
+        }
+    }
+    Ok(())
 }
