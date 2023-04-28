@@ -346,6 +346,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let input_handle = bs.get_handle_for_protocol::<Input>().unwrap();
     let mut input = bs.open_protocol_exclusive::<Input>(input_handle).unwrap();
 
+    let zero_key = Char16::try_from('0').unwrap();
     let one_key = Char16::try_from('1').unwrap();
     let two_key = Char16::try_from('2').unwrap();
     let three_key = Char16::try_from('3').unwrap();
@@ -465,11 +466,20 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
 
         //let u_key = Char16::try_from('u').unwrap();
         match input.read_key().unwrap() {
-            // Example of handling a printable key: print a message when
-            // the 'u' key is pressed.
-            //Some(Key::Printable(key)) if key == u_key => {
-            //    info!("the 'u' key was pressed");
-            //}
+            Some(Key::Printable(key)) if key == zero_key => {
+                emulated_deck = InputDeckStatus {
+                    state: input_deck::InputDeckState::On,
+                    hubboard_present: true,
+                    touchpad_present: false,
+                    top_row: input_deck::TopRowPositions {
+                        pos0: input_deck::InputModuleType::Disconnected,
+                        pos1: input_deck::InputModuleType::Disconnected,
+                        pos2: input_deck::InputModuleType::Disconnected,
+                        pos3: input_deck::InputModuleType::Disconnected,
+                        pos4: input_deck::InputModuleType::Disconnected,
+                    },
+                };
+            }
             Some(Key::Printable(key)) if key == one_key => {
                 emulated_deck = InputDeckStatus {
                     state: input_deck::InputDeckState::On,
