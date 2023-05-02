@@ -45,6 +45,10 @@ Positions:
 To test in QEMU build the QEMU version and run it.
 QEMU has a separate version because the screen resolution is much smaller.
 
+Pre-reqs:
+
+- Need to put `OVMF_CODE.fd` and `OVMF_VARS.fd` in the root folder (if it doesn't work automatically.
+
 ```sh
 make qemu
 make run

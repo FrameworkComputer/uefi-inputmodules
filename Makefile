@@ -23,6 +23,7 @@ target/x86_64-unknown-uefi/release/inputmodules.efi: $(SOURCES)
 clippy:
 	cargo clippy --target x86_64-unknown-uefi
 
+# Automatically get OVMF from system path
 OVMF_CODE.fd:
 	cp /usr/share/OVMF/OVMF_CODE.fd .
 OVMF_VARS.fd:
