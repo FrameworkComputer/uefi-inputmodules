@@ -10,9 +10,7 @@ use framework_lib::chromium_ec::CrosEc;
 use log::{debug, error, info};
 use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
 use uefi::proto::console::text::{Input, Key, ScanCode};
-use uefi::proto::device_path::text::{AllowShortcuts, DevicePathToText, DisplayOnly};
-use uefi::proto::device_path::DevicePath;
-use uefi::table::boot::{BootServices, ScopedProtocol};
+use uefi::table::boot::BootServices;
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::Identify;
 use uefi::Result;
@@ -30,8 +28,6 @@ use embedded_graphics::{
 };
 #[cfg(feature = "bmp")]
 use tinybmp::Bmp;
-
-use crate::hii_image_decode::HiiImageDecoder;
 
 struct Buffer {
     width: usize,
@@ -97,19 +93,6 @@ impl Buffer {
             dims: (self.width, self.height),
         })
     }
-}
-
-// Just experimenting
-pub fn _draw_console(st: &mut SystemTable<Boot>) -> Result {
-    let stdout = st.stdout();
-    stdout.reset(false).unwrap();
-    stdout.set_cursor_position(0, 0).unwrap();
-    stdout.output_string(cstr16!("string")).unwrap();
-    stdout.set_cursor_position(10, 10).unwrap();
-    stdout.output_string(cstr16!("foo")).unwrap();
-    stdout.set_cursor_position(20, 20).unwrap();
-    stdout.output_string(cstr16!("bar")).unwrap();
-    Ok(())
 }
 
 fn show_top(
@@ -545,129 +528,4 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         };
     }
     Ok(())
-}
-
-pub fn print_image_decoders(bs: &BootServices) -> Result {
-    let decoder_handles = if let Ok(decoder_handles) =
-        bs.locate_handle_buffer(SearchType::ByProtocol(&HiiImageDecoder::GUID))
-    {
-        decoder_handles
-    } else {
-        error!("HiiImageDecoder protocol is missing");
-        return Ok(());
-    };
-
-    for handle in decoder_handles.iter() {
-        let decoder = unsafe {
-            bs.open_protocol::<HiiImageDecoder>(
-                OpenProtocolParams {
-                    handle: *handle,
-                    agent: bs.image_handle(),
-                    controller: None,
-                },
-                OpenProtocolAttributes::GetProtocol,
-            )
-            .expect("Failed to open HiiImageDecoder handle")
-        };
-
-        println!("Found Decoder");
-
-        let decoder_names = decoder.get_image_decoder_names();
-        println!("  Has {} decoder names", decoder_names.len());
-        println!("  Decoders: {:?}", decoder_names);
-        // for decoder_name in decoder_names {
-        // TODO
-        // }
-    }
-
-    Ok(())
-}
-
-pub fn print_gop_modes(bs: &BootServices) -> Result {
-    // Open graphics output protocol.
-    //let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>()?;
-    // open_protocol_exclusive will steal it from anyone else, meaning shell prints won't work anymore
-    //let mut gop = bs.open_protocol_exclusive::<GraphicsOutput>(gop_handle)?;
-
-    let gop_handles = if let Ok(gop_handles) =
-        bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
-    {
-        gop_handles
-    } else {
-        info!("GraphicsOutput protocol is missing");
-        return Ok(());
-    };
-
-    // TODO: Why are there two? I think we can just use the first one?
-    // They seem to have the same information
-    //if let Some(handle) = gop_handles.iter().next() {
-    for handle in gop_handles.iter() {
-        if let Ok(dp) = unsafe {
-            bs.open_protocol::<DevicePath>(
-                OpenProtocolParams {
-                    handle: *handle,
-                    agent: bs.image_handle(),
-                    controller: None,
-                },
-                OpenProtocolAttributes::GetProtocol,
-            )
-        } {
-            print_dp(bs, &dp);
-        } else {
-            error!("No DP for this GOP handle");
-        };
-
-        let gop = unsafe {
-            bs.open_protocol::<GraphicsOutput>(
-                OpenProtocolParams {
-                    handle: *handle,
-                    agent: bs.image_handle(),
-                    controller: None,
-                },
-                OpenProtocolAttributes::GetProtocol,
-            )
-            .expect("Failed to open GraphicsOutput handle")
-        };
-
-        let cur_mode_info = gop.current_mode_info();
-        let (width, height) = cur_mode_info.resolution();
-        info!("Current Resolution {}x{}", width, height);
-
-        for (index, mode) in gop.modes().enumerate() {
-            let info = mode.info();
-            let (width, height) = info.resolution();
-            info!(
-                "{}{}Mode Resolution {}x{}, Stride: {}",
-                index,
-                if *info == cur_mode_info { "*" } else { " " },
-                width,
-                height,
-                info.stride()
-            );
-            info!(
-                "  Pixel format: {:?}, bitmask: {:?}",
-                info.pixel_format(),
-                info.pixel_bitmask()
-            );
-        }
-    }
-    Ok(())
-}
-
-fn print_dp(bs: &BootServices, dp: &ScopedProtocol<DevicePath>) {
-    let device_path_to_text_handle = *bs
-        .locate_handle_buffer(SearchType::ByProtocol(&DevicePathToText::GUID))
-        .unwrap()
-        .first()
-        .expect("DevicePathToText is missing");
-
-    let device_path_to_text = bs
-        .open_protocol_exclusive::<DevicePathToText>(device_path_to_text_handle)
-        .unwrap();
-
-    let image_device_path_text = device_path_to_text
-        .convert_device_path_to_text(bs, dp, DisplayOnly(true), AllowShortcuts(false))
-        .expect("convert_device_path_to_text failed");
-
-    info!("DevicePath: {}", &*image_device_path_text);
 }
