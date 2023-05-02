@@ -146,6 +146,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "inputmodules"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+ "embedded-graphics",
+ "framework_lib",
+ "getargs",
+ "log",
+ "tinybmp",
+ "uefi",
+ "uefi-services",
+ "zune-jpeg",
+]
+
+[[package]]
 name = "io-kit-sys"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -498,21 +513,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "uefi-qmk-hid"
-version = "0.1.0"
-dependencies = [
- "cfg-if",
- "embedded-graphics",
- "framework_lib",
- "getargs",
- "log",
- "tinybmp",
- "uefi",
- "uefi-services",
- "zune-jpeg",
 ]
 
 [[package]]

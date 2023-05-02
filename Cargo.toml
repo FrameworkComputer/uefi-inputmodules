@@ -1,5 +1,5 @@
 [package]
-name = "uefi-qmk-hid"
+name = "inputmodules"
 version = "0.1.0"
 edition = "2021"
 
@@ -37,10 +37,6 @@ default-features = false
 path = "/home/zoid/clone/framework-system/framework_lib"
 features = ["uefi"]
 default-features = false
-
-#[dependencies.ptr_meta]
-#version = "0.2.0"
-#default-features = false
 
 [profile.release]
 lto = true
