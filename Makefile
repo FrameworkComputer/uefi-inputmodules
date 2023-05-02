@@ -1,9 +1,13 @@
-.PHONY=run
+.PHONY: run clean
 TARGET:=debug
-SOURCES=Cargo.toml $(wildcard src/*.rs)
+SOURCES=Cargo.toml $(wildcard src/*.rs) $(wildcard resources/*)
 
 debug: target/x86_64-unknown-uefi/debug/inputmodules.efi
 	@ls -lh $<
+
+clean:
+	rm -f target/x86_64-unknown-uefi/debug/inputmodules.efi
+	rm -f target/x86_64-unknown-uefi/release/inputmodules.efi
 
 qemu: $(SOURCES)
 	cargo build --target x86_64-unknown-uefi --features qemu
