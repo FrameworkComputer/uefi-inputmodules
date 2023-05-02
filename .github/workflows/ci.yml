@@ -1,0 +1,54 @@
+name: CI
+on:
+  push:
+
+jobs:
+  build:
+    name: Build UEFI executable
+    runs-on: ubuntu-22.04
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: true
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: |
+            ${{ secrets.PRIVKEY_FRAMEWORK_SYSTEM_UEFI_INPUTMODULES }}
+
+    - name: Setup Rust toolchain
+      run: rustup show
+
+    - name: Build UEFI app (release)
+      run: make release
+
+    - name: Build UEFI app (QEMU)
+      run: make qemu
+
+    - name: Upload UEFI app (release)
+      uses: actions/upload-artifact@v3
+      with:
+        name: inputmodules.efi
+        path: target/x86_64-unknown-uefi/release/inputmodules.efi
+
+  lints:
+    name: Lints
+    runs-on: ubuntu-22.04
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: true
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Rust toolchain
+      run: rustup show
+
+    - uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: |
+            ${{ secrets.PRIVKEY_FRAMEWORK_SYSTEM_UEFI_INPUTMODULES }}
+
+    - name: Run cargo fmt
+      run: cargo fmt --all -- --check
+
+    - name: Run cargo clippy
+      run: make clippy

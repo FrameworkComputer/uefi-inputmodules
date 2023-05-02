@@ -114,6 +114,7 @@ dependencies = [
 [[package]]
 name = "framework_lib"
 version = "0.1.0"
+source = "git+ssh://git@github.com/FrameworkComputer/framework-system.git?branch=PRIVATE#2b78d853957234957f0dbe6e61c76885074b0480"
 dependencies = [
  "guid_macros",
  "lazy_static",
@@ -139,6 +140,7 @@ checksum = "084c6b182b01dec54ff12986b9cc8859a9b0d92b074f878c382a4481a070e66e"
 [[package]]
 name = "guid_macros"
 version = "0.11.0"
+source = "git+ssh://git@github.com/FrameworkComputer/framework-system.git?branch=PRIVATE#2b78d853957234957f0dbe6e61c76885074b0480"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -495,6 +497,7 @@ dependencies = [
 [[package]]
 name = "uefi"
 version = "0.20.0"
+source = "git+https://github.com/FrameworkComputer/uefi-rs?branch=merged#be173c16e588c7517c3ef3c8a2959bf7d4996b2a"
 dependencies = [
  "bitflags 1.3.2",
  "derive_more",
@@ -518,6 +521,7 @@ dependencies = [
 [[package]]
 name = "uefi-services"
 version = "0.17.0"
+source = "git+https://github.com/FrameworkComputer/uefi-rs?branch=merged#be173c16e588c7517c3ef3c8a2959bf7d4996b2a"
 dependencies = [
  "cfg-if",
  "log",
@@ -532,14 +536,18 @@ checksum = "e5464a87b239f13a63a501f2701565754bae92d243d4bb7eb12f6d57d2269bf4"
 
 [[package]]
 name = "zune-core"
-version = "0.2.13"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29ca36c2e02af0d8d7ee977542bfe33ed1c516be73d3c1faa4420af46e96ceee"
 dependencies = [
  "bitflags 2.2.1",
 ]
 
 [[package]]
 name = "zune-jpeg"
-version = "0.3.16"
+version = "0.3.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2848e8f4f29dbdcc79910ab3abdff22bb0bacef8556f2a983b5ca950d8b4991e"
 dependencies = [
  "log",
  "zune-core",

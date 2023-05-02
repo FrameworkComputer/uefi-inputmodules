@@ -16,26 +16,22 @@ log = "0.4"
 tinybmp = { version = "0.4.0", optional = true }
 uefi = { version = "0.20", features = ["alloc"] }
 uefi-services = "0.17"
-# Temporarily override because we need modifications to compare GOP ModeInfo
-[patch.crates-io]
-uefi = { path = "/home/zoid/clone/uefi-rs/uefi" }
-uefi-services = { path = "/home/zoid/clone/uefi-rs/uefi-services" }
-#zune-core = { path = "/home/zoid/clone/active/zune-image/zune-core" }
-zune-jpeg = { path = "/home/zoid/clone/active/zune-image/zune-jpeg" }
 
-#[dependencies.zune-core]
-#version = "0.2"
-#default-features = false
-#features = [] #[ "x86" ]
+# Temporarily override because we need pending PRs for
+# for the Shell and ShellParameters protocols
+[patch.crates-io]
+uefi = { git = "https://github.com/FrameworkComputer/uefi-rs", branch = "merged" }
+uefi-services = { git = "https://github.com/FrameworkComputer/uefi-rs", branch = "merged" }
 
 [dependencies.zune-jpeg]
-version = "0.3"
+version = "0.3.17"
 default-features = false
 # TODO: Compilation fails: https://github.com/rust-lang/rust/issues/61721
 #features = [ "x86" ]
 
 [dependencies.framework_lib]
-path = "/home/zoid/clone/framework-system/framework_lib"
+git = "ssh://git@github.com/FrameworkComputer/framework-system.git"
+branch = "PRIVATE"
 features = ["uefi"]
 default-features = false
 
