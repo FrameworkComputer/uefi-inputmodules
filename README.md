@@ -48,7 +48,7 @@ Once in the GUI you can use ESC to quit.
 
 Pre-requisites:
 
-- [Rustup](https://rustup.rs/)
+- [Rustup](https://rustup.rs/) (MSRV: 1.61)
 
 Build:
 
