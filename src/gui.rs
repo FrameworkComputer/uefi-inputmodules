@@ -375,6 +375,16 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         //debug!("Touchpad present: {:?}", input_deck.touchpad_present);
         //debug!("Hubboard present: {:?}", input_deck.hubboard_present);
 
+        // Since there's no hubboard, there are no exposed pins that we should
+        // avoid powering on.
+        // Due to misconfiguration the user might be in this case, when running
+        // a standalone mainboard. We should not block boot in this case.
+        if !input_deck.hubboard_present {
+            println!("No hub board present- continuing to boot");
+            bs.stall(1_000_000);
+            return Ok(());
+        }
+
         // Reset to no modules, otherwise we can't reset what's shown
         show_top(false, 0, &mut buffer, &a1_sprites, &a1_rects);
         show_top(false, 2, &mut buffer, &c1_sprites, &c1_rects);
