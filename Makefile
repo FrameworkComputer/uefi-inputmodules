@@ -29,12 +29,11 @@ OVMF_CODE.fd:
 OVMF_VARS.fd:
 	cp /usr/share/OVMF/OVMF_VARS.fd .
 
-#	-usb -device usb-host,vendorid=0x32ac,productid=0x0012
 run: OVMF_CODE.fd OVMF_VARS.fd target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi
 	mkdir -p esp/efi/boot
-	cp ~/clone/uefi-rs/./target/x86_64-unknown-uefi/debug/examples/shell_params.efi esp/
-	cp target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi esp/inputmodules.efi
-	cp ../firmware-update/res/shell.efi esp/efi/boot/bootx64.efi
+	cp target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi esp/efi/boot/bootx64.efi
+	#cp target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi esp/inputmodules.efi
+	#cp ../firmware-update/res/shell.efi esp/efi/boot/bootx64.efi
 	# Needs sudo in order to pass USB device through
 	sudo qemu-system-x86_64 \
 	  -enable-kvm \

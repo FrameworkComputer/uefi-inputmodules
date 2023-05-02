@@ -42,17 +42,7 @@ Positions:
   Pos 4: Disconnected
 ```
 
-To test in QEMU build the QEMU version and run it.
-QEMU has a separate version because the screen resolution is much smaller.
-
-Pre-reqs:
-
-- Need to put `OVMF_CODE.fd` and `OVMF_VARS.fd` in the root folder (if it doesn't work automatically.
-
-```sh
-make qemu
-make run
-```
+Once in the GUI you can use ESC to quit.
 
 ## Building
 
@@ -77,3 +67,20 @@ cp target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi /boot/efi
 # Make sure to also put a UEFI shell at /boot/efi/EFI/BOOT/BOOTX64.efi
 # Or put it somewhere else on the ESP and add a bootloader entry for it
 ```
+
+## Debugging
+To test in QEMU build the QEMU version and run it.
+QEMU has a separate version because the screen resolution is much smaller.
+
+Pre-reqs:
+
+- QEMU
+- Need to put `OVMF_CODE.fd` and `OVMF_VARS.fd` in the root folder (if it doesn't work automatically.
+
+```sh
+make qemu
+make run
+```
+
+You can cycle through different amounts of population by pressing the numbers 0
+through 4. ESC quits the app.
