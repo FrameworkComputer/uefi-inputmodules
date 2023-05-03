@@ -209,7 +209,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                         include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.bmp");
                 } else {
                     let jpeg =
-                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.jpg");
+                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-tiny.jpg");
                     let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
                     let background_image = decoder.decode().unwrap();
                 }
@@ -228,7 +228,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     let background_image = include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600.bmp");
                 } else {
                     let jpeg =
-                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600-noback.jpg");
+                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600-tiny.jpg");
                     let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
                     let background_image = decoder.decode().unwrap();
                 }
