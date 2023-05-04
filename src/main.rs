@@ -4,6 +4,7 @@
 
 extern crate alloc;
 
+use framework_lib::chromium_ec::input_deck::InputDeckState;
 use framework_lib::chromium_ec::{print_err, CrosEc};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
@@ -68,14 +69,24 @@ fn print_module_status() {
 
     println!("Input Module Status:");
     if let Some(status) = print_err(ec.get_input_deck_status()) {
-        println!("Input Deck State: {:?}", status.state);
-        println!("Touchpad present: {:?}", status.touchpad_present);
-        println!("Positions:");
-        println!("  Pos 0: {:?}", status.top_row.pos0);
-        println!("  Pos 1: {:?}", status.top_row.pos1);
-        println!("  Pos 2: {:?}", status.top_row.pos2);
-        println!("  Pos 3: {:?}", status.top_row.pos3);
-        println!("  Pos 4: {:?}", status.top_row.pos4);
+        println!("  Input Deck State: {:?}", status.state);
+        if !matches!(
+            status.state,
+            InputDeckState::Disconnected | InputDeckState::TurningOn | InputDeckState::On
+        ) {
+            println!(
+                "  Input Deck State Overridden: {:?}. No detection of modules possible",
+                status.state
+            );
+        }
+        println!("  Hubboard present: {:?}", status.hubboard_present);
+        println!("  Touchpad present: {:?}", status.touchpad_present);
+        println!("  Positions:");
+        println!("    Pos 0: {:?}", status.top_row.pos0);
+        println!("    Pos 1: {:?}", status.top_row.pos1);
+        println!("    Pos 2: {:?}", status.top_row.pos2);
+        println!("    Pos 3: {:?}", status.top_row.pos3);
+        println!("    Pos 4: {:?}", status.top_row.pos4);
     } else {
         println!("  Unable to tell");
     }
