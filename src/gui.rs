@@ -249,7 +249,10 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             let background_bmp: Bmp<Rgb888> = Bmp::from_slice(background_image).unwrap();
             let image = Image::new(&background_bmp, Point::new(0, 0));
         } else {
+            #[cfg(feature = "qemu")]
             let background_bmp = ImageRaw::<Rgb888>::new(&background_image, 1024);
+            #[cfg(not(feature = "qemu"))]
+            let background_bmp = ImageRaw::<Rgb888>::new(&background_image, 2560);
             let image = Image::new(&background_bmp, Point::new(0, 0));
         }
     }
