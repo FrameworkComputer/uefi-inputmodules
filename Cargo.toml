@@ -3,10 +3,14 @@ name = "inputmodules"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.61"
+build = "build.rs"
 
 [features]
 qemu = []
 bmp = ["dep:tinybmp"]
+
+[build-dependencies]
+built = { version = "0.5", no-default-features = true, features = ["chrono", "git2"] }
 
 [dependencies]
 cfg-if = "1.0.0"

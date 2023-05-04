@@ -4,6 +4,7 @@
 
 extern crate alloc;
 
+use alloc::string::ToString;
 use framework_lib::chromium_ec::input_deck::InputDeckState;
 use framework_lib::chromium_ec::{print_err, CrosEc};
 #[allow(unused_imports)]
@@ -16,6 +17,10 @@ use uefi::Identify;
 use uefi_services::{print, println};
 
 mod gui;
+mod built_info {
+    // The file has been placed there by the build script.
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
 
 #[entry]
 fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
@@ -65,6 +70,9 @@ fn has_shell_args(boot_services: &BootServices) -> uefi::Result<bool> {
 }
 
 fn print_module_status() {
+    print_tool_version();
+    println!("");
+
     let ec = CrosEc::new();
 
     println!("Input Module Status:");
@@ -90,4 +98,34 @@ fn print_module_status() {
     } else {
         println!("  Unable to tell");
     }
+}
+
+fn print_tool_version() {
+    let q = "?".to_string();
+    println!("Tool Version Information");
+    println!("  Version:     {}", built_info::PKG_VERSION);
+    println!("  Built At:    {}", built_info::BUILT_TIME_UTC);
+    println!(
+        "  Git Commit:  {}",
+        built_info::GIT_COMMIT_HASH.unwrap_or(&q)
+    );
+    println!(
+        "  Git Dirty:   {}",
+        built_info::GIT_DIRTY
+            .map(|x| x.to_string())
+            .unwrap_or(q.clone())
+    );
+
+    println!(
+        "  Built on CI: {:?}",
+        built_info::CI_PLATFORM.unwrap_or("None")
+    );
+    println!(
+        "  Git ref:     {:?}",
+        built_info::GIT_HEAD_REF.unwrap_or(&q)
+    );
+    println!("  rustc Ver:   {}", built_info::RUSTC_VERSION);
+    println!("  Features     {:?}", built_info::FEATURES);
+    println!("  DEBUG:       {}", built_info::DEBUG);
+    println!("  Target OS:   {}", built_info::CFG_OS);
 }
