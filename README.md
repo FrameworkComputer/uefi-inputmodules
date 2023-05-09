@@ -16,6 +16,15 @@ desirable to skip this safety check. Because a keyboard might not be connected
 there is no key shortcut to press.
 Implementation of a mechanism to skip is pending implementation.
 
+Conditions to boot - until one of the following conditions is met, the app runs
+in a loop and keeps checking the current status:
+
+- Press ESC
+- Inputmodules fully populated, so that the whole surface is covered
+- Input deck state overridden from EC console
+- EVT/DVT only: When hubboard is not installed
+- (NOT IMPLEMENTED YET: Short-Press power button)
+
 ## Running
 
 Framework Laptop 16 BIOS will ship with this app embedded.

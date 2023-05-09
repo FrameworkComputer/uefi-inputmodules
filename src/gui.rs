@@ -2,7 +2,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use embedded_graphics::image::{ImageRaw, SubImage};
 use embedded_graphics::primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle};
-use framework_lib::chromium_ec::input_deck;
+use framework_lib::chromium_ec::input_deck::{self, InputDeckState};
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
 #[cfg(not(feature = "qemu"))]
 use framework_lib::chromium_ec::CrosEc;
@@ -249,7 +249,10 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             let background_bmp: Bmp<Rgb888> = Bmp::from_slice(background_image).unwrap();
             let image = Image::new(&background_bmp, Point::new(0, 0));
         } else {
+            #[cfg(feature = "qemu")]
             let background_bmp = ImageRaw::<Rgb888>::new(&background_image, 1024);
+            #[cfg(not(feature = "qemu"))]
+            let background_bmp = ImageRaw::<Rgb888>::new(&background_image, 2560);
             let image = Image::new(&background_bmp, Point::new(0, 0));
         }
     }
@@ -381,6 +384,14 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         // a standalone mainboard. We should not block boot in this case.
         if !input_deck.hubboard_present {
             println!("No hub board present- continuing to boot");
+            bs.stall(1_000_000);
+            return Ok(());
+        }
+        if !matches!(
+            input_deck.state,
+            InputDeckState::Disconnected | InputDeckState::TurningOn | InputDeckState::On
+        ) {
+            println!("Input Deck State Overridden: {:?}. No detection of modules possible - continuing to boot ", input_deck.state);
             bs.stall(1_000_000);
             return Ok(());
         }
