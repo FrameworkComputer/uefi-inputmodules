@@ -42,4 +42,8 @@ features = ["uefi"]
 default-features = false
 
 [profile.release]
+# Make sure LTO is enabled to minimize binary size.
 lto = true
+# Strip binary for reproducibility and binary size (remove debugging data)
+# Otherwise the RSDS signature and some instructions are different in each build
+strip = true
