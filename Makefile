@@ -38,8 +38,7 @@ run: OVMF_CODE.fd OVMF_VARS.fd target/x86_64-unknown-uefi/$(TARGET)/inputmodules
 	cp target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi esp/efi/boot/bootx64.efi
 	#cp target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi esp/inputmodules.efi
 	#cp ../firmware-update/res/shell.efi esp/efi/boot/bootx64.efi
-	# Needs sudo in order to pass USB device through
-	sudo qemu-system-x86_64 \
+	qemu-system-x86_64 \
 	  -enable-kvm \
 		-M q35 \
 		-m 1024 \

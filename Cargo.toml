@@ -8,6 +8,9 @@ build = "build.rs"
 [features]
 qemu = []
 bmp = ["dep:tinybmp"]
+png = ["dep:zune-png"]
+jpeg = ["dep:zune-jpeg"]
+default = ["png"]
 
 [build-dependencies]
 built = { version = "0.5", no-default-features = true, features = ["chrono", "git2"] }
@@ -20,6 +23,7 @@ log = "0.4"
 tinybmp = { version = "0.4.0", optional = true }
 uefi = { version = "0.20", features = ["alloc"] }
 uefi-services = "0.17"
+zune-core = "0.2.14"
 
 # Temporarily override because we need pending PRs for
 # for the Shell and ShellParameters protocols
@@ -27,9 +31,15 @@ uefi-services = "0.17"
 uefi = { git = "https://github.com/FrameworkComputer/uefi-rs", branch = "merged" }
 uefi-services = { git = "https://github.com/FrameworkComputer/uefi-rs", branch = "merged" }
 
+[dependencies.zune-png]
+version = "0.2.1"
+default-features = false
+optional = true
+
 [dependencies.zune-jpeg]
 version = "0.3.17"
 default-features = false
+optional = true
 # TODO: Compilation fails: https://github.com/rust-lang/rust/issues/61721
 #features = [ "x86" ]
 

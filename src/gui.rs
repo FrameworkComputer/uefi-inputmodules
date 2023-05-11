@@ -1,6 +1,6 @@
 use alloc::vec;
 use alloc::vec::Vec;
-use embedded_graphics::image::{ImageRaw, SubImage};
+use embedded_graphics::image::ImageRaw;
 use embedded_graphics::primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle};
 use framework_lib::chromium_ec::input_deck::{self, InputDeckState};
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
@@ -21,7 +21,7 @@ use uefi_services::{print, println};
 
 use embedded_graphics::{
     image::Image,
-    mono_font::{ascii::FONT_9X15, MonoTextStyle},
+    mono_font::{ascii, MonoTextStyle},
     pixelcolor::Rgb888,
     prelude::*,
     text::Text,
@@ -95,41 +95,99 @@ impl Buffer {
     }
 }
 
-fn show_top(
-    show: bool,
-    pos: usize,
-    buffer: &mut Buffer,
-    sprites: &[&SubImage<ImageRaw<Rgb888>>],
-    rects: &[Rectangle],
-) {
-    let sprite = sprites[pos];
-    let rect = rects[pos];
-    let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
-        .fill_color(Rgb888::CSS_GRAY)
-        .build();
-    if show {
-        Image::new(sprite, rect.top_left).draw(buffer).unwrap();
-    } else {
-        rect.into_styled(blank_style).draw(buffer).unwrap();
-    }
+const BG_COLOR: Rgb888 = Rgb888::new(0x28, 0x25, 0x24);
+//const BG_COLOR_BLUE: Rgb888 = Rgb888::new(0xcb, 0xe6, 0xe6);
+const COLORS: [(Rgb888, Rgb888); 2] = [(Rgb888::WHITE, Rgb888::RED), (BG_COLOR, Rgb888::GREEN)];
+
+fn show_hubboard(show: bool, buffer: &mut Buffer) {
+    let (fg_color, bg_color) = COLORS[show as usize];
+    let text = Text::new(
+        if show { "[X] Hubboard" } else { "[ ] Hubboard" },
+        Point::new(35, 200),
+        MonoTextStyle::new(&ascii::FONT_9X15_BOLD, fg_color),
+    );
+
+    let rect = text.bounding_box();
+    let blank_style: PrimitiveStyle<Rgb888> =
+        PrimitiveStyleBuilder::new().fill_color(bg_color).build();
+    rect.into_styled(blank_style).draw(buffer).unwrap();
+
+    text.draw(buffer).unwrap();
+
+    //let x = Text::new(
+    //    if show {
+    //        "X"
+    //    } else {
+    //        " "
+    //    },
+    //    Point::new(45, 200),
+    //    MonoTextStyle::new(&ascii::FONT_9X15_BOLD, Rgb888::RED),
+    //).draw(buffer).unwrap();
+}
+
+fn show_top_row(show: bool, buffer: &mut Buffer) {
+    let (fg_color, bg_color) = COLORS[show as usize];
+    let text = Text::new(
+        if show { "[X] Top Row" } else { "[ ] Top Row" },
+        Point::new(35, 200 + 30),
+        MonoTextStyle::new(&ascii::FONT_9X15_BOLD, fg_color),
+    );
+
+    let rect = text.bounding_box();
+    let blank_style: PrimitiveStyle<Rgb888> =
+        PrimitiveStyleBuilder::new().fill_color(bg_color).build();
+    rect.into_styled(blank_style).draw(buffer).unwrap();
+
+    text.draw(buffer).unwrap();
 }
 
 fn show_touchpad(
     show: bool,
     buffer: &mut Buffer,
-    touchpad_sprite: &SubImage<ImageRaw<Rgb888>>,
-    touchpad_rect: &Rectangle,
+    trackpad: &Image<ImageRaw<Rgb888>>,
+    csize_bmp: &ImageRaw<Rgb888>,
+    c_left: Point,
+    c_right: Point,
 ) {
-    let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
-        .fill_color(Rgb888::CSS_GRAY)
-        .build();
+    let (fg_color, bg_color) = COLORS[show as usize];
+    let text = Text::new(
+        if show { "[X] Touchpad" } else { "[ ] Touchpad" },
+        Point::new(35, 200 + 30 * 2),
+        MonoTextStyle::new(&ascii::FONT_9X15_BOLD, fg_color),
+    );
+
+    let rect = text.bounding_box();
+    let blank_style: PrimitiveStyle<Rgb888> =
+        PrimitiveStyleBuilder::new().fill_color(bg_color).build();
+    rect.into_styled(blank_style).draw(buffer).unwrap();
+
+    text.draw(buffer).unwrap();
+
     if show {
-        Image::new(touchpad_sprite, touchpad_rect.top_left)
-            .draw(buffer)
-            .unwrap();
-    } else {
-        touchpad_rect.into_styled(blank_style).draw(buffer).unwrap();
+        Image::new(csize_bmp, c_left).draw(buffer).unwrap();
+        trackpad.draw(buffer).unwrap();
+        Image::new(csize_bmp, c_right).draw(buffer).unwrap();
     }
+}
+
+fn show_fully_populated(show: bool, buffer: &mut Buffer) {
+    let (fg_color, bg_color) = COLORS[show as usize];
+    let text = Text::new(
+        if show {
+            "[X] Fully populated"
+        } else {
+            "[ ] Fully populated"
+        },
+        Point::new(35, 200 + 30 * 3),
+        MonoTextStyle::new(&ascii::FONT_9X15_BOLD, fg_color),
+    );
+
+    let rect = text.bounding_box();
+    let blank_style: PrimitiveStyle<Rgb888> =
+        PrimitiveStyleBuilder::new().fill_color(bg_color).build();
+    rect.into_styled(blank_style).draw(buffer).unwrap();
+
+    text.draw(buffer).unwrap();
 }
 
 pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
@@ -207,41 +265,141 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768.bmp");
                     let background_image =
                         include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.bmp");
-                } else {
+                } else if #[cfg(feature = "png")] {
+                    let png = include_bytes!("../resources/baseboard-small.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(background_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/instructions-small.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(instructions_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/trackpad-small.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(trackpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/csize-small.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(csize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/keyboard-small.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(asize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/numpad-small.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(numpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/bsize-small.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+                } else if #[cfg(feature = "jpeg")] {
                     let jpeg =
                         include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-tiny.jpg");
                     let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
                     let background_image = decoder.decode().unwrap();
                 }
             }
-            let y_top = 360;
-            let y_bottom = 545;
-            let x_left = 255;
-            let c_width = 310 - 255;
-            let a_width = 464;
-            let touchpad_height = 729 - 546;
-            let text_pos = Point::new(250, 30);
+            let y_top = 350;
+            let x_left = 420;
+            let c_width = 46;
+            let a_width = 374;
+            let b_width = 91;
+            let touchpad_height = 150;
+            let y_bottom = y_top + touchpad_height;
+            let screen_width = 1024;
+            let text_pos = Point::new(35, 110);
+            let text2_pos = Point::new(35, 640);
+            let help1_pos = Point::new(50, 280);
+            let help2_pos = Point::new(455, 640);
+            let help3_pos = Point::new(545, 280);
         } else {
             // Rects for Lotus (2560 x 1600 x 24)
             cfg_if::cfg_if! {
                 if #[cfg(feature = "bmp")] {
                     let background_image = include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600.bmp");
-                } else {
+                } else if #[cfg(feature = "png")] {
+                    let png = include_bytes!("../resources/baseboard.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(background_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/instructions.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(instructions_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/trackpad.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(trackpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/csize.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(csize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/keyboard.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(asize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/numpad.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(numpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/bsize.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+                } else if #[cfg(feature = "jpeg")] {
                     let jpeg =
                         include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600-tiny.jpg");
                     let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
                     let background_image = decoder.decode().unwrap();
                 }
             }
-            let y_top = 736;
-            let y_bottom = 1113;
-            let x_left = 706;
-            let c_width = 110;
-            let a_width = 945;
-            let touchpad_height = 372;
-            let text_pos = Point::new(500, 30);
+            let y_top = 756;
+            let x_left = 1210;
+            let a_width = 806;
+            let b_width = 196;
+            let c_width = 100;
+            let touchpad_height = 324;
+            let y_bottom = y_top + touchpad_height;
+            let screen_width = 2560;
+            let text_pos = Point::new(133, 133);
+            let text2_pos = Point::new(133, 1360);
+            let help1_pos = Point::new(50, 280); // TODO
+            let help2_pos = Point::new(455, 640); // TODO
+            let help3_pos = Point::new(545, 280); // TODO
         }
     }
+    let left_c1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left, y_top),
+        Point::new(x_left + c_width, y_bottom),
+    );
+    let left2_c1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + c_width, y_top),
+        Point::new(x_left + c_width * 2, y_bottom),
+    );
+    let left_a1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left, y_top),
+        Point::new(x_left + a_width, y_bottom),
+    );
+    let middle_a1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + c_width, y_top),
+        Point::new(x_left + c_width + a_width, y_bottom),
+    );
+    let right_a1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + 2 * c_width, y_top),
+        Point::new(x_left + 2 * c_width + a_width, y_bottom),
+    );
+    let right0_c1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + a_width, y_top),
+        Point::new(x_left + a_width + c_width, y_bottom),
+    );
+    let right_c1_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + a_width + c_width, y_top),
+        Point::new(x_left + a_width + 2 * c_width, y_bottom),
+    );
+    let touchpad_rect: Rectangle = Rectangle::with_corners(
+        Point::new(x_left + c_width, y_bottom),
+        Point::new(x_left + c_width + a_width, y_bottom + touchpad_height),
+    );
 
     // Have to export in GIMP as RGB888
     cfg_if::cfg_if! {
@@ -250,81 +408,52 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             let image = Image::new(&background_bmp, Point::new(0, 0));
         } else {
             #[cfg(feature = "qemu")]
-            let background_bmp = ImageRaw::<Rgb888>::new(&background_image, 1024);
+            let background_bmp = ImageRaw::<Rgb888>::new(&background_image, screen_width);
             #[cfg(not(feature = "qemu"))]
-            let background_bmp = ImageRaw::<Rgb888>::new(&background_image, 2560);
+            let background_bmp = ImageRaw::<Rgb888>::new(&background_image, screen_width);
             let image = Image::new(&background_bmp, Point::new(0, 0));
+
+            #[cfg(feature = "qemu")]
+            let instructions_bmp = ImageRaw::<Rgb888>::new(&instructions_image, screen_width);
+            #[cfg(not(feature = "qemu"))]
+            let instructions_bmp = ImageRaw::<Rgb888>::new(&instructions_image, screen_width);
+            let instructions_image = Image::new(&instructions_bmp, Point::new(0, 0));
+
+            #[cfg(feature = "qemu")]
+            let trackpad_bmp = ImageRaw::<Rgb888>::new(&trackpad_image, a_width as u32);
+            #[cfg(feature = "qemu")]
+            let trackpad_image = Image::new(&trackpad_bmp, touchpad_rect.top_left);
+            #[cfg(not(feature = "qemu"))]
+            let trackpad_bmp = ImageRaw::<Rgb888>::new(&trackpad_image, a_width as u32);
+            #[cfg(not(feature = "qemu"))]
+            let trackpad_image = Image::new(&trackpad_bmp, touchpad_rect.top_left);
+
+            #[cfg(feature = "qemu")]
+            let csize_bmp = ImageRaw::<Rgb888>::new(&csize_image, c_width as u32);
+            #[cfg(not(feature = "qemu"))]
+            let csize_bmp = ImageRaw::<Rgb888>::new(&csize_image, c_width as u32);
+
+            #[cfg(feature = "qemu")]
+            let asize_bmp = ImageRaw::<Rgb888>::new(&asize_image, a_width as u32);
+            #[cfg(not(feature = "qemu"))]
+            let asize_bmp = ImageRaw::<Rgb888>::new(&asize_image, a_width as u32);
+
+            #[cfg(feature = "qemu")]
+            let numpad_bmp = ImageRaw::<Rgb888>::new(&numpad_image, b_width as u32);
+            #[cfg(not(feature = "qemu"))]
+            let numpad_bmp = ImageRaw::<Rgb888>::new(&numpad_image, b_width as u32);
+
+            #[cfg(feature = "qemu")]
+            let bsize_bmp = ImageRaw::<Rgb888>::new(&bsize_image, b_width as u32);
+            #[cfg(not(feature = "qemu"))]
+            let bsize_bmp = ImageRaw::<Rgb888>::new(&bsize_image, b_width as u32);
         }
     }
-    image.draw(&mut buffer).unwrap();
 
-    let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
-        .fill_color(Rgb888::CSS_GRAY)
-        .build();
+    draw_main(&mut buffer, &image, text_pos, text2_pos);
+    let mut show_instructions = false;
 
-    let left_c1_rect: Rectangle = Rectangle::with_corners(
-        Point::new(x_left, y_top),
-        Point::new(x_left + c_width, y_bottom),
-    );
-    let left2_c1_rect: Rectangle = Rectangle::with_corners(
-        Point::new(x_left + c_width + 1, y_top),
-        Point::new(x_left + c_width * 2 + 1, y_bottom),
-    );
-    let left_a1_rect: Rectangle = Rectangle::with_corners(
-        Point::new(x_left, y_top),
-        Point::new(x_left + a_width, y_bottom),
-    );
-    let middle_a1_rect: Rectangle = Rectangle::with_corners(
-        Point::new(x_left + c_width + 1, y_top),
-        Point::new(x_left + c_width + 1 + a_width, y_bottom),
-    );
-    let right_a1_rect: Rectangle = Rectangle::with_corners(
-        Point::new(x_left + 2 * c_width + 2, y_top),
-        Point::new(x_left + 2 * c_width + 2 + a_width, y_bottom),
-    );
-    let right0_c1_rect: Rectangle = Rectangle::with_corners(
-        Point::new(x_left + a_width + 1, y_top),
-        Point::new(x_left + a_width + 1 + c_width, y_bottom),
-    );
-    let right_c1_rect: Rectangle = Rectangle::with_corners(
-        Point::new(x_left + a_width + 1 + c_width + 1, y_top),
-        Point::new(x_left + a_width + 1 + 2 * c_width + 1, y_bottom),
-    );
-    let touchpad_rect: Rectangle = Rectangle::with_corners(
-        Point::new(x_left + c_width + 1, y_bottom + 1),
-        Point::new(
-            x_left + c_width + 1 + a_width,
-            y_bottom + 1 + touchpad_height,
-        ),
-    );
-
-    left_c1_rect
-        .into_styled(blank_style)
-        .draw(&mut buffer)
-        .unwrap();
-
-    middle_a1_rect
-        .into_styled(blank_style)
-        .draw(&mut buffer)
-        .unwrap();
-
-    right_c1_rect
-        .into_styled(blank_style)
-        .draw(&mut buffer)
-        .unwrap();
-
-    touchpad_rect
-        .into_styled(blank_style)
-        .draw(&mut buffer)
-        .unwrap();
-
-    let text = Text::new(
-        "Framework Laptop 16 Input Deck - Missing Modules",
-        text_pos,
-        MonoTextStyle::new(&FONT_9X15, Rgb888::BLACK),
-    );
-
-    text.draw(&mut buffer).unwrap();
+    show_fully_populated(false, &mut buffer);
 
     // Draw the buffer to the screen.
     buffer.blit(&mut gop)?;
@@ -337,22 +466,11 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let two_key = Char16::try_from('2').unwrap();
     let three_key = Char16::try_from('3').unwrap();
     let four_key = Char16::try_from('4').unwrap();
-    let left_c1_sprite = background_bmp.sub_image(&left_c1_rect);
-    let middle_a1_sprite = background_bmp.sub_image(&middle_a1_rect);
-    let right_c1_sprite = background_bmp.sub_image(&right_c1_rect);
-    let touchpad_sprite = background_bmp.sub_image(&touchpad_rect);
-    let c1_sprites = [
-        &left_c1_sprite,
-        &left_c1_sprite,
-        &right_c1_sprite,
-        &right_c1_sprite,
-    ];
-    let c1_rects = [left_c1_rect, left2_c1_rect, right0_c1_rect, right_c1_rect];
-    let a1_sprites = [&middle_a1_sprite, &middle_a1_sprite, &middle_a1_sprite];
-    let a1_rects = [left_a1_rect, middle_a1_rect, right_a1_rect];
+    let five_key = Char16::try_from('5').unwrap();
+    let q_key = Char16::try_from('?').unwrap();
     let mut emulated_deck = InputDeckStatus {
-        state: input_deck::InputDeckState::On,
-        hubboard_present: true,
+        state: input_deck::InputDeckState::Disconnected,
+        hubboard_present: false,
         touchpad_present: false,
         top_row: input_deck::TopRowPositions {
             pos0: input_deck::InputModuleType::Disconnected,
@@ -396,68 +514,101 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             return Ok(());
         }
 
-        // Reset to no modules, otherwise we can't reset what's shown
-        show_top(false, 0, &mut buffer, &a1_sprites, &a1_rects);
-        show_top(false, 2, &mut buffer, &c1_sprites, &c1_rects);
-        show_top(false, 3, &mut buffer, &c1_sprites, &c1_rects);
+        if !show_instructions {
+            // Reset background to no modules, otherwise we can't reset what's
+            // shown when modules are removed or move around.
+            draw_main(&mut buffer, &image, text_pos, text2_pos);
 
-        show_touchpad(
-            input_deck.touchpad_present,
-            &mut buffer,
-            &touchpad_sprite,
-            &touchpad_rect,
-        );
-        if input_deck.top_row.pos0 == InputModuleType::GenericC {
-            show_top(true, 0, &mut buffer, &c1_sprites, &c1_rects);
-        }
-        if input_deck.top_row.pos1 == InputModuleType::GenericC {
-            show_top(true, 1, &mut buffer, &c1_sprites, &c1_rects);
-        }
-        if input_deck.top_row.pos3 == InputModuleType::GenericC {
-            show_top(true, 2, &mut buffer, &c1_sprites, &c1_rects);
-        }
-        if input_deck.top_row.pos4 == InputModuleType::GenericC {
-            show_top(true, 3, &mut buffer, &c1_sprites, &c1_rects);
-        }
+            show_hubboard(input_deck.hubboard_present, &mut buffer);
 
-        if input_deck.top_row.pos0 == InputModuleType::GenericA
-            || input_deck.top_row.pos0 == InputModuleType::KeyboardA
-        {
-            show_top(true, 0, &mut buffer, &a1_sprites, &a1_rects);
-        }
-        if input_deck.top_row.pos1 == InputModuleType::GenericA
-            || input_deck.top_row.pos1 == InputModuleType::KeyboardA
-        {
-            show_top(true, 1, &mut buffer, &a1_sprites, &a1_rects);
-        }
-        if input_deck.top_row.pos2 == InputModuleType::GenericA
-            || input_deck.top_row.pos2 == InputModuleType::KeyboardA
-        {
-            show_top(true, 2, &mut buffer, &a1_sprites, &a1_rects);
-        }
+            let top_row_present = input_deck
+                .top_row_to_array()
+                .iter()
+                .map(InputModuleType::size)
+                .sum::<usize>()
+                == input_deck::INPUT_DECK_SLOTS;
+            show_top_row(top_row_present, &mut buffer);
 
-        if input_deck.top_row.pos0 == InputModuleType::GenericB
-            || input_deck.top_row.pos0 == InputModuleType::KeyboardB
-        {
-            // Just show two A1 for now
-            // TODO: Make it clear that it's a single module
-            show_top(true, 0, &mut buffer, &c1_sprites, &c1_rects);
-            show_top(true, 1, &mut buffer, &c1_sprites, &c1_rects);
-        }
-        if input_deck.top_row.pos3 == InputModuleType::GenericB
-            || input_deck.top_row.pos3 == InputModuleType::KeyboardB
-        {
-            // Just show two A1 for now
-            // TODO: Make it clear that it's a single module
-            show_top(true, 2, &mut buffer, &c1_sprites, &c1_rects);
-            show_top(true, 3, &mut buffer, &c1_sprites, &c1_rects);
+            show_touchpad(
+                input_deck.touchpad_present,
+                &mut buffer,
+                &trackpad_image,
+                &csize_bmp,
+                Point::new(x_left, y_top + touchpad_height),
+                Point::new(x_left + c_width + a_width, y_top + touchpad_height),
+            );
+            if input_deck.top_row.pos0 == InputModuleType::GenericC {
+                Image::new(&csize_bmp, left_c1_rect.top_left)
+                    .draw(&mut buffer)
+                    .unwrap();
+            }
+            if input_deck.top_row.pos1 == InputModuleType::GenericC {
+                Image::new(&csize_bmp, left2_c1_rect.top_left)
+                    .draw(&mut buffer)
+                    .unwrap();
+            }
+            if input_deck.top_row.pos3 == InputModuleType::GenericC {
+                Image::new(&csize_bmp, right0_c1_rect.top_left)
+                    .draw(&mut buffer)
+                    .unwrap();
+            }
+            if input_deck.top_row.pos4 == InputModuleType::GenericC {
+                Image::new(&csize_bmp, right_c1_rect.top_left)
+                    .draw(&mut buffer)
+                    .unwrap();
+            }
+
+            if input_deck.top_row.pos0 == InputModuleType::GenericA
+                || input_deck.top_row.pos0 == InputModuleType::KeyboardA
+            {
+                Image::new(&asize_bmp, left_a1_rect.top_left)
+                    .draw(&mut buffer)
+                    .unwrap();
+            }
+            if input_deck.top_row.pos1 == InputModuleType::GenericA
+                || input_deck.top_row.pos1 == InputModuleType::KeyboardA
+            {
+                Image::new(&asize_bmp, middle_a1_rect.top_left)
+                    .draw(&mut buffer)
+                    .unwrap();
+            }
+            if input_deck.top_row.pos2 == InputModuleType::GenericA
+                || input_deck.top_row.pos2 == InputModuleType::KeyboardA
+            {
+                Image::new(&asize_bmp, right_a1_rect.top_left)
+                    .draw(&mut buffer)
+                    .unwrap();
+            }
+
+            if input_deck.top_row.pos0 == InputModuleType::GenericB {
+                Image::new(&bsize_bmp, left_c1_rect.top_left)
+                    .draw(&mut buffer)
+                    .unwrap();
+            }
+            if input_deck.top_row.pos0 == InputModuleType::KeyboardB {
+                Image::new(&numpad_bmp, left_c1_rect.top_left)
+                    .draw(&mut buffer)
+                    .unwrap();
+            }
+            if input_deck.top_row.pos3 == InputModuleType::GenericB {
+                Image::new(&bsize_bmp, right0_c1_rect.top_left)
+                    .draw(&mut buffer)
+                    .unwrap();
+            }
+            if input_deck.top_row.pos3 == InputModuleType::KeyboardB {
+                Image::new(&numpad_bmp, right0_c1_rect.top_left)
+                    .draw(&mut buffer)
+                    .unwrap();
+            }
         }
 
         buffer.blit(&mut gop)?;
 
         if input_deck.fully_populated() {
+            show_fully_populated(true, &mut buffer);
+            buffer.blit(&mut gop)?;
+            bs.stall(2_000_000);
             println!("Fully populated! Continuing boot");
-            bs.stall(1_000_000);
             return Ok(());
         }
 
@@ -471,8 +622,8 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         match input.read_key().unwrap() {
             Some(Key::Printable(key)) if key == zero_key => {
                 emulated_deck = InputDeckStatus {
-                    state: input_deck::InputDeckState::On,
-                    hubboard_present: true,
+                    state: input_deck::InputDeckState::Disconnected,
+                    hubboard_present: false,
                     touchpad_present: false,
                     top_row: input_deck::TopRowPositions {
                         pos0: input_deck::InputModuleType::Disconnected,
@@ -485,7 +636,21 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             }
             Some(Key::Printable(key)) if key == one_key => {
                 emulated_deck = InputDeckStatus {
-                    state: input_deck::InputDeckState::On,
+                    state: input_deck::InputDeckState::Disconnected,
+                    hubboard_present: true,
+                    touchpad_present: false,
+                    top_row: input_deck::TopRowPositions {
+                        pos0: input_deck::InputModuleType::Disconnected,
+                        pos1: input_deck::InputModuleType::Disconnected,
+                        pos2: input_deck::InputModuleType::Disconnected,
+                        pos3: input_deck::InputModuleType::Disconnected,
+                        pos4: input_deck::InputModuleType::Disconnected,
+                    },
+                };
+            }
+            Some(Key::Printable(key)) if key == two_key => {
+                emulated_deck = InputDeckStatus {
+                    state: input_deck::InputDeckState::Disconnected,
                     hubboard_present: true,
                     touchpad_present: false,
                     top_row: input_deck::TopRowPositions {
@@ -497,9 +662,9 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     },
                 };
             }
-            Some(Key::Printable(key)) if key == two_key => {
+            Some(Key::Printable(key)) if key == three_key => {
                 emulated_deck = InputDeckStatus {
-                    state: input_deck::InputDeckState::On,
+                    state: input_deck::InputDeckState::Disconnected,
                     hubboard_present: true,
                     touchpad_present: false,
                     top_row: input_deck::TopRowPositions {
@@ -511,9 +676,9 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     },
                 };
             }
-            Some(Key::Printable(key)) if key == three_key => {
+            Some(Key::Printable(key)) if key == four_key => {
                 emulated_deck = InputDeckStatus {
-                    state: input_deck::InputDeckState::On,
+                    state: input_deck::InputDeckState::Disconnected,
                     hubboard_present: true,
                     touchpad_present: false,
                     top_row: input_deck::TopRowPositions {
@@ -525,7 +690,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     },
                 };
             }
-            Some(Key::Printable(key)) if key == four_key => {
+            Some(Key::Printable(key)) if key == five_key => {
                 emulated_deck = InputDeckStatus {
                     state: input_deck::InputDeckState::On,
                     hubboard_present: true,
@@ -539,6 +704,44 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     },
                 };
             }
+            Some(Key::Printable(key)) if key == q_key => {
+                show_instructions = !show_instructions;
+                if show_instructions {
+                    instructions_image.draw(&mut buffer).unwrap();
+
+                    let text = Text::new(
+                    "How to insert top row\n\nAlign to top, while keeping\nthe module at an angle,\nthen snap down to place.",
+                        help1_pos,
+                        MonoTextStyle::new(&ascii::FONT_5X7, Rgb888::BLACK),
+                    );
+                    text.draw(&mut buffer).unwrap();
+
+                    let text = Text::new(
+                        "Press in to lock",
+                        help2_pos,
+                        MonoTextStyle::new(&ascii::FONT_5X7, Rgb888::BLACK),
+                    );
+                    text.draw(&mut buffer).unwrap();
+
+                    let text = Text::new(
+                    "How to insert bottom row\n\nBegin at the bottom of the\nlaptop and slide up into place.",
+                        help3_pos,
+                        MonoTextStyle::new(&ascii::FONT_5X7, Rgb888::BLACK),
+                    );
+                    text.draw(&mut buffer).unwrap();
+
+                    let text = Text::new(
+                        "Press the power button or\nESC (on external keyboard)\nto skip the checks.\n\nPress ? to go back to overview.",
+                        text2_pos,
+                        MonoTextStyle::new(&ascii::FONT_5X7, Rgb888::BLACK),
+                    );
+                    text.draw(&mut buffer).unwrap();
+
+                    buffer.blit(&mut gop)?;
+                } else {
+                    draw_main(&mut buffer, &image, text_pos, text2_pos);
+                }
+            }
 
             // Example of handling a special key: exit the loop when the
             // escape key is pressed.
@@ -547,6 +750,30 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             }
             _ => {}
         };
+        // Stall a bit to avoid high CPU usage (100ms)
+        bs.stall(100_000);
     }
     Ok(())
+}
+
+fn draw_main(
+    buffer: &mut Buffer,
+    image: &Image<ImageRaw<Rgb888>>,
+    text_pos: Point,
+    text2_pos: Point,
+) {
+    image.draw(buffer).unwrap();
+    // TODO: Use Roboto Mono font
+    let text = Text::new(
+        "Input Module Status",
+        text_pos,
+        MonoTextStyle::new(&ascii::FONT_9X15_BOLD, Rgb888::WHITE),
+    );
+    text.draw(buffer).unwrap();
+    let text = Text::new(
+        "Press the power button or\nESC (on external keyboard)\nto skip the checks.\n\nPress ? for help.",
+        text2_pos,
+        MonoTextStyle::new(&ascii::FONT_7X14, Rgb888::WHITE),
+    );
+    text.draw(buffer).unwrap();
 }
