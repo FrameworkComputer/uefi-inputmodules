@@ -1,7 +1,9 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use embedded_graphics::image::ImageRaw;
-use embedded_graphics::primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle};
+use embedded_graphics::primitives::{
+    PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle,
+};
 use framework_lib::chromium_ec::input_deck::{self, InputDeckState};
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
 #[cfg(not(feature = "qemu"))]
@@ -96,49 +98,61 @@ impl Buffer {
 }
 
 const BG_COLOR: Rgb888 = Rgb888::new(0x28, 0x25, 0x24);
+const RED_WARN: Rgb888 = Rgb888::new(0xff, 0xe1, 0xe0);
+const RED_BORDER: Rgb888 = Rgb888::new(0xca, 0x1c, 0x16);
+const GREEN_OK: Rgb888 = Rgb888::new(0xf5, 0xff, 0xfb);
+const GREEN_BORDER: Rgb888 = Rgb888::new(0x00, 0x8a, 0x4e);
+
 //const BG_COLOR_BLUE: Rgb888 = Rgb888::new(0xcb, 0xe6, 0xe6);
-const COLORS: [(Rgb888, Rgb888); 2] = [(Rgb888::WHITE, Rgb888::RED), (BG_COLOR, Rgb888::GREEN)];
+const COLORS: [(Rgb888, Rgb888, Rgb888); 2] = [
+    (BG_COLOR, RED_WARN, RED_BORDER),
+    (BG_COLOR, GREEN_OK, GREEN_BORDER),
+];
+const TEXT_OFFSET: i32 = 80;
+const TEXT_PAD: u32 = 30;
+const TEXT_YPAD: u32 = 45;
+const TEXT_BORDER: u32 = 2;
+const TEXT_LEFTPAD: i32 = (TEXT_PAD + TEXT_BORDER) as i32;
 
-fn show_hubboard(show: bool, buffer: &mut Buffer) {
-    let (fg_color, bg_color) = COLORS[show as usize];
+fn show_status(
+    show: bool,
+    buffer: &mut Buffer,
+    text_pos: Point,
+    tu_td: (&ImageRaw<Rgb888>, &ImageRaw<Rgb888>),
+    font: &embedded_graphics::mono_font::MonoFont,
+    text: &str,
+    index: i32,
+) {
+    let (tu, td) = tu_td;
+    let (fg_color, bg_color, border_color) = COLORS[show as usize];
     let text = Text::new(
-        if show { "[X] Hubboard" } else { "[ ] Hubboard" },
-        Point::new(35, 200),
-        MonoTextStyle::new(&ascii::FONT_9X15_BOLD, fg_color),
+        text,
+        text_pos + Point::new(TEXT_LEFTPAD, TEXT_OFFSET * index),
+        MonoTextStyle::new(font, fg_color),
     );
 
     let rect = text.bounding_box();
-    let blank_style: PrimitiveStyle<Rgb888> =
-        PrimitiveStyleBuilder::new().fill_color(bg_color).build();
+    let rect = rect.resized(
+        rect.size + Size::new(TEXT_PAD * 2, TEXT_YPAD),
+        embedded_graphics::geometry::AnchorPoint::Center,
+    );
+    let rect =
+        RoundedRectangle::with_equal_corners(rect, Size::new(rect.size.height, rect.size.height));
+    let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
+        .fill_color(bg_color)
+        .stroke_width(TEXT_BORDER)
+        .stroke_color(border_color)
+        .build();
     rect.into_styled(blank_style).draw(buffer).unwrap();
 
     text.draw(buffer).unwrap();
 
-    //let x = Text::new(
-    //    if show {
-    //        "X"
-    //    } else {
-    //        " "
-    //    },
-    //    Point::new(45, 200),
-    //    MonoTextStyle::new(&ascii::FONT_9X15_BOLD, Rgb888::RED),
-    //).draw(buffer).unwrap();
-}
-
-fn show_top_row(show: bool, buffer: &mut Buffer) {
-    let (fg_color, bg_color) = COLORS[show as usize];
-    let text = Text::new(
-        if show { "[X] Top Row" } else { "[ ] Top Row" },
-        Point::new(35, 200 + 30),
-        MonoTextStyle::new(&ascii::FONT_9X15_BOLD, fg_color),
-    );
-
-    let rect = text.bounding_box();
-    let blank_style: PrimitiveStyle<Rgb888> =
-        PrimitiveStyleBuilder::new().fill_color(bg_color).build();
-    rect.into_styled(blank_style).draw(buffer).unwrap();
-
-    text.draw(buffer).unwrap();
+    Image::new(
+        if show { tu } else { td },
+        text_pos + Point::new(TEXT_BORDER as i32 + 20, TEXT_OFFSET * index - 20),
+    )
+    .draw(buffer)
+    .unwrap();
 }
 
 fn show_touchpad(
@@ -149,45 +163,11 @@ fn show_touchpad(
     c_left: Point,
     c_right: Point,
 ) {
-    let (fg_color, bg_color) = COLORS[show as usize];
-    let text = Text::new(
-        if show { "[X] Touchpad" } else { "[ ] Touchpad" },
-        Point::new(35, 200 + 30 * 2),
-        MonoTextStyle::new(&ascii::FONT_9X15_BOLD, fg_color),
-    );
-
-    let rect = text.bounding_box();
-    let blank_style: PrimitiveStyle<Rgb888> =
-        PrimitiveStyleBuilder::new().fill_color(bg_color).build();
-    rect.into_styled(blank_style).draw(buffer).unwrap();
-
-    text.draw(buffer).unwrap();
-
     if show {
         Image::new(csize_bmp, c_left).draw(buffer).unwrap();
         trackpad.draw(buffer).unwrap();
         Image::new(csize_bmp, c_right).draw(buffer).unwrap();
     }
-}
-
-fn show_fully_populated(show: bool, buffer: &mut Buffer) {
-    let (fg_color, bg_color) = COLORS[show as usize];
-    let text = Text::new(
-        if show {
-            "[X] Fully populated"
-        } else {
-            "[ ] Fully populated"
-        },
-        Point::new(35, 200 + 30 * 3),
-        MonoTextStyle::new(&ascii::FONT_9X15_BOLD, fg_color),
-    );
-
-    let rect = text.bounding_box();
-    let blank_style: PrimitiveStyle<Rgb888> =
-        PrimitiveStyleBuilder::new().fill_color(bg_color).build();
-    rect.into_styled(blank_style).draw(buffer).unwrap();
-
-    text.draw(buffer).unwrap();
 }
 
 pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
@@ -313,6 +293,8 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             let help1_pos = Point::new(50, 280);
             let help2_pos = Point::new(455, 640);
             let help3_pos = Point::new(545, 280);
+            let instr_font = ascii::FONT_5X7;
+            let big_font = ascii::FONT_9X15;
         } else {
             // Rects for Lotus (2560 x 1600 x 24)
             cfg_if::cfg_if! {
@@ -346,6 +328,13 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     let png = include_bytes!("../resources/bsize.png");
                     let mut decoder = zune_png::PngDecoder::new(png);
                     let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/thumbsup.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(thumbsup_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+                    let png = include_bytes!("../resources/thumbsdown.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(thumbsdown_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
                 } else if #[cfg(feature = "jpeg")] {
                     let jpeg =
                         include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600-tiny.jpg");
@@ -361,11 +350,13 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             let touchpad_height = 324;
             let y_bottom = y_top + touchpad_height;
             let screen_width = 2560;
-            let text_pos = Point::new(133, 133);
+            let text_pos = Point::new(133, 280);
             let text2_pos = Point::new(133, 1360);
-            let help1_pos = Point::new(50, 280); // TODO
-            let help2_pos = Point::new(455, 640); // TODO
-            let help3_pos = Point::new(545, 280); // TODO
+            let help1_pos = Point::new(205, 610);
+            let help2_pos = Point::new(1090, 1390);
+            let help3_pos = Point::new(1320, 610);
+            let instr_font = ascii::FONT_9X18_BOLD;//_BOLD;
+            let big_font = ascii::FONT_10X20;
         }
     }
     let left_c1_rect: Rectangle = Rectangle::with_corners(
@@ -447,13 +438,27 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             let bsize_bmp = ImageRaw::<Rgb888>::new(&bsize_image, b_width as u32);
             #[cfg(not(feature = "qemu"))]
             let bsize_bmp = ImageRaw::<Rgb888>::new(&bsize_image, b_width as u32);
+
+            #[cfg(feature = "qemu")]
+            let thumbsup_bmp = ImageRaw::<Rgb888>::new(&thumbsup_image, 38);
+            #[cfg(not(feature = "qemu"))]
+            let thumbsup_bmp = ImageRaw::<Rgb888>::new(&thumbsup_image, 38);
+            #[cfg(feature = "qemu")]
+            let thumbsdown_bmp = ImageRaw::<Rgb888>::new(&thumbsdown_image, 38);
+            #[cfg(not(feature = "qemu"))]
+            let thumbsdown_bmp = ImageRaw::<Rgb888>::new(&thumbsdown_image, 38);
         }
     }
 
-    draw_main(&mut buffer, &image, text_pos, text2_pos);
+    draw_main(
+        &mut buffer,
+        &image,
+        text_pos,
+        text2_pos,
+        &instr_font,
+        &big_font,
+    );
     let mut show_instructions = false;
-
-    show_fully_populated(false, &mut buffer);
 
     // Draw the buffer to the screen.
     buffer.blit(&mut gop)?;
@@ -517,9 +522,24 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         if !show_instructions {
             // Reset background to no modules, otherwise we can't reset what's
             // shown when modules are removed or move around.
-            draw_main(&mut buffer, &image, text_pos, text2_pos);
+            draw_main(
+                &mut buffer,
+                &image,
+                text_pos,
+                text2_pos,
+                &instr_font,
+                &big_font,
+            );
 
-            show_hubboard(input_deck.hubboard_present, &mut buffer);
+            show_status(
+                input_deck.hubboard_present,
+                &mut buffer,
+                text_pos,
+                (&thumbsup_bmp, &thumbsdown_bmp),
+                &big_font,
+                "      Hubboard",
+                2,
+            );
 
             let top_row_present = input_deck
                 .top_row_to_array()
@@ -527,8 +547,25 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                 .map(InputModuleType::size)
                 .sum::<usize>()
                 == input_deck::INPUT_DECK_SLOTS;
-            show_top_row(top_row_present, &mut buffer);
+            show_status(
+                top_row_present,
+                &mut buffer,
+                text_pos,
+                (&thumbsup_bmp, &thumbsdown_bmp),
+                &big_font,
+                "      Top Row",
+                3,
+            );
 
+            show_status(
+                input_deck.touchpad_present,
+                &mut buffer,
+                text_pos,
+                (&thumbsup_bmp, &thumbsdown_bmp),
+                &big_font,
+                "      Touchpad",
+                4,
+            );
             show_touchpad(
                 input_deck.touchpad_present,
                 &mut buffer,
@@ -536,6 +573,15 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                 &csize_bmp,
                 Point::new(x_left, y_top + touchpad_height),
                 Point::new(x_left + c_width + a_width, y_top + touchpad_height),
+            );
+            show_status(
+                false,
+                &mut buffer,
+                text_pos,
+                (&thumbsup_bmp, &thumbsdown_bmp),
+                &big_font,
+                "      Fully Populated",
+                5,
             );
             if input_deck.top_row.pos0 == InputModuleType::GenericC {
                 Image::new(&csize_bmp, left_c1_rect.top_left)
@@ -605,7 +651,15 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         buffer.blit(&mut gop)?;
 
         if input_deck.fully_populated() {
-            show_fully_populated(true, &mut buffer);
+            show_status(
+                true,
+                &mut buffer,
+                text_pos,
+                (&thumbsup_bmp, &thumbsdown_bmp),
+                &big_font,
+                "      Fully Populated",
+                5,
+            );
             buffer.blit(&mut gop)?;
             bs.stall(2_000_000);
             println!("Fully populated! Continuing boot");
@@ -712,34 +766,41 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     let text = Text::new(
                     "How to insert top row\n\nAlign to top, while keeping\nthe module at an angle,\nthen snap down to place.",
                         help1_pos,
-                        MonoTextStyle::new(&ascii::FONT_5X7, Rgb888::BLACK),
+                        MonoTextStyle::new(&instr_font, Rgb888::BLACK),
                     );
                     text.draw(&mut buffer).unwrap();
 
                     let text = Text::new(
                         "Press in to lock",
                         help2_pos,
-                        MonoTextStyle::new(&ascii::FONT_5X7, Rgb888::BLACK),
+                        MonoTextStyle::new(&instr_font, Rgb888::BLACK),
                     );
                     text.draw(&mut buffer).unwrap();
 
                     let text = Text::new(
                     "How to insert bottom row\n\nBegin at the bottom of the\nlaptop and slide up into place.",
                         help3_pos,
-                        MonoTextStyle::new(&ascii::FONT_5X7, Rgb888::BLACK),
+                        MonoTextStyle::new(&instr_font, Rgb888::BLACK),
                     );
                     text.draw(&mut buffer).unwrap();
 
                     let text = Text::new(
                         "Press the power button or\nESC (on external keyboard)\nto skip the checks.\n\nPress ? to go back to overview.",
                         text2_pos,
-                        MonoTextStyle::new(&ascii::FONT_5X7, Rgb888::BLACK),
+                        MonoTextStyle::new(&instr_font, Rgb888::BLACK),
                     );
                     text.draw(&mut buffer).unwrap();
 
                     buffer.blit(&mut gop)?;
                 } else {
-                    draw_main(&mut buffer, &image, text_pos, text2_pos);
+                    draw_main(
+                        &mut buffer,
+                        &image,
+                        text_pos,
+                        text2_pos,
+                        &instr_font,
+                        &big_font,
+                    );
                 }
             }
 
@@ -761,19 +822,21 @@ fn draw_main(
     image: &Image<ImageRaw<Rgb888>>,
     text_pos: Point,
     text2_pos: Point,
+    instr_font: &embedded_graphics::mono_font::MonoFont,
+    big_font: &embedded_graphics::mono_font::MonoFont,
 ) {
     image.draw(buffer).unwrap();
     // TODO: Use Roboto Mono font
     let text = Text::new(
         "Input Module Status",
         text_pos,
-        MonoTextStyle::new(&ascii::FONT_9X15_BOLD, Rgb888::WHITE),
+        MonoTextStyle::new(big_font, Rgb888::WHITE),
     );
     text.draw(buffer).unwrap();
     let text = Text::new(
         "Press the power button or\nESC (on external keyboard)\nto skip the checks.\n\nPress ? for help.",
         text2_pos,
-        MonoTextStyle::new(&ascii::FONT_7X14, Rgb888::WHITE),
+        MonoTextStyle::new(instr_font, Rgb888::WHITE),
     );
     text.draw(buffer).unwrap();
 }
