@@ -273,6 +273,13 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     let png = include_bytes!("../resources/bsize-small.png");
                     let mut decoder = zune_png::PngDecoder::new(png);
                     let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+
+                    let png = include_bytes!("../resources/thumbsup.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(thumbsup_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+                    let png = include_bytes!("../resources/thumbsdown.png");
+                    let mut decoder = zune_png::PngDecoder::new(png);
+                    let zune_core::result::DecodingResult::U8(thumbsdown_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
                 } else if #[cfg(feature = "jpeg")] {
                     let jpeg =
                         include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-tiny.jpg");
