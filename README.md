@@ -92,4 +92,22 @@ make run
 ```
 
 You can cycle through different amounts of population by pressing the numbers 0
-through 4. ESC quits the app.
+through 5. ESC quits the app.
+
+###### Running in native Framework Laptop 16 resolution
+
+QEMU/OVMF has the capability to display higher resolutions.
+During early startup, press ESC repeatedly until you enter the setup menu.
+There navigate to "Device Manager" -> "OVMF Platform Configuration" and change
+the preferred resolution to 2560x1600.
+
+Upon saving and rebooting, QEMU should launch in that resolution. Most likely
+it will not fit on your screen, so you'll have to make it smaller from the
+window menu: "View" -> "Zoom Out".
+
+Then you can just run the regular release binary:
+
+```sh
+make release
+make run
+```

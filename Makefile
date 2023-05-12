@@ -36,8 +36,6 @@ OVMF_VARS.fd:
 run: OVMF_CODE.fd OVMF_VARS.fd target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi
 	mkdir -p esp/efi/boot
 	cp target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi esp/efi/boot/bootx64.efi
-	#cp target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi esp/inputmodules.efi
-	#cp ../firmware-update/res/shell.efi esp/efi/boot/bootx64.efi
 	qemu-system-x86_64 \
 	  -enable-kvm \
 		-M q35 \
@@ -47,5 +45,5 @@ run: OVMF_CODE.fd OVMF_VARS.fd target/x86_64-unknown-uefi/$(TARGET)/inputmodules
 		-debugcon file:debug.log -global isa-debugcon.iobase=0x402 \
 		-usb \
     -drive if=pflash,format=raw,readonly=on,file=ovmf/OVMF_CODE.fd \
-    -drive if=pflash,format=raw,readonly=on,file=ovmf/OVMF_VARS.fd \
+    -drive if=pflash,format=raw,readonly=off,file=ovmf/OVMF_VARS.fd \
     -drive format=raw,file=fat:rw:esp
