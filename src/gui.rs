@@ -298,6 +298,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             let touchpad_height = 150;
             let y_bottom = y_top + touchpad_height;
             let screen_width = 1024;
+            let screen_height = 768;
             let text_pos = Point::new(35, 110);
             let text2_pos = Point::new(35, 640);
             let help1_pos = Point::new(50, 280);
@@ -360,6 +361,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             let touchpad_height = 324;
             let y_bottom = y_top + touchpad_height;
             let screen_width = 2560;
+            let screen_height = 1600;
             let text_pos = Point::new(133, 280);
             let text2_pos = Point::new(133, 1360);
             let help1_pos = Point::new(205, 610);
@@ -663,7 +665,22 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             );
             buffer.blit(&mut gop)?;
             bs.stall(2_000_000);
-            println!("Fully populated! Continuing boot");
+
+            // Clear screen to black. Otherwise the next app is responsible for clearing.
+            // If the app was launched from the UEFI shell, the user has to manually clear
+            let whole_screen: Rectangle = Rectangle::with_corners(
+                Point::new(0, 0),
+                Point::new(screen_width as i32, screen_height),
+            );
+            let blank_style = PrimitiveStyleBuilder::new()
+                .fill_color(Rgb888::BLACK)
+                .build();
+            whole_screen
+                .into_styled(blank_style)
+                .draw(&mut buffer)
+                .unwrap();
+            buffer.blit(&mut gop)?;
+
             return Ok(());
         }
 
