@@ -22,7 +22,6 @@ in a loop and keeps checking the current status:
 - Press ESC
 - Inputmodules fully populated, so that the whole surface is covered
 - Input deck state overridden from EC console
-- EVT/DVT only: When hubboard is not installed
 - (NOT IMPLEMENTED YET: Short-Press power button)
 
 ## Running
