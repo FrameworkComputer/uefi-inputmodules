@@ -3,23 +3,19 @@
 #
 #  It guides the user through fully installing their input module deck.
 #
-#  NOTE: This INF file only serves as a reference of what it would look like,
-#  if included in EDK2. It cannot currently be built by EDK2.
+#  This INF file is used for including the prebuilt binary into the EDK2 build.
 #
 #  Copyright (c) 2023 Framework Computer Inc
 #
 #  SPDX-License-Identifier: BSD-2-Clause-Patent
-#
-#
 ##
 
 [Defines]
   INF_VERSION                    = 0x00010005
   BASE_NAME                      = InputmodulesApp
-  FILE_GUID                      = 40DA8F9B-A7DD-423E-966C-269CCFEE445E
-  MODULE_TYPE                    = UEFI_APPLICATION
-# VERSION_STRING                 = 1.0
-  ENTRY_POINT                    = main
+  FILE_GUID                      = CC34A436-EC78-4330-96CB-1AD2216CF87B
+  MODULE_TYPE                    = UEFI_DRIVER
+  VERSION_STRING                 = 0.1.2
 
 #
 # The following information is for reference only and not required by the build tools.
@@ -27,21 +23,28 @@
 #  VALID_ARCHITECTURES           = X64
 #
 
-[Sources]
-  src/Cargo.toml
-  src/main.rs
-  src/gui.rs
-  resources/framework-laptop-16-input-module-topdown-2560x1600.jpg
+[Binaries]
+  PE32|inputmodules_app_v0.1.2.efi
 
 [Packages]
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
   ShellPkg/ShellPkg.dec
+  # Need to add the package containing gOemInputModulesProtocolGuid
 
 # [LibraryClasses]
 # Not linking to any EDK2 libraries
 
 [Protocols]
   gEfiShellParametersProtocolGuid  ## SOMETIMES_CONSUMES
-  gEfiGraphicsOutputProtocolGuid   ## SOMETIMES_CONSUMES
-  gEfiSimpleTextInProtocolGuid     ## SOMETIMES_CONSUMES
+  gEfiGraphicsOutputProtocolGuid   ## CONSUMES
+  gEfiSimpleTextInProtocolGuid     ## CONSUMES
+
+[Depex]
+  # Defined as CCB14730-DD87-44B9-BCDC-21308B275706
+  # This protocol will be installed when this app is not turned off from the
+  # setup menu and when graphical output is ready.
+  gOemInputModulesProtocolGuid AND
+  gEfiGraphicsOutputProtocolGuid AND
+  gEfiConsoleOutDeviceGuid AND
+  gEfiSimpleTextInProtocolGuid
