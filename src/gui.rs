@@ -1,6 +1,7 @@
 use core::ffi::c_void;
 use core::ptr::NonNull;
 
+use alloc::format;
 use alloc::vec;
 use alloc::vec::Vec;
 use embedded_graphics::image::ImageRaw;
@@ -32,6 +33,8 @@ use embedded_graphics::{
 };
 #[cfg(feature = "bmp")]
 use tinybmp::Bmp;
+
+use crate::built_info;
 
 struct Buffer {
     width: usize,
@@ -258,6 +261,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
 
     let mode = gop.current_mode_info();
     let (width, height) = mode.resolution();
+    let size = Point::new(width as i32, height as i32);
     info!("Current Resolution {}x{}", width, height);
 
     // Create a buffer to draw into.
@@ -504,6 +508,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         &image,
         text_pos,
         text2_pos,
+        size,
         &instr_font,
         &big_font,
     );
@@ -545,6 +550,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                 &image,
                 text_pos,
                 text2_pos,
+                size,
                 &instr_font,
                 &big_font,
             );
@@ -829,6 +835,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                         &image,
                         text_pos,
                         text2_pos,
+                        size,
                         &instr_font,
                         &big_font,
                     );
@@ -851,6 +858,7 @@ fn draw_main(
     image: &Image<ImageRaw<Rgb888>>,
     text_pos: Point,
     text2_pos: Point,
+    size: Point,
     instr_font: &embedded_graphics::mono_font::MonoFont,
     big_font: &embedded_graphics::mono_font::MonoFont,
 ) {
@@ -866,6 +874,21 @@ fn draw_main(
         "Press the power button or\nESC (on external keyboard)\nto skip the checks.\n\nPress ? for help.",
         text2_pos,
         MonoTextStyle::new(instr_font, Rgb888::WHITE),
+    );
+    text.draw(buffer).unwrap();
+
+    // Place version information in the lower right corner
+    let ver_font = instr_font;
+    let cs = Point::new(
+        ver_font.character_size.width as i32,
+        ver_font.character_size.height as i32,
+    );
+    let ver_text = format!("v{}", built_info::PKG_VERSION);
+    let ver_len = ver_text.len() as i32;
+    let text = Text::new(
+        &ver_text,
+        size - Point::new(cs.x * ver_len + cs.x, cs.y),
+        MonoTextStyle::new(ver_font, Rgb888::WHITE),
     );
     text.draw(buffer).unwrap();
 }
