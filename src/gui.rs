@@ -9,7 +9,6 @@ use embedded_graphics::primitives::{
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckState};
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
-#[cfg(not(feature = "qemu"))]
 use framework_lib::chromium_ec::CrosEc;
 #[allow(unused_imports)]
 use log::{debug, error, info};
@@ -173,9 +172,47 @@ fn show_touchpad(
     }
 }
 
+fn get_input_deck(emulated_deck: &InputDeckStatus, _ec: &Option<CrosEc>) -> InputDeckStatus {
+    #[cfg(not(feature = "qemu"))]
+    let input_deck = _ec.as_ref().unwrap().get_input_deck_status();
+    #[cfg(feature = "qemu")]
+    let input_deck: core::result::Result<InputDeckStatus, ()> = core::result::Result::Err(());
+    if let Ok(input_deck) = input_deck {
+        //println!("Got it!");
+        input_deck
+    } else {
+        //println!("Emulated deck data");
+        emulated_deck.clone()
+    }
+}
+
 pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     #[cfg(not(feature = "qemu"))]
-    let ec = CrosEc::new();
+    let ec = Some(CrosEc::new());
+    #[cfg(feature = "qemu")]
+    let ec = None;
+
+    let mut emulated_deck = InputDeckStatus {
+        state: input_deck::InputDeckState::Disconnected,
+        hubboard_present: false,
+        touchpad_present: false,
+        top_row: input_deck::TopRowPositions {
+            pos0: input_deck::InputModuleType::Disconnected,
+            pos1: input_deck::InputModuleType::Disconnected,
+            pos2: input_deck::InputModuleType::Disconnected,
+            pos3: input_deck::InputModuleType::Disconnected,
+            pos4: input_deck::InputModuleType::Disconnected,
+        },
+    };
+    let input_deck = get_input_deck(&emulated_deck, &ec);
+
+    // If we start out as fully populated we want to boot as fast as possible
+    // and skip the GUI
+    if input_deck.fully_populated() {
+        info!("Started out as fully populated, booting immediately");
+        return Ok(());
+    }
+
     //// Open graphics output protocol.
     //let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>()?;
     //// open_protocol_exclusive will steal it from anyone else, meaning shell prints won't work anymore
@@ -485,30 +522,8 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let four_key = Char16::try_from('4').unwrap();
     let five_key = Char16::try_from('5').unwrap();
     let q_key = Char16::try_from('?').unwrap();
-    let mut emulated_deck = InputDeckStatus {
-        state: input_deck::InputDeckState::Disconnected,
-        hubboard_present: false,
-        touchpad_present: false,
-        top_row: input_deck::TopRowPositions {
-            pos0: input_deck::InputModuleType::Disconnected,
-            pos1: input_deck::InputModuleType::Disconnected,
-            pos2: input_deck::InputModuleType::Disconnected,
-            pos3: input_deck::InputModuleType::Disconnected,
-            pos4: input_deck::InputModuleType::Disconnected,
-        },
-    };
     loop {
-        #[cfg(not(feature = "qemu"))]
-        let input_deck = ec.get_input_deck_status();
-        #[cfg(feature = "qemu")]
-        let input_deck: core::result::Result<InputDeckStatus, ()> = core::result::Result::Err(());
-        let input_deck = if let Ok(input_deck) = input_deck {
-            //println!("Got it!");
-            input_deck
-        } else {
-            //println!("Emulated deck data");
-            emulated_deck.clone()
-        };
+        let input_deck = get_input_deck(&emulated_deck, &ec);
         //debug!("InputDeck State: {:?}", input_deck.state);
         //debug!("Touchpad present: {:?}", input_deck.touchpad_present);
         //debug!("Hubboard present: {:?}", input_deck.hubboard_present);
