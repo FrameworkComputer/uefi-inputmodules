@@ -883,11 +883,31 @@ fn draw_main(
         ver_font.character_size.width as i32,
         ver_font.character_size.height as i32,
     );
-    let ver_text = format!("v{}", built_info::PKG_VERSION);
-    let ver_len = ver_text.len() as i32;
+    let (height, ver_text) = if built_info::DEBUG {
+        (
+            4,
+            format!(
+                "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}",
+                built_info::PKG_VERSION,
+                built_info::GIT_HEAD_REF.unwrap_or("?"),
+                built_info::GIT_COMMIT_HASH.unwrap_or("?"),
+                built_info::GIT_DIRTY.unwrap_or(false)
+            ),
+        )
+    } else {
+        (1, format!("v{}", built_info::PKG_VERSION))
+    };
+    let ver_len = ver_text.lines().fold(0, |longest, cur| -> i32 {
+        let cur_len = cur.len() as i32;
+        if longest > cur_len {
+            longest
+        } else {
+            cur_len
+        }
+    });
     let text = Text::new(
         &ver_text,
-        size - Point::new(cs.x * ver_len + cs.x, cs.y),
+        size - Point::new(cs.x * ver_len + cs.x, cs.y * height),
         MonoTextStyle::new(ver_font, Rgb888::WHITE),
     );
     text.draw(buffer).unwrap();
