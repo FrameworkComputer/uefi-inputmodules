@@ -1,6 +1,7 @@
 use core::ffi::c_void;
 use core::ptr::NonNull;
 
+use alloc::format;
 use alloc::vec;
 use alloc::vec::Vec;
 use embedded_graphics::image::ImageRaw;
@@ -9,7 +10,6 @@ use embedded_graphics::primitives::{
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckState};
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
-#[cfg(not(feature = "qemu"))]
 use framework_lib::chromium_ec::CrosEc;
 #[allow(unused_imports)]
 use log::{debug, error, info};
@@ -33,6 +33,8 @@ use embedded_graphics::{
 };
 #[cfg(feature = "bmp")]
 use tinybmp::Bmp;
+
+use crate::built_info;
 
 struct Buffer {
     width: usize,
@@ -173,9 +175,47 @@ fn show_touchpad(
     }
 }
 
+fn get_input_deck(emulated_deck: &InputDeckStatus, _ec: &Option<CrosEc>) -> InputDeckStatus {
+    #[cfg(not(feature = "qemu"))]
+    let input_deck = _ec.as_ref().unwrap().get_input_deck_status();
+    #[cfg(feature = "qemu")]
+    let input_deck: core::result::Result<InputDeckStatus, ()> = core::result::Result::Err(());
+    if let Ok(input_deck) = input_deck {
+        //println!("Got it!");
+        input_deck
+    } else {
+        //println!("Emulated deck data");
+        emulated_deck.clone()
+    }
+}
+
 pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     #[cfg(not(feature = "qemu"))]
-    let ec = CrosEc::new();
+    let ec = Some(CrosEc::new());
+    #[cfg(feature = "qemu")]
+    let ec = None;
+
+    let mut emulated_deck = InputDeckStatus {
+        state: input_deck::InputDeckState::Disconnected,
+        hubboard_present: false,
+        touchpad_present: false,
+        top_row: input_deck::TopRowPositions {
+            pos0: input_deck::InputModuleType::Disconnected,
+            pos1: input_deck::InputModuleType::Disconnected,
+            pos2: input_deck::InputModuleType::Disconnected,
+            pos3: input_deck::InputModuleType::Disconnected,
+            pos4: input_deck::InputModuleType::Disconnected,
+        },
+    };
+    let input_deck = get_input_deck(&emulated_deck, &ec);
+
+    // If we start out as fully populated we want to boot as fast as possible
+    // and skip the GUI
+    if input_deck.fully_populated() {
+        info!("Started out as fully populated, booting immediately");
+        return Ok(());
+    }
+
     //// Open graphics output protocol.
     //let gop_handle = bs.get_handle_for_protocol::<GraphicsOutput>()?;
     //// open_protocol_exclusive will steal it from anyone else, meaning shell prints won't work anymore
@@ -221,6 +261,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
 
     let mode = gop.current_mode_info();
     let (width, height) = mode.resolution();
+    let size = Point::new(width as i32, height as i32);
     info!("Current Resolution {}x{}", width, height);
 
     // Create a buffer to draw into.
@@ -467,6 +508,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         &image,
         text_pos,
         text2_pos,
+        size,
         &instr_font,
         &big_font,
     );
@@ -485,30 +527,8 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let four_key = Char16::try_from('4').unwrap();
     let five_key = Char16::try_from('5').unwrap();
     let q_key = Char16::try_from('?').unwrap();
-    let mut emulated_deck = InputDeckStatus {
-        state: input_deck::InputDeckState::Disconnected,
-        hubboard_present: false,
-        touchpad_present: false,
-        top_row: input_deck::TopRowPositions {
-            pos0: input_deck::InputModuleType::Disconnected,
-            pos1: input_deck::InputModuleType::Disconnected,
-            pos2: input_deck::InputModuleType::Disconnected,
-            pos3: input_deck::InputModuleType::Disconnected,
-            pos4: input_deck::InputModuleType::Disconnected,
-        },
-    };
     loop {
-        #[cfg(not(feature = "qemu"))]
-        let input_deck = ec.get_input_deck_status();
-        #[cfg(feature = "qemu")]
-        let input_deck: core::result::Result<InputDeckStatus, ()> = core::result::Result::Err(());
-        let input_deck = if let Ok(input_deck) = input_deck {
-            //println!("Got it!");
-            input_deck
-        } else {
-            //println!("Emulated deck data");
-            emulated_deck.clone()
-        };
+        let input_deck = get_input_deck(&emulated_deck, &ec);
         //debug!("InputDeck State: {:?}", input_deck.state);
         //debug!("Touchpad present: {:?}", input_deck.touchpad_present);
         //debug!("Hubboard present: {:?}", input_deck.hubboard_present);
@@ -530,6 +550,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                 &image,
                 text_pos,
                 text2_pos,
+                size,
                 &instr_font,
                 &big_font,
             );
@@ -814,6 +835,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                         &image,
                         text_pos,
                         text2_pos,
+                        size,
                         &instr_font,
                         &big_font,
                     );
@@ -836,6 +858,7 @@ fn draw_main(
     image: &Image<ImageRaw<Rgb888>>,
     text_pos: Point,
     text2_pos: Point,
+    size: Point,
     instr_font: &embedded_graphics::mono_font::MonoFont,
     big_font: &embedded_graphics::mono_font::MonoFont,
 ) {
@@ -851,6 +874,41 @@ fn draw_main(
         "Press the power button or\nESC (on external keyboard)\nto skip the checks.\n\nPress ? for help.",
         text2_pos,
         MonoTextStyle::new(instr_font, Rgb888::WHITE),
+    );
+    text.draw(buffer).unwrap();
+
+    // Place version information in the lower right corner
+    let ver_font = instr_font;
+    let cs = Point::new(
+        ver_font.character_size.width as i32,
+        ver_font.character_size.height as i32,
+    );
+    let (height, ver_text) = if built_info::DEBUG {
+        (
+            4,
+            format!(
+                "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}",
+                built_info::PKG_VERSION,
+                built_info::GIT_HEAD_REF.unwrap_or("?"),
+                built_info::GIT_COMMIT_HASH.unwrap_or("?"),
+                built_info::GIT_DIRTY.unwrap_or(false)
+            ),
+        )
+    } else {
+        (1, format!("v{}", built_info::PKG_VERSION))
+    };
+    let ver_len = ver_text.lines().fold(0, |longest, cur| -> i32 {
+        let cur_len = cur.len() as i32;
+        if longest > cur_len {
+            longest
+        } else {
+            cur_len
+        }
+    });
+    let text = Text::new(
+        &ver_text,
+        size - Point::new(cs.x * ver_len + cs.x, cs.y * height),
+        MonoTextStyle::new(ver_font, Rgb888::WHITE),
     );
     text.draw(buffer).unwrap();
 }
