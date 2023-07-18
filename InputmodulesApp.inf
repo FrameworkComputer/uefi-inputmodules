@@ -1,0 +1,49 @@
+## @file
+#  Application for Framework Laptop 16 to show input module status.
+#
+#  It guides the user through fully installing their input module deck.
+#
+#  This INF file is used for including the prebuilt binary into the EDK2 build.
+#
+#  Copyright (c) 2023 Framework Computer Inc
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = InputmodulesApp
+  FILE_GUID                      = CC34A436-EC78-4330-96CB-1AD2216CF87B
+  MODULE_TYPE                    = UEFI_DRIVER
+  VERSION_STRING                 = 0.1.2
+
+#
+# The following information is for reference only and not required by the build tools.
+#
+#  VALID_ARCHITECTURES           = X64
+#
+
+[Binaries]
+  PE32|inputmodules_app_v0.1.2.efi
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  ShellPkg/ShellPkg.dec
+  # Need to add the package containing gOemInputModulesProtocolGuid
+
+# [LibraryClasses]
+# Not linking to any EDK2 libraries
+
+[Protocols]
+  gEfiShellParametersProtocolGuid  ## SOMETIMES_CONSUMES
+  gEfiGraphicsOutputProtocolGuid   ## CONSUMES
+  gEfiSimpleTextInProtocolGuid     ## CONSUMES
+
+[Depex]
+  # This protocol will be installed when this app is not turned off from the
+  # setup menu and when graphical output is ready.
+  gOemInputModulesProtocolGuid AND   # CCB14730-DD87-44B9-BCDC-21308B275706
+  gEfiGraphicsOutputProtocolGuid AND # 9042A9DE-23DC-4A38-96FB-7ADED080516A
+  gEfiConsoleOutDeviceGuid AND       # D3B36F2C-D551-11D4-9A46-0090273FC14D
+  gEfiSimpleTextInProtocolGuid       # 387477C1-69C7-11D2-8E39-00A0C969723B
