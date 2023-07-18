@@ -821,8 +821,10 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     );
                     text.draw(&mut buffer).unwrap();
 
+                    // TODO: Info about power button is currently hidden until it's implemented
+                    // "Press the power button or\nESC (on external keyboard)\nto skip the checks.\n\nPress ? to go back to overview.",
                     let text = Text::new(
-                        "Press the power button or\nESC (on external keyboard)\nto skip the checks.\n\nPress ? to go back to overview.",
+                        "Press the ESC (on external keyboard)\nto skip the checks.\n\nPress ? to go back to overview.",
                         text2_pos,
                         MonoTextStyle::new(&instr_font, Rgb888::BLACK),
                     );
@@ -870,8 +872,10 @@ fn draw_main(
         MonoTextStyle::new(big_font, Rgb888::WHITE),
     );
     text.draw(buffer).unwrap();
+    // TODO: Info about power button is currently hidden until it's implemented
+    // "Press the power button or\nESC (on external keyboard)\nto skip the checks.\n\nPress ? for help.",
     let text = Text::new(
-        "Press the power button or\nESC (on external keyboard)\nto skip the checks.\n\nPress ? for help.",
+        "Press ESC (on external keyboard)\nto skip the checks.\n\nPress ? for help.",
         text2_pos,
         MonoTextStyle::new(instr_font, Rgb888::WHITE),
     );
