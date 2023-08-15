@@ -24,7 +24,7 @@ mod built_info {
 
 #[entry]
 fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    uefi_services::init(&mut system_table).unwrap();
+    let event = uefi_services::init(&mut system_table).unwrap();
     let boot_services = system_table.boot_services();
 
     #[cfg(not(feature = "qemu"))]
@@ -35,6 +35,11 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     } else {
         info!("No shell arg, launching GUI");
         gui::draw_background(boot_services, &system_table).unwrap();
+    }
+
+    if let Some(event) = event {
+        // Will crash when Linux boots if we don't call this
+        boot_services.close_event(event).unwrap();
     }
 
     Status::SUCCESS

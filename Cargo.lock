@@ -799,7 +799,7 @@ dependencies = [
 [[package]]
 name = "uefi"
 version = "0.20.0"
-source = "git+https://github.com/FrameworkComputer/uefi-rs?branch=merged#be173c16e588c7517c3ef3c8a2959bf7d4996b2a"
+source = "git+https://github.com/FrameworkComputer/uefi-rs?branch=merged#95165e1adde99da7a460320538d908af8b55f87f"
 dependencies = [
  "bitflags 1.3.2",
  "derive_more",
@@ -823,7 +823,7 @@ dependencies = [
 [[package]]
 name = "uefi-services"
 version = "0.17.0"
-source = "git+https://github.com/FrameworkComputer/uefi-rs?branch=merged#be173c16e588c7517c3ef3c8a2959bf7d4996b2a"
+source = "git+https://github.com/FrameworkComputer/uefi-rs?branch=merged#95165e1adde99da7a460320538d908af8b55f87f"
 dependencies = [
  "cfg-if",
  "log",
