@@ -6,6 +6,7 @@ use embedded_graphics::image::ImageRaw;
 use embedded_graphics::primitives::{
     PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle,
 };
+use framework_lib::chromium_ec::commands::{EcRequestUefiAppBtnStatus, EcRequestUefiAppMode};
 use framework_lib::chromium_ec::input_deck::{self, InputDeckState};
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
 use framework_lib::chromium_ec::{CrosEc, EcRequestRaw};
@@ -32,8 +33,6 @@ use embedded_graphics::{
 
 use crate::buffer::Buffer;
 use crate::built_info;
-use crate::EcRequestUefiAppBtnStatus;
-use crate::EcRequestUefiAppMode;
 
 const BG_COLOR: Rgb888 = Rgb888::new(0x28, 0x25, 0x24);
 const RED_WARN: Rgb888 = Rgb888::new(0xff, 0xe1, 0xe0);
@@ -108,7 +107,7 @@ fn show_touchpad(
     }
 }
 
-fn get_input_deck(emulated_deck: &InputDeckStatus, _ec: &Option<CrosEc>) -> InputDeckStatus {
+pub fn get_input_deck(emulated_deck: &InputDeckStatus, _ec: &Option<CrosEc>) -> InputDeckStatus {
     #[cfg(not(feature = "qemu"))]
     let input_deck = _ec.as_ref().unwrap().get_input_deck_status();
     #[cfg(feature = "qemu")]
