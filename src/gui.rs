@@ -31,8 +31,6 @@ use embedded_graphics::{
     prelude::*,
     text::Text,
 };
-#[cfg(feature = "bmp")]
-use tinybmp::Bmp;
 
 use crate::built_info;
 use crate::EcRequestUefiAppBtnStatus;
@@ -279,138 +277,59 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>, ec: &Option<C
         }
     }
 
-    cfg_if::cfg_if! {
-        // Rects for QEMU (1024 x 768 x 24)
-        if #[cfg(feature = "qemu")] {
-            cfg_if::cfg_if! {
-                if #[cfg(feature = "bmp")] {
-                    //let background_image =
-                    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768.bmp");
-                    let background_image =
-                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.bmp");
-                } else if #[cfg(feature = "png")] {
-                    let png = include_bytes!("../resources/baseboard-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(background_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    // Rects for Lotus (2560 x 1600 x 24)
+    let png = include_bytes!("../resources/baseboard.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(background_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
 
-                    let png = include_bytes!("../resources/instructions-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(instructions_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/instructions.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(instructions_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
 
-                    let png = include_bytes!("../resources/trackpad-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(trackpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/trackpad.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(trackpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
 
-                    let png = include_bytes!("../resources/csize-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(csize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/csize.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(csize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
 
-                    let png = include_bytes!("../resources/keyboard-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(asize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/keyboard.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(asize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
 
-                    let png = include_bytes!("../resources/numpad-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(numpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/numpad.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(numpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
 
-                    let png = include_bytes!("../resources/bsize-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/bsize.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
 
-                    let png = include_bytes!("../resources/thumbsup.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(thumbsup_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-                    let png = include_bytes!("../resources/thumbsdown.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(thumbsdown_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-                } else if #[cfg(feature = "jpeg")] {
-                    let jpeg =
-                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-tiny.jpg");
-                    let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
-                    let background_image = decoder.decode().unwrap();
-                }
-            }
-            let y_top = 350;
-            let x_left = 420;
-            let c_width = 46;
-            let a_width = 374;
-            let b_width = 91;
-            let touchpad_height = 150;
-            let y_bottom = y_top + touchpad_height;
-            let screen_width = 1024;
-            let screen_height = 768;
-            let text_pos = Point::new(35, 110);
-            let text2_pos = Point::new(35, 640);
-            let help1_pos = Point::new(50, 280);
-            let help2_pos = Point::new(455, 640);
-            let help3_pos = Point::new(545, 280);
-            let instr_font = ascii::FONT_5X7;
-            let big_font = ascii::FONT_9X15;
-        } else {
-            // Rects for Lotus (2560 x 1600 x 24)
-            cfg_if::cfg_if! {
-                if #[cfg(feature = "bmp")] {
-                    let background_image = include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600.bmp");
-                } else if #[cfg(feature = "png")] {
-                    let png = include_bytes!("../resources/baseboard.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(background_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/thumbsup.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(thumbsup_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/thumbsdown.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(thumbsdown_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
 
-                    let png = include_bytes!("../resources/instructions.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(instructions_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let y_top = 756;
+    let x_left = 1210;
+    let a_width = 806;
+    let b_width = 196;
+    let c_width = 100;
+    let touchpad_height = 324;
+    let y_bottom = y_top + touchpad_height;
+    let screen_width = 2560;
+    let screen_height = 1600;
+    let text_pos = Point::new(133, 280);
+    let text2_pos = Point::new(133, 1360);
+    let help1_pos = Point::new(205, 610);
+    let help2_pos = Point::new(1090, 1390);
+    let help3_pos = Point::new(1320, 610);
+    let instr_font = ascii::FONT_9X18_BOLD; //_BOLD;
+    let big_font = ascii::FONT_10X20;
 
-                    let png = include_bytes!("../resources/trackpad.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(trackpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-
-                    let png = include_bytes!("../resources/csize.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(csize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-
-                    let png = include_bytes!("../resources/keyboard.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(asize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-
-                    let png = include_bytes!("../resources/numpad.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(numpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-
-                    let png = include_bytes!("../resources/bsize.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-
-                    let png = include_bytes!("../resources/thumbsup.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(thumbsup_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-                    let png = include_bytes!("../resources/thumbsdown.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(thumbsdown_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-                } else if #[cfg(feature = "jpeg")] {
-                    let jpeg =
-                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600-tiny.jpg");
-                    let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
-                    let background_image = decoder.decode().unwrap();
-                }
-            }
-            let y_top = 756;
-            let x_left = 1210;
-            let a_width = 806;
-            let b_width = 196;
-            let c_width = 100;
-            let touchpad_height = 324;
-            let y_bottom = y_top + touchpad_height;
-            let screen_width = 2560;
-            let screen_height = 1600;
-            let text_pos = Point::new(133, 280);
-            let text2_pos = Point::new(133, 1360);
-            let help1_pos = Point::new(205, 610);
-            let help2_pos = Point::new(1090, 1390);
-            let help3_pos = Point::new(1320, 610);
-            let instr_font = ascii::FONT_9X18_BOLD;//_BOLD;
-            let big_font = ascii::FONT_10X20;
-        }
-    }
     let left_c1_rect: Rectangle = Rectangle::with_corners(
         Point::new(x_left, y_top),
         Point::new(x_left + c_width, y_bottom),
@@ -445,62 +364,22 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>, ec: &Option<C
     );
 
     // Have to export in GIMP as RGB888
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "bmp")] {
-            let background_bmp: Bmp<Rgb888> = Bmp::from_slice(background_image).unwrap();
-            let image = Image::new(&background_bmp, Point::new(0, 0));
-        } else {
-            #[cfg(feature = "qemu")]
-            let background_bmp = ImageRaw::<Rgb888>::new(&background_image, screen_width);
-            #[cfg(not(feature = "qemu"))]
-            let background_bmp = ImageRaw::<Rgb888>::new(&background_image, screen_width);
-            let image = Image::new(&background_bmp, Point::new(0, 0));
+    let background_bmp = ImageRaw::<Rgb888>::new(&background_image, screen_width);
+    let image = Image::new(&background_bmp, Point::new(0, 0));
 
-            #[cfg(feature = "qemu")]
-            let instructions_bmp = ImageRaw::<Rgb888>::new(&instructions_image, screen_width);
-            #[cfg(not(feature = "qemu"))]
-            let instructions_bmp = ImageRaw::<Rgb888>::new(&instructions_image, screen_width);
-            let instructions_image = Image::new(&instructions_bmp, Point::new(0, 0));
+    let instructions_bmp = ImageRaw::<Rgb888>::new(&instructions_image, screen_width);
+    let instructions_image = Image::new(&instructions_bmp, Point::new(0, 0));
 
-            #[cfg(feature = "qemu")]
-            let trackpad_bmp = ImageRaw::<Rgb888>::new(&trackpad_image, a_width as u32);
-            #[cfg(feature = "qemu")]
-            let trackpad_image = Image::new(&trackpad_bmp, touchpad_rect.top_left);
-            #[cfg(not(feature = "qemu"))]
-            let trackpad_bmp = ImageRaw::<Rgb888>::new(&trackpad_image, a_width as u32);
-            #[cfg(not(feature = "qemu"))]
-            let trackpad_image = Image::new(&trackpad_bmp, touchpad_rect.top_left);
+    let trackpad_bmp = ImageRaw::<Rgb888>::new(&trackpad_image, a_width as u32);
+    let trackpad_image = Image::new(&trackpad_bmp, touchpad_rect.top_left);
 
-            #[cfg(feature = "qemu")]
-            let csize_bmp = ImageRaw::<Rgb888>::new(&csize_image, c_width as u32);
-            #[cfg(not(feature = "qemu"))]
-            let csize_bmp = ImageRaw::<Rgb888>::new(&csize_image, c_width as u32);
+    let csize_bmp = ImageRaw::<Rgb888>::new(&csize_image, c_width as u32);
+    let asize_bmp = ImageRaw::<Rgb888>::new(&asize_image, a_width as u32);
+    let numpad_bmp = ImageRaw::<Rgb888>::new(&numpad_image, b_width as u32);
+    let bsize_bmp = ImageRaw::<Rgb888>::new(&bsize_image, b_width as u32);
 
-            #[cfg(feature = "qemu")]
-            let asize_bmp = ImageRaw::<Rgb888>::new(&asize_image, a_width as u32);
-            #[cfg(not(feature = "qemu"))]
-            let asize_bmp = ImageRaw::<Rgb888>::new(&asize_image, a_width as u32);
-
-            #[cfg(feature = "qemu")]
-            let numpad_bmp = ImageRaw::<Rgb888>::new(&numpad_image, b_width as u32);
-            #[cfg(not(feature = "qemu"))]
-            let numpad_bmp = ImageRaw::<Rgb888>::new(&numpad_image, b_width as u32);
-
-            #[cfg(feature = "qemu")]
-            let bsize_bmp = ImageRaw::<Rgb888>::new(&bsize_image, b_width as u32);
-            #[cfg(not(feature = "qemu"))]
-            let bsize_bmp = ImageRaw::<Rgb888>::new(&bsize_image, b_width as u32);
-
-            #[cfg(feature = "qemu")]
-            let thumbsup_bmp = ImageRaw::<Rgb888>::new(&thumbsup_image, 38);
-            #[cfg(not(feature = "qemu"))]
-            let thumbsup_bmp = ImageRaw::<Rgb888>::new(&thumbsup_image, 38);
-            #[cfg(feature = "qemu")]
-            let thumbsdown_bmp = ImageRaw::<Rgb888>::new(&thumbsdown_image, 38);
-            #[cfg(not(feature = "qemu"))]
-            let thumbsdown_bmp = ImageRaw::<Rgb888>::new(&thumbsdown_image, 38);
-        }
-    }
+    let thumbsup_bmp = ImageRaw::<Rgb888>::new(&thumbsup_image, 38);
+    let thumbsdown_bmp = ImageRaw::<Rgb888>::new(&thumbsdown_image, 38);
 
     draw_main(
         &mut buffer,
