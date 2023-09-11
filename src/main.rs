@@ -18,6 +18,7 @@ use uefi::Identify;
 use uefi_services::{print, println};
 
 mod buffer;
+mod drawing;
 mod gui;
 mod state_machine;
 mod built_info {
@@ -44,18 +45,13 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         let ec = None;
 
         if let Some(ref ec) = ec {
-            EcRequestUefiAppMode { enable: 1 }
-                .send_command(&ec)
-                .unwrap();
+            EcRequestUefiAppMode { enable: 1 }.send_command(ec).unwrap();
         }
 
-        //let gui_res = gui::draw_background(boot_services, &system_table, &ec);
         let gui_res = state_machine::start(boot_services, &system_table, &ec);
 
         if let Some(ref ec) = ec {
-            EcRequestUefiAppMode { enable: 0 }
-                .send_command(&ec)
-                .unwrap();
+            EcRequestUefiAppMode { enable: 0 }.send_command(ec).unwrap();
         }
 
         gui_res.unwrap();
@@ -66,7 +62,9 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         boot_services.close_event(event).unwrap();
     }
 
-    Status::SUCCESS
+    return Status::SUCCESS;
+    // Put here to avoid unused warning
+    let _ = gui::draw_background(boot_services, &system_table, &None);
 }
 
 fn has_shell_args(boot_services: &BootServices) -> uefi::Result<bool> {

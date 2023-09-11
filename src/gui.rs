@@ -134,7 +134,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>, ec: &Option<C
             pos4: input_deck::InputModuleType::Disconnected,
         },
     };
-    let input_deck = get_input_deck(&emulated_deck, &ec);
+    let input_deck = get_input_deck(&emulated_deck, ec);
     let mut pressed: u8 = 255;
     let mut ctr: u64 = 0;
 
@@ -345,7 +345,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>, ec: &Option<C
     let mut long_press = 0;
     loop {
         if let Some(ref ec) = ec {
-            let btn_status = EcRequestUefiAppBtnStatus {}.send_command(&ec).unwrap();
+            let btn_status = EcRequestUefiAppBtnStatus {}.send_command(ec).unwrap();
             pressed = if btn_status.status == 0 { 1 } else { 0 };
             //if btn_status.flags != 0 {
             //    debug!("Power button pressed");
@@ -356,15 +356,13 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>, ec: &Option<C
         if prev_pressed == 1 && pressed == 0 {
             return Ok(());
         }
-        let input_deck = get_input_deck(&emulated_deck, &ec);
+        let input_deck = get_input_deck(&emulated_deck, ec);
         need_redraw = input_deck != prev_input_deck || pressed != prev_pressed;
 
         if pressed == 1 && prev_pressed == 1 && !need_redraw {
             if long_press > 4 {
                 if let Some(ref ec) = ec {
-                    EcRequestUefiAppMode { enable: 0 }
-                        .send_command(&ec)
-                        .unwrap();
+                    EcRequestUefiAppMode { enable: 0 }.send_command(ec).unwrap();
                 }
                 //TODO: REmove this
                 println!("Shutting down;");
