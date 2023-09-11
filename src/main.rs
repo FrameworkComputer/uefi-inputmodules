@@ -6,7 +6,7 @@ extern crate alloc;
 
 use alloc::string::ToString;
 use framework_lib::chromium_ec::input_deck::InputDeckState;
-use framework_lib::chromium_ec::{print_err, CrosEc};
+use framework_lib::chromium_ec::{print_err, CrosEc, EcRequestRaw};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::prelude::*;
@@ -34,7 +34,27 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         print_module_status();
     } else {
         info!("No shell arg, launching GUI");
-        gui::draw_background(boot_services, &system_table).unwrap();
+
+        #[cfg(not(feature = "qemu"))]
+        let ec = Some(CrosEc::new());
+        #[cfg(feature = "qemu")]
+        let ec = None;
+
+        if let Some(ref ec) = ec {
+            EcRequestUefiAppMode { enable: 1 }
+                .send_command(&ec)
+                .unwrap();
+        }
+
+        let gui_res = gui::draw_background(boot_services, &system_table, &ec);
+
+        if let Some(ref ec) = ec {
+            EcRequestUefiAppMode { enable: 0 }
+                .send_command(&ec)
+                .unwrap();
+        }
+
+        gui_res.unwrap();
     }
 
     if let Some(event) = event {
@@ -133,4 +153,30 @@ fn print_tool_version() {
     println!("  Features     {:?}", built_info::FEATURES);
     println!("  DEBUG:       {}", built_info::DEBUG);
     println!("  Target OS:   {}", built_info::CFG_OS);
+}
+
+// TODO
+#[repr(C, packed)]
+pub struct EcRequestUefiAppMode {
+    pub enable: u8,
+}
+
+impl EcRequestRaw<()> for EcRequestUefiAppMode {
+    fn command_id_u16() -> u16 {
+        0x3E19
+    }
+}
+
+#[repr(C, packed)]
+pub struct EcRequestUefiAppBtnStatus {}
+
+#[repr(C, packed)]
+pub struct EcResponseUefiAppBtnStatus {
+    pub status: u8,
+}
+
+impl EcRequestRaw<EcResponseUefiAppBtnStatus> for EcRequestUefiAppBtnStatus {
+    fn command_id_u16() -> u16 {
+        0x3E1A
+    }
 }

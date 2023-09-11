@@ -44,8 +44,9 @@ optional = true
 #features = [ "x86" ]
 
 [dependencies.framework_lib]
-git = "ssh://git@github.com/FrameworkComputer/framework-system.git"
-branch = "PRIVATE"
+path = "/home/zoid/clone/framework-system/framework_lib"
+#git = "ssh://git@github.com/FrameworkComputer/framework-system.git"
+#branch = "PRIVATE"
 features = ["uefi"]
 default-features = false
 

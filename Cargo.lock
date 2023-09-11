@@ -248,7 +248,6 @@ dependencies = [
 [[package]]
 name = "framework_lib"
 version = "0.1.0"
-source = "git+ssh://git@github.com/FrameworkComputer/framework-system.git?branch=PRIVATE#947d379fed46045c399dc1c6d811d37d73e67967"
 dependencies = [
  "built",
  "guid_macros",
@@ -288,7 +287,6 @@ dependencies = [
 [[package]]
 name = "guid_macros"
 version = "0.11.0"
-source = "git+ssh://git@github.com/FrameworkComputer/framework-system.git?branch=PRIVATE#947d379fed46045c399dc1c6d811d37d73e67967"
 dependencies = [
  "proc-macro2",
  "quote",

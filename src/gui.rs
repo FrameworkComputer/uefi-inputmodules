@@ -10,7 +10,7 @@ use embedded_graphics::primitives::{
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckState};
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
-use framework_lib::chromium_ec::CrosEc;
+use framework_lib::chromium_ec::{CrosEc, EcRequestRaw};
 #[allow(unused_imports)]
 use log::{debug, error, info};
 use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
@@ -35,6 +35,8 @@ use embedded_graphics::{
 use tinybmp::Bmp;
 
 use crate::built_info;
+use crate::EcRequestUefiAppBtnStatus;
+use crate::EcRequestUefiAppMode;
 
 struct Buffer {
     width: usize,
@@ -189,12 +191,7 @@ fn get_input_deck(emulated_deck: &InputDeckStatus, _ec: &Option<CrosEc>) -> Inpu
     }
 }
 
-pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
-    #[cfg(not(feature = "qemu"))]
-    let ec = Some(CrosEc::new());
-    #[cfg(feature = "qemu")]
-    let ec = None;
-
+pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> Result {
     let mut emulated_deck = InputDeckStatus {
         state: input_deck::InputDeckState::Disconnected,
         hubboard_present: false,
@@ -208,6 +205,8 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         },
     };
     let input_deck = get_input_deck(&emulated_deck, &ec);
+    let mut pressed: u8 = 255;
+    let mut ctr: u64 = 0;
 
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
@@ -511,6 +510,8 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         size,
         &instr_font,
         &big_font,
+        pressed,
+        ctr,
     );
     let mut show_instructions = false;
 
@@ -527,8 +528,53 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let four_key = Char16::try_from('4').unwrap();
     let five_key = Char16::try_from('5').unwrap();
     let q_key = Char16::try_from('?').unwrap();
+    let mut need_redraw = true;
+    let mut prev_input_deck = input_deck;
+    let mut prev_pressed = 100;
+    let mut long_press = 0;
     loop {
+        if let Some(ref ec) = ec {
+            let btn_status = EcRequestUefiAppBtnStatus {}.send_command(&ec).unwrap();
+            pressed = if btn_status.status == 0 { 1 } else { 0 };
+            //if btn_status.flags != 0 {
+            //    debug!("Power button pressed");
+            //    bs.stall(1_000_000);
+            //}
+        }
+        // Short press will exit
+        if prev_pressed == 1 && pressed == 0 {
+            return Ok(());
+        }
         let input_deck = get_input_deck(&emulated_deck, &ec);
+        need_redraw = input_deck != prev_input_deck || pressed != prev_pressed;
+
+        if pressed == 1 && prev_pressed == 1 && !need_redraw {
+            if long_press > 4 {
+                if let Some(ref ec) = ec {
+                    EcRequestUefiAppMode { enable: 0 }
+                        .send_command(&ec)
+                        .unwrap();
+                }
+                //TODO: REmove this
+                println!("Shutting down;");
+                bs.stall(1_000_000);
+                // Shut down the system
+                let rt = unsafe { _st.runtime_services() };
+                rt.reset(
+                    uefi::table::runtime::ResetType::Shutdown,
+                    Status::SUCCESS,
+                    None,
+                );
+            }
+            // Wait a few seconds and if it's still pressed next time around, it was a long press
+            bs.stall(1_000_000);
+            long_press += 1;
+        } else {
+            long_press = 0;
+        }
+        prev_pressed = pressed;
+        prev_input_deck = input_deck.clone();
+
         //debug!("InputDeck State: {:?}", input_deck.state);
         //debug!("Touchpad present: {:?}", input_deck.touchpad_present);
         //debug!("Hubboard present: {:?}", input_deck.hubboard_present);
@@ -542,7 +588,9 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             return Ok(());
         }
 
-        if !show_instructions {
+        // Instructions don't need updates, they're only drawn once when the button is pressed
+        if !show_instructions && need_redraw {
+            ctr += 1;
             // Reset background to no modules, otherwise we can't reset what's
             // shown when modules are removed or move around.
             draw_main(
@@ -553,6 +601,8 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                 size,
                 &instr_font,
                 &big_font,
+                pressed,
+                ctr,
             );
 
             show_status(
@@ -670,10 +720,10 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     .draw(&mut buffer)
                     .unwrap();
             }
+            buffer.blit(&mut gop)?;
         }
 
-        buffer.blit(&mut gop)?;
-
+        // Wait a bit, clear the screen and exit
         if input_deck.fully_populated() {
             show_status(
                 true,
@@ -688,7 +738,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             bs.stall(2_000_000);
 
             // Clear screen to black. Otherwise the next app is responsible for clearing.
-            // If the app was launched from the UEFI shell, the user has to manually clear
+            // If the app was launched from the UEFI shell, the user would have to manually clear
             let whole_screen: Rectangle = Rectangle::with_corners(
                 Point::new(0, 0),
                 Point::new(screen_width as i32, screen_height),
@@ -705,10 +755,10 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             return Ok(());
         }
 
-        // Put CPU to sleep until key press or 1s timeout
-        sleep_or(bs, 1000, unsafe {
-            Some(input.wait_for_key_event().unsafe_clone())
-        });
+        // Put CPU to sleep until key press or 10ms timeout
+        //sleep_or(bs, 10, unsafe {
+        //    Some(input.wait_for_key_event().unsafe_clone())
+        //});
 
         match input.read_key().unwrap() {
             Some(Key::Printable(key)) if key == zero_key => {
@@ -840,6 +890,8 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                         size,
                         &instr_font,
                         &big_font,
+                        pressed,
+                        ctr,
                     );
                 }
             }
@@ -863,6 +915,8 @@ fn draw_main(
     size: Point,
     instr_font: &embedded_graphics::mono_font::MonoFont,
     big_font: &embedded_graphics::mono_font::MonoFont,
+    pressed: u8,
+    ctr: u64,
 ) {
     image.draw(buffer).unwrap();
     // TODO: Use Roboto Mono font
@@ -891,11 +945,13 @@ fn draw_main(
         (
             4,
             format!(
-                "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}",
+                "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}, BTN: {}, ctr: {}",
                 built_info::PKG_VERSION,
                 built_info::GIT_HEAD_REF.unwrap_or("?"),
                 built_info::GIT_COMMIT_HASH.unwrap_or("?"),
-                built_info::GIT_DIRTY.unwrap_or(false)
+                built_info::GIT_DIRTY.unwrap_or(false),
+                pressed,
+                ctr
             ),
         )
     } else {
