@@ -16,6 +16,7 @@ use uefi::Identify;
 #[allow(unused_imports)]
 use uefi_services::{print, println};
 
+mod buffer;
 mod gui;
 mod built_info {
     // The file has been placed there by the build script.
