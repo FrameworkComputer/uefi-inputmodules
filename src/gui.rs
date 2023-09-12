@@ -121,7 +121,7 @@ pub fn get_input_deck(emulated_deck: &InputDeckStatus, _ec: &Option<CrosEc>) -> 
     }
 }
 
-pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> Result {
+pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> Result {
     let mut emulated_deck = InputDeckStatus {
         state: input_deck::InputDeckState::Disconnected,
         hubboard_present: false,
@@ -368,7 +368,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>, ec: &Option<C
                 println!("Shutting down;");
                 bs.stall(1_000_000);
                 // Shut down the system
-                let rt = unsafe { _st.runtime_services() };
+                let rt = st.runtime_services();
                 rt.reset(
                     uefi::table::runtime::ResetType::Shutdown,
                     Status::SUCCESS,
@@ -784,7 +784,7 @@ fn draw_main(
 
 unsafe extern "efiapi" fn idle_callback(_event: Event, _context: Option<NonNull<c_void>>) {}
 
-fn sleep_or(bs: &BootServices, ms: u64, or_event: Option<Event>) {
+pub fn sleep_or(bs: &BootServices, ms: u64, or_event: Option<Event>) {
     let oneshot_timer = unsafe {
         bs.create_event(EventType::TIMER, Tpl::CALLBACK, Some(idle_callback), None)
             .unwrap()

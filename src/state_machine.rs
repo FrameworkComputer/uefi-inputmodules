@@ -2,27 +2,34 @@ use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::Point;
 
 use framework_lib::chromium_ec::commands::{
-    EcRequestExpansionBayStatus, EcResponseExpansionBayStatus, ExpansionByStates,
+    EcRequestExpansionBayStatus, EcRequestUefiAppBtnStatus, EcRequestUefiAppMode,
+    EcResponseExpansionBayStatus, ExpansionByStates,
 };
-use framework_lib::chromium_ec::input_deck::InputDeckStatus;
+use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
 use framework_lib::chromium_ec::{CrosEc, EcRequestRaw};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::prelude::BootServices;
 use uefi::proto::console::gop::GraphicsOutput;
+use uefi::proto::console::text::{Input, Key, ScanCode};
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
 use uefi::table::{Boot, SystemTable};
-use uefi::Identify;
+use uefi::{Char16, Identify, Status};
+#[allow(unused_imports)]
+use uefi_services::{print, println};
 
 use crate::buffer::Buffer;
 use crate::drawing::*;
+use crate::gui::sleep_or;
 
 pub struct State {
     bitmaps: StateBitmaps,
     screen_size: Size,
     frame: StateFrame,
     prev_input_deck: Option<InputDeckStatus>,
+    prev_pressed: bool,
+    keypress: Option<Key>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -56,6 +63,8 @@ impl State {
             //frame: StateFrame::TouchpadButNoInputmodules,
             frame: StateFrame::Finished,
             prev_input_deck: None,
+            prev_pressed: false,
+            keypress: None,
         }
     }
     // Very simple state machine
@@ -415,9 +424,191 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
     }
 }
 
-pub fn start(bs: &BootServices, _st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> uefi::Result {
-    let input_deck = get_input_deck(ec);
-    let expansion_bay = get_expansion_bay(ec);
+fn button_pressed(ec: &Option<CrosEc>) -> bool {
+    if let Some(ref ec) = ec {
+        let btn_status = EcRequestUefiAppBtnStatus {}.send_command(ec).unwrap();
+        //if btn_status.flags != 0 {
+        //    debug!("Power button pressed");
+        //    bs.stall(1_000_000);
+        //}
+        btn_status.status == 0
+    } else {
+        false
+    }
+}
+
+fn set_uefi_app_mode(ec: &Option<CrosEc>, mode: bool) {
+    let enable = if mode { 1 } else { 0 };
+    if let Some(ref ec) = ec {
+        EcRequestUefiAppMode { enable }.send_command(ec).unwrap();
+    }
+}
+
+fn keypress_mock_data(
+    keypress: Option<Key>,
+    input_deck: &mut InputDeckStatus,
+    expansion_bay: &mut EcResponseExpansionBayStatus,
+) {
+    // TODO: Can this be created from a macro?
+    let zero_key = Char16::try_from('0').unwrap();
+    let one_key = Char16::try_from('1').unwrap();
+    let two_key = Char16::try_from('2').unwrap();
+    let three_key = Char16::try_from('3').unwrap();
+    let four_key = Char16::try_from('4').unwrap();
+    let five_key = Char16::try_from('5').unwrap();
+    let six_key = Char16::try_from('6').unwrap();
+    let seven_key = Char16::try_from('7').unwrap();
+    //let q_key = Char16::try_from('?').unwrap();
+    let bay_present = EcResponseExpansionBayStatus {
+        state: (ExpansionByStates::ModuleEnabled as u8)
+            | (ExpansionByStates::HatchSwitchClosed as u8),
+        board_id_0: 0,
+        board_id_1: 0,
+    };
+
+    match keypress {
+        // State: NoExpansionBay
+        Some(Key::Printable(key)) if key == zero_key => {
+            *expansion_bay = EcResponseExpansionBayStatus {
+                state: 0,
+                board_id_0: 0,
+                board_id_1: 0,
+            };
+            *input_deck = InputDeckStatus {
+                state: input_deck::InputDeckState::Disconnected,
+                hubboard_present: false,
+                touchpad_present: false,
+                top_row: input_deck::TopRowPositions {
+                    pos0: input_deck::InputModuleType::Disconnected,
+                    pos1: input_deck::InputModuleType::Disconnected,
+                    pos2: input_deck::InputModuleType::Disconnected,
+                    pos3: input_deck::InputModuleType::Disconnected,
+                    pos4: input_deck::InputModuleType::Disconnected,
+                },
+            };
+        }
+        _ => {}
+    }
+    match keypress {
+        // State: NoHubboard
+        Some(Key::Printable(key)) if key == one_key => {
+            *expansion_bay = bay_present;
+            *input_deck = InputDeckStatus {
+                state: input_deck::InputDeckState::Disconnected,
+                hubboard_present: false,
+                touchpad_present: false,
+                top_row: input_deck::TopRowPositions {
+                    pos0: input_deck::InputModuleType::Disconnected,
+                    pos1: input_deck::InputModuleType::Disconnected,
+                    pos2: input_deck::InputModuleType::Disconnected,
+                    pos3: input_deck::InputModuleType::Disconnected,
+                    pos4: input_deck::InputModuleType::Disconnected,
+                },
+            };
+        }
+        // State: TouchpadButNoInputmodules
+        Some(Key::Printable(key)) if key == two_key => {
+            *expansion_bay = bay_present;
+            *input_deck = InputDeckStatus {
+                state: input_deck::InputDeckState::Disconnected,
+                hubboard_present: true,
+                touchpad_present: true,
+                top_row: input_deck::TopRowPositions {
+                    pos0: input_deck::InputModuleType::Disconnected,
+                    pos1: input_deck::InputModuleType::Disconnected,
+                    pos2: input_deck::InputModuleType::Disconnected,
+                    pos3: input_deck::InputModuleType::Disconnected,
+                    pos4: input_deck::InputModuleType::Disconnected,
+                },
+            };
+        }
+        // State: InputModulesMissing
+        Some(Key::Printable(key)) if key == three_key => {
+            *expansion_bay = bay_present;
+            *input_deck = InputDeckStatus {
+                state: input_deck::InputDeckState::Disconnected,
+                hubboard_present: true,
+                touchpad_present: false,
+                top_row: input_deck::TopRowPositions {
+                    pos0: input_deck::InputModuleType::Disconnected,
+                    pos1: input_deck::InputModuleType::Disconnected,
+                    pos2: input_deck::InputModuleType::Disconnected,
+                    pos3: input_deck::InputModuleType::Disconnected,
+                    pos4: input_deck::InputModuleType::Disconnected,
+                },
+            };
+        }
+        // State: InputModulesMissing
+        Some(Key::Printable(key)) if key == four_key => {
+            *expansion_bay = bay_present;
+            *input_deck = InputDeckStatus {
+                state: input_deck::InputDeckState::Disconnected,
+                hubboard_present: true,
+                touchpad_present: false,
+                top_row: input_deck::TopRowPositions {
+                    pos0: input_deck::InputModuleType::GenericC,
+                    pos1: input_deck::InputModuleType::Disconnected,
+                    pos2: input_deck::InputModuleType::Disconnected,
+                    pos3: input_deck::InputModuleType::Disconnected,
+                    pos4: input_deck::InputModuleType::Disconnected,
+                },
+            };
+        }
+        // State: InputModulesMissing
+        Some(Key::Printable(key)) if key == five_key => {
+            *expansion_bay = bay_present;
+            *input_deck = InputDeckStatus {
+                state: input_deck::InputDeckState::Disconnected,
+                hubboard_present: true,
+                touchpad_present: false,
+                top_row: input_deck::TopRowPositions {
+                    pos0: input_deck::InputModuleType::GenericC,
+                    pos1: input_deck::InputModuleType::GenericC,
+                    pos2: input_deck::InputModuleType::Disconnected,
+                    pos3: input_deck::InputModuleType::Disconnected,
+                    pos4: input_deck::InputModuleType::Disconnected,
+                },
+            };
+        }
+        // State: NoTouchpad
+        Some(Key::Printable(key)) if key == six_key => {
+            *expansion_bay = bay_present;
+            *input_deck = InputDeckStatus {
+                state: input_deck::InputDeckState::Disconnected,
+                hubboard_present: true,
+                touchpad_present: false,
+                top_row: input_deck::TopRowPositions {
+                    pos0: input_deck::InputModuleType::GenericC,
+                    pos1: input_deck::InputModuleType::GenericC,
+                    pos2: input_deck::InputModuleType::KeyboardA,
+                    pos3: input_deck::InputModuleType::Disconnected,
+                    pos4: input_deck::InputModuleType::Disconnected,
+                },
+            };
+        }
+        // State: Finished
+        Some(Key::Printable(key)) if key == seven_key => {
+            *expansion_bay = bay_present;
+            *input_deck = InputDeckStatus {
+                state: input_deck::InputDeckState::On,
+                hubboard_present: true,
+                touchpad_present: true,
+                top_row: input_deck::TopRowPositions {
+                    pos0: input_deck::InputModuleType::GenericC,
+                    pos1: input_deck::InputModuleType::GenericC,
+                    pos2: input_deck::InputModuleType::KeyboardA,
+                    pos3: input_deck::InputModuleType::Disconnected,
+                    pos4: input_deck::InputModuleType::Disconnected,
+                },
+            };
+        }
+        _ => {}
+    }
+}
+
+pub fn start(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> uefi::Result {
+    let mut input_deck = get_input_deck(ec);
+    let mut expansion_bay = get_expansion_bay(ec);
 
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
@@ -425,7 +616,16 @@ pub fn start(bs: &BootServices, _st: &SystemTable<Boot>, ec: &Option<CrosEc>) ->
         info!("Started out as fully populated, booting immediately");
         return Ok(());
     }
+    if !matches!(
+        input_deck.state,
+        InputDeckState::Disconnected | InputDeckState::TurningOn | InputDeckState::On
+    ) {
+        println!("Input Deck State Overridden: {:?}. No detection of modules possible - continuing to boot ", input_deck.state);
+        bs.stall(1_000_000);
+        return Ok(());
+    }
 
+    // Get GOP protocol to draw on the screen
     let (mut gop, mut buffer) = if let Some((gop, buf)) = get_gop_buffer(bs) {
         (gop, buf)
     } else {
@@ -434,21 +634,71 @@ pub fn start(bs: &BootServices, _st: &SystemTable<Boot>, ec: &Option<CrosEc>) ->
         return Ok(());
     };
 
-    let mut state = State::new();
-    loop {
-        let input_deck = get_input_deck(ec);
-        let expansion_bay = get_expansion_bay(ec);
+    // Get Input protocol to detect keypresses
+    let input_handle = bs.get_handle_for_protocol::<Input>().unwrap();
+    let mut input = bs.open_protocol_exclusive::<Input>(input_handle).unwrap();
 
-        let _need_redraw = Some(&input_deck) != state.prev_input_deck.as_ref();
+    let mut state = State::new();
+    let mut long_press = 0;
+    loop {
+        if ec.is_some() {
+            input_deck = get_input_deck(ec);
+            expansion_bay = get_expansion_bay(ec);
+        }
+        let button_pressed = button_pressed(ec);
+
+        keypress_mock_data(state.keypress, &mut input_deck, &mut expansion_bay);
+
+        // Short press (or ESC) will exit and boot (skip all further checks)
+        if !button_pressed && state.prev_pressed
+            || state.keypress == Some(Key::Special(ScanCode::ESCAPE))
+        {
+            break;
+        }
+
+        // TODO: Improve this logic
+        let need_redraw = Some(&input_deck) != state.prev_input_deck.as_ref();
+        if button_pressed && state.prev_pressed && !need_redraw {
+            if long_press > 4 {
+                set_uefi_app_mode(ec, false);
+
+                // TODO: Remove debug print and stall
+                println!("Shutting down;");
+                bs.stall(1_000_000);
+
+                // Shut down the system
+                // TODO: I should do  this outside of this function
+                let rt = st.runtime_services();
+                rt.reset(
+                    uefi::table::runtime::ResetType::Shutdown,
+                    Status::SUCCESS,
+                    None,
+                );
+            }
+            // Wait a second
+            sleep_or(bs, 1_000_000, unsafe {
+                Some(input.wait_for_key_event().unsafe_clone())
+            });
+            long_press += 1;
+        } else {
+            long_press = 0;
+        }
+
         state.frame = state.next_state(&input_deck, &expansion_bay);
 
         state.draw_state(&mut buffer, &input_deck);
         draw_version(&mut buffer);
         buffer.blit(&mut gop)?;
-        bs.stall(2_000_000);
 
-        state.prev_input_deck = Some(input_deck);
+        // Put CPU to sleep until key press or 10ms timeout
+        sleep_or(bs, 10, unsafe {
+            Some(input.wait_for_key_event().unsafe_clone())
+        });
+        state.keypress = input.read_key().unwrap();
+
+        state.prev_input_deck = Some(input_deck.clone());
+        state.prev_pressed = button_pressed;
     }
-    clear_screen(&mut buffer, &mut gop);
+    let _ = clear_screen(&mut buffer, &mut gop);
     Ok(())
 }
