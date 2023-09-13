@@ -1,13 +1,14 @@
 use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::Point;
 
+use alloc::string::ToString;
 use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestUefiAppBtnStatus, EcRequestUefiAppMode,
     EcResponseExpansionBayStatus, ExpansionByStates,
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
-use framework_lib::chromium_ec::{CrosEc, EcRequestRaw};
+use framework_lib::chromium_ec::{CrosEc, EcError, EcRequestRaw};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::prelude::BootServices;
@@ -23,11 +24,19 @@ use crate::buffer::Buffer;
 use crate::drawing::*;
 use crate::gui::sleep_or;
 
+#[derive(Debug)]
+pub struct DebugInfo {
+    power_button: bool,
+    ec_present: bool,
+    long_press: i32,
+}
+
 pub struct State {
     bitmaps: StateBitmaps,
     screen_size: Size,
     frame: StateFrame,
     prev_input_deck: Option<InputDeckStatus>,
+    prev_expansion_bay: Option<EcResponseExpansionBayStatus>,
     prev_pressed: bool,
     keypress: Option<Key>,
 }
@@ -63,6 +72,7 @@ impl State {
             //frame: StateFrame::TouchpadButNoInputmodules,
             frame: StateFrame::Finished,
             prev_input_deck: None,
+            prev_expansion_bay: None,
             prev_pressed: false,
             keypress: None,
         }
@@ -99,10 +109,12 @@ impl State {
         // Draw solid background color #567676
         for y in 0..self.screen_size.height {
             for x in 0..self.screen_size.width {
-                let pixel = buffer.pixel(x as usize, y as usize).unwrap();
-                pixel.red = 0x56;
-                pixel.green = 0x76;
-                pixel.blue = 0x76;
+                // TODO: Can actually unwrap because the screen size should be correct.
+                if let Some(pixel) = buffer.pixel(x as usize, y as usize) {
+                    pixel.red = 0x56;
+                    pixel.green = 0x76;
+                    pixel.blue = 0x76;
+                }
             }
         }
 
@@ -336,6 +348,15 @@ impl State {
             self.bitmaps.touchpad().draw(buffer);
         }
     }
+
+    pub fn need_redraw(
+        &self,
+        input_deck: &InputDeckStatus,
+        expansion_bay: &EcResponseExpansionBayStatus,
+    ) -> bool {
+        Some(input_deck) != self.prev_input_deck.as_ref()
+            || Some(expansion_bay) != self.prev_expansion_bay.as_ref()
+    }
 }
 
 fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutput>, Buffer)> {
@@ -377,17 +398,16 @@ fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutput>, 
 
 pub fn get_expansion_bay(ec: &Option<CrosEc>) -> EcResponseExpansionBayStatus {
     let emulated_bay = EcResponseExpansionBayStatus {
-        state: (ExpansionByStates::ModuleEnabled as u8)
-            | (ExpansionByStates::HatchSwitchClosed as u8),
+        state: 0,
         board_id_0: 0,
         board_id_1: 0,
     };
 
-    #[cfg(not(feature = "qemu"))]
-    let expansion_bay = EcRequestExpansionBayStatus {}.send_command(ec.as_ref().unwrap());
-    #[cfg(feature = "qemu")]
-    let expansion_bay: core::result::Result<EcResponseExpansionBayStatus, ()> =
-        core::result::Result::Err(());
+    let ec = ec.as_ref().ok_or(EcError::DeviceError("No EC".to_string()));
+    #[cfg(not(feature = "azalea"))]
+    let expansion_bay = ec.and_then(|ec| EcRequestExpansionBayStatus {}.send_command(&ec));
+    #[cfg(feature = "azalea")]
+    let expansion_bay: Result<EcResponseExpansionBayStatus, ()> = Result::Err(());
     if let Ok(expansion_bay) = expansion_bay {
         //println!("Got it!");
         expansion_bay
@@ -411,10 +431,11 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
         },
     };
 
-    #[cfg(not(feature = "qemu"))]
-    let input_deck = ec.as_ref().unwrap().get_input_deck_status();
-    #[cfg(feature = "qemu")]
-    let input_deck: core::result::Result<InputDeckStatus, ()> = core::result::Result::Err(());
+    let ec = ec.as_ref().ok_or(EcError::DeviceError("No EC".to_string()));
+    #[cfg(not(feature = "azalea"))]
+    let input_deck = ec.and_then(|ec| ec.get_input_deck_status());
+    #[cfg(feature = "azalea")]
+    let input_deck: Result<InputDeckStatus, ()> = Result::Err(());
     if let Ok(input_deck) = input_deck {
         //println!("Got it!");
         input_deck
@@ -427,17 +448,13 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
 fn button_pressed(ec: &Option<CrosEc>) -> bool {
     if let Some(ref ec) = ec {
         let btn_status = EcRequestUefiAppBtnStatus {}.send_command(ec).unwrap();
-        //if btn_status.flags != 0 {
-        //    debug!("Power button pressed");
-        //    bs.stall(1_000_000);
-        //}
         btn_status.status == 0
     } else {
         false
     }
 }
 
-fn set_uefi_app_mode(ec: &Option<CrosEc>, mode: bool) {
+pub fn set_uefi_app_mode(ec: &Option<CrosEc>, mode: bool) {
     let enable = if mode { 1 } else { 0 };
     if let Some(ref ec) = ec {
         EcRequestUefiAppMode { enable }.send_command(ec).unwrap();
@@ -606,7 +623,11 @@ fn keypress_mock_data(
     }
 }
 
-pub fn start(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> uefi::Result {
+pub fn start(
+    bs: &BootServices,
+    _st: &SystemTable<Boot>,
+    ec: &Option<CrosEc>,
+) -> uefi::Result<bool> {
     let mut input_deck = get_input_deck(ec);
     let mut expansion_bay = get_expansion_bay(ec);
 
@@ -614,7 +635,7 @@ pub fn start(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> 
     // and skip the GUI
     if input_deck.fully_populated() && expansion_bay.module_enabled() {
         info!("Started out as fully populated, booting immediately");
-        return Ok(());
+        return Ok(false);
     }
     if !matches!(
         input_deck.state,
@@ -622,7 +643,7 @@ pub fn start(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> 
     ) {
         println!("Input Deck State Overridden: {:?}. No detection of modules possible - continuing to boot ", input_deck.state);
         bs.stall(1_000_000);
-        return Ok(());
+        return Ok(false);
     }
 
     // Get GOP protocol to draw on the screen
@@ -631,7 +652,7 @@ pub fn start(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> 
     } else {
         // Something went wrong with GOP initialization, keep booting
         // TODO: Maybe in DVT2 we should still assert here?
-        return Ok(());
+        return Ok(false);
     };
 
     // Get Input protocol to detect keypresses
@@ -641,42 +662,37 @@ pub fn start(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> 
     let mut state = State::new();
     let mut long_press = 0;
     loop {
-        if ec.is_some() {
+        #[cfg(feature = "azalea")]
+        let azalea = true;
+        #[cfg(not(feature = "azalea"))]
+        let azalea = false;
+        if !azalea && ec.is_some() {
             input_deck = get_input_deck(ec);
             expansion_bay = get_expansion_bay(ec);
+        } else {
+            keypress_mock_data(state.keypress, &mut input_deck, &mut expansion_bay);
         }
+        // TODO: Maybe mock power button press?
         let button_pressed = button_pressed(ec);
 
-        keypress_mock_data(state.keypress, &mut input_deck, &mut expansion_bay);
-
+        // Detect short press of power button
         // Short press (or ESC) will exit and boot (skip all further checks)
-        if !button_pressed && state.prev_pressed
+        if (!button_pressed && state.prev_pressed && long_press == 1)
             || state.keypress == Some(Key::Special(ScanCode::ESCAPE))
         {
             break;
         }
 
-        // TODO: Improve this logic
-        let need_redraw = Some(&input_deck) != state.prev_input_deck.as_ref();
+        let need_redraw = state.need_redraw(&input_deck, &expansion_bay);
+
+        // Detect long press of power button
         if button_pressed && state.prev_pressed && !need_redraw {
             if long_press > 4 {
-                set_uefi_app_mode(ec, false);
-
-                // TODO: Remove debug print and stall
-                println!("Shutting down;");
-                bs.stall(1_000_000);
-
-                // Shut down the system
-                // TODO: I should do  this outside of this function
-                let rt = st.runtime_services();
-                rt.reset(
-                    uefi::table::runtime::ResetType::Shutdown,
-                    Status::SUCCESS,
-                    None,
-                );
+                // Exit and signal that we need to poweroff
+                return Ok(true);
             }
             // Wait a second
-            sleep_or(bs, 1_000_000, unsafe {
+            sleep_or(bs, 1_000, unsafe {
                 Some(input.wait_for_key_event().unsafe_clone())
             });
             long_press += 1;
@@ -684,10 +700,23 @@ pub fn start(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> 
             long_press = 0;
         }
 
-        state.frame = state.next_state(&input_deck, &expansion_bay);
+        if need_redraw {
+            state.frame = state.next_state(&input_deck, &expansion_bay);
+            state.draw_state(&mut buffer, &input_deck);
+            draw_version(&mut buffer, None);
+            buffer.blit(&mut gop)?;
+        }
 
-        state.draw_state(&mut buffer, &input_deck);
-        draw_version(&mut buffer);
+        #[cfg(feature = "azalea")]
+        draw_version(
+            &mut buffer,
+            Some(DebugInfo {
+                power_button: button_pressed,
+                ec_present: ec.is_some(),
+                long_press,
+            }),
+        );
+        #[cfg(feature = "azalea")]
         buffer.blit(&mut gop)?;
 
         // Put CPU to sleep until key press or 10ms timeout
@@ -697,8 +726,9 @@ pub fn start(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> 
         state.keypress = input.read_key().unwrap();
 
         state.prev_input_deck = Some(input_deck.clone());
+        state.prev_expansion_bay = Some(expansion_bay.clone());
         state.prev_pressed = button_pressed;
     }
     let _ = clear_screen(&mut buffer, &mut gop);
-    Ok(())
+    Ok(false)
 }

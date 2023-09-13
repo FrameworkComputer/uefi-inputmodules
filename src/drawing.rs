@@ -19,11 +19,13 @@ use zune_png::PngDecoder;
 
 use crate::buffer::Buffer;
 use crate::built_info;
+use crate::state_machine::DebugInfo;
 
 pub const WIDTH: usize = 2560;
 pub const WIDTH_I32: i32 = 2560;
 pub const HEIGHT: usize = 1600;
 pub const HEIGHT_I32: i32 = 1600;
+pub const BACKGROUND_COLOR: Rgb888 = Rgb888::new(0x56, 0x76, 0x76);
 
 #[derive(Default)]
 pub struct StateBitmaps {
@@ -491,7 +493,7 @@ pub fn draw_textbox(buffer: &mut Buffer, pos: Point, color: TextColor, text: &st
     text.draw(buffer).unwrap();
 }
 
-pub fn draw_version(buffer: &mut Buffer) {
+pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>) {
     // Place version information in the lower right corner
     let font = ascii::FONT_9X18_BOLD;
     let cs = Point::new(
@@ -501,13 +503,24 @@ pub fn draw_version(buffer: &mut Buffer) {
     let (height, ver_text) = if built_info::DEBUG {
         (
             4,
-            format!(
-                "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}",
-                built_info::PKG_VERSION,
-                built_info::GIT_HEAD_REF.unwrap_or("?"),
-                built_info::GIT_COMMIT_HASH.unwrap_or("?"),
-                built_info::GIT_DIRTY.unwrap_or(false),
-            ),
+            if let Some(debug_info) = debug_info {
+                format!(
+                    "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}\n{:?}",
+                    built_info::PKG_VERSION,
+                    built_info::GIT_HEAD_REF.unwrap_or("?"),
+                    built_info::GIT_COMMIT_HASH.unwrap_or("?"),
+                    built_info::GIT_DIRTY.unwrap_or(false),
+                    debug_info
+                )
+            } else {
+                format!(
+                    "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}",
+                    built_info::PKG_VERSION,
+                    built_info::GIT_HEAD_REF.unwrap_or("?"),
+                    built_info::GIT_COMMIT_HASH.unwrap_or("?"),
+                    built_info::GIT_DIRTY.unwrap_or(false),
+                )
+            },
         )
     } else {
         (1, format!("v{}", built_info::PKG_VERSION))
@@ -520,13 +533,24 @@ pub fn draw_version(buffer: &mut Buffer) {
             cur_len
         }
     });
+    // Next to the button icons
+    let bottom_right = (Point::new(WIDTH_I32 - 40 - 2 * 132 - 20, HEIGHT_I32 - 40 - 171)
+        + Point::new(0, 132 - cs.y * height))
+        - Point::new(cs.x * ver_len + cs.x, 0);
+    // let top_left = Point::new(100, 100);
     let text = Text::new(
         &ver_text,
-        (Point::new(WIDTH_I32 - 40 - 2 * 132 - 20, HEIGHT_I32 - 40 - 171)
-            + Point::new(0, 132 - cs.y * height))
-            - Point::new(cs.x * ver_len + cs.x, 0),
+        bottom_right,
         MonoTextStyle::new(&font, Rgb888::WHITE),
     );
+
+    // Make sure the background is cleared if we only update the version
+    let background = text.bounding_box();
+    let blank_style = PrimitiveStyleBuilder::new()
+        .fill_color(BACKGROUND_COLOR)
+        .build();
+    background.into_styled(blank_style).draw(buffer).unwrap();
+
     text.draw(buffer).unwrap();
 }
 

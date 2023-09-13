@@ -17,6 +17,8 @@ use uefi::Identify;
 #[allow(unused_imports)]
 use uefi_services::{print, println};
 
+use crate::state_machine::set_uefi_app_mode;
+
 mod buffer;
 mod drawing;
 mod gui;
@@ -44,17 +46,25 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         #[cfg(feature = "qemu")]
         let ec = None;
 
-        if let Some(ref ec) = ec {
-            EcRequestUefiAppMode { enable: 1 }.send_command(ec).unwrap();
-        }
-
+        set_uefi_app_mode(&ec, true);
         let gui_res = state_machine::start(boot_services, &system_table, &ec);
+        set_uefi_app_mode(&ec, false);
 
-        if let Some(ref ec) = ec {
-            EcRequestUefiAppMode { enable: 0 }.send_command(ec).unwrap();
+        let poweroff = gui_res.unwrap();
+        if poweroff {
+            // TODO: Remove debug print and stall
+            println!("Shutting down;");
+            boot_services.stall(1_000_000);
+
+            // Shut down the system
+            // TODO: I should do  this outside of this function
+            let rt = system_table.runtime_services();
+            rt.reset(
+                uefi::table::runtime::ResetType::Shutdown,
+                Status::SUCCESS,
+                None,
+            );
         }
-
-        gui_res.unwrap();
     }
 
     if let Some(event) = event {
