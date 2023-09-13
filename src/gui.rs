@@ -1,6 +1,3 @@
-use core::ffi::c_void;
-use core::ptr::NonNull;
-
 use alloc::format;
 use embedded_graphics::image::ImageRaw;
 use embedded_graphics::primitives::{
@@ -14,12 +11,12 @@ use framework_lib::chromium_ec::{CrosEc, EcRequestRaw};
 use log::{debug, error, info};
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::console::text::{Input, Key, ScanCode};
-use uefi::table::boot::{BootServices, EventType, Tpl};
+use uefi::table::boot::BootServices;
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
+use uefi::Identify;
 use uefi::Result;
 #[allow(unused_imports)]
 use uefi::{prelude::*, Char16};
-use uefi::{Event, Identify};
 #[allow(unused_imports)]
 use uefi_services::{print, println};
 
@@ -339,7 +336,7 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
     let four_key = Char16::try_from('4').unwrap();
     let five_key = Char16::try_from('5').unwrap();
     let q_key = Char16::try_from('?').unwrap();
-    let mut need_redraw = true;
+    let mut need_redraw;
     let mut prev_input_deck = input_deck;
     let mut prev_pressed = 100;
     let mut long_press = 0;
@@ -780,26 +777,4 @@ fn draw_main(
         MonoTextStyle::new(ver_font, Rgb888::WHITE),
     );
     text.draw(buffer).unwrap();
-}
-
-unsafe extern "efiapi" fn idle_callback(_event: Event, _context: Option<NonNull<c_void>>) {}
-
-pub fn sleep_or(bs: &BootServices, ms: u64, or_event: Option<Event>) {
-    let oneshot_timer = unsafe {
-        bs.create_event(EventType::TIMER, Tpl::CALLBACK, Some(idle_callback), None)
-            .unwrap()
-    };
-
-    bs.set_timer(
-        &oneshot_timer,
-        uefi::table::boot::TimerTrigger::Relative(ms * 10_000),
-    )
-    .unwrap();
-
-    let mut events = if let Some(event) = or_event {
-        [oneshot_timer, event]
-    } else {
-        [unsafe { oneshot_timer.unsafe_clone() }, oneshot_timer]
-    };
-    let _which_event_fired = bs.wait_for_event(&mut events).discard_errdata().unwrap();
 }

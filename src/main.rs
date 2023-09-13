@@ -5,9 +5,8 @@
 extern crate alloc;
 
 use alloc::string::ToString;
-use framework_lib::chromium_ec::commands::EcRequestUefiAppMode;
 use framework_lib::chromium_ec::input_deck::InputDeckState;
-use framework_lib::chromium_ec::{print_err, CrosEc, EcRequestRaw};
+use framework_lib::chromium_ec::{print_err, CrosEc};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::prelude::*;
@@ -22,6 +21,7 @@ use crate::state_machine::set_uefi_app_mode;
 mod buffer;
 mod drawing;
 mod gui;
+mod sleep;
 mod state_machine;
 mod built_info {
     // The file has been placed there by the build script.

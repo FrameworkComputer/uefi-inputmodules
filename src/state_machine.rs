@@ -16,14 +16,15 @@ use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::console::text::{Input, Key, ScanCode};
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
 use uefi::table::{Boot, SystemTable};
-use uefi::{Char16, Identify, Status};
+use uefi::{Char16, Identify};
 #[allow(unused_imports)]
 use uefi_services::{print, println};
 
 use crate::buffer::Buffer;
 use crate::drawing::*;
-use crate::gui::sleep_or;
+use crate::sleep::sleep_or;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct DebugInfo {
     power_button: bool,
