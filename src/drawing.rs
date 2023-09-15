@@ -178,7 +178,9 @@ impl StateBitmaps {
             width: 761,
             pos: Point {
                 x: WIDTH_I32 - 218 - 761,
-                y: 264,
+                // TODO: Instead of moving this up 30, we should move everything up 30 (except QR and buttons)
+                // Otherwise the laptop doesn't lign up with this
+                y: 264 - 30,
             },
         }
     }
@@ -436,7 +438,7 @@ impl StateBitmaps {
             // Guaranteed to be set above
             data: self.expansion_bay_populated.as_ref().unwrap(),
             width: 1007,
-            pos: Point { x: 180, y: 263 } + Point { x: 144, y: 376 },
+            pos: Point { x: 180, y: 263 } + Point { x: 144, y: 377 },
         }
     }
 }
