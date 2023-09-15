@@ -4,7 +4,7 @@ use embedded_graphics::prelude::Point;
 use alloc::string::ToString;
 use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestUefiAppBtnStatus, EcRequestUefiAppMode,
-    EcResponseExpansionBayStatus, ExpansionByStates,
+    EcResponseExpansionBayStatus, ExpansionByStates, ExpansionBayBoard, EcRequestGetHwDiag, EcResponseGetHwDiag,
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
@@ -33,24 +33,21 @@ pub struct DebugInfo {
 }
 
 pub struct State {
+    // Cache bitmaps for drawing
     bitmaps: StateBitmaps,
     screen_size: Size,
+    // Currently displayed frame
     frame: StateFrame,
     prev_input_deck: Option<InputDeckStatus>,
     prev_expansion_bay: Option<EcResponseExpansionBayStatus>,
+    prev_hw_diag: Option<EcResponseGetHwDiag>,
     prev_pressed: bool,
     keypress: Option<Key>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum StateFrame {
-    // If: No ExpansionBay Module
-    // Short: Skip all, Long: Power Off
-    // Extra Info: None, Maybe Expansion Bay ID
     NoExpansionBay,
-    // If: No Hubboard
-    // Short: Skip all, Long: Power Off
-    // Extra Info: None
     NoHubboard,
     TouchpadButNoInputmodules,
     InputModulesMissing,
@@ -66,29 +63,28 @@ impl State {
                 width: WIDTH as u32,
                 height: HEIGHT as u32,
             },
-            //frame: StateFrame::NoExpansionBay,
-            //frame: StateFrame::NoHubboard,
-            //frame: StateFrame::InputModulesMissing,
-            //frame: StateFrame::NoTouchpad,
-            //frame: StateFrame::TouchpadButNoInputmodules,
+            // Doesn't matter where we start from, will be updated immediately, before checking
             frame: StateFrame::Finished,
             prev_input_deck: None,
             prev_expansion_bay: None,
+            prev_hw_diag: None,
             prev_pressed: false,
             keypress: None,
         }
     }
+
     // Very simple state machine
     // The next state does not depend on the current state
     pub fn next_state(
         &self,
         input_deck: &InputDeckStatus,
         expansion_bay: &EcResponseExpansionBayStatus,
+        hw_diag: &EcResponseGetHwDiag,
     ) -> StateFrame {
         // Expected only as the first state
         // Otherwise won't usually happen because you're not supposed to hot-plug the module.
         // Can still happen as later state if the user opens the lid or hatch.
-        if !expansion_bay.module_enabled() {
+        if !bay_ok(expansion_bay, hw_diag) {
             return StateFrame::NoExpansionBay;
         }
 
@@ -106,6 +102,9 @@ impl State {
             (true, true) => StateFrame::Finished,
         }
     }
+
+    // Display graphics for the current frame
+    // Need to call blit after the function call to show it
     pub fn draw_state(&mut self, buffer: &mut Buffer, input_deck: &InputDeckStatus) {
         // Draw solid background color #567676
         for y in 0..self.screen_size.height {
@@ -354,9 +353,11 @@ impl State {
         &self,
         input_deck: &InputDeckStatus,
         expansion_bay: &EcResponseExpansionBayStatus,
+        hw_diag: &EcResponseGetHwDiag,
     ) -> bool {
         Some(input_deck) != self.prev_input_deck.as_ref()
             || Some(expansion_bay) != self.prev_expansion_bay.as_ref()
+            || Some(hw_diag) != self.prev_hw_diag.as_ref()
     }
 }
 
@@ -455,6 +456,30 @@ fn button_pressed(ec: &Option<CrosEc>) -> bool {
     }
 }
 
+// TODO: Need to handle the error here
+fn get_hw_diag(ec: &Option<CrosEc>) -> EcResponseGetHwDiag {
+    let emulated_diag = EcResponseGetHwDiag {
+        // 0 means no issues
+        //hw_diag: 0,
+        hw_diag: 0xFF,
+        // BIOS not complete, since it's a UEFI app
+        bios_complete: 0,
+    };
+
+    let ec = ec.as_ref().ok_or(EcError::DeviceError("No EC".to_string()));
+    #[cfg(not(feature = "azalea"))]
+    let hw_diag = ec.and_then(|ec| EcRequestGetHwDiag {}.send_command(&ec));
+    #[cfg(feature = "azalea")]
+    let hw_diag: Result<EcResponseGetHwDiag, ()> = Result::Err(());
+    if let Ok(hw_diag) = hw_diag {
+        //println!("Got it!");
+        hw_diag
+    } else {
+        //println!("Emulated bay data");
+        emulated_diag
+    }
+}
+
 pub fn set_uefi_app_mode(ec: &Option<CrosEc>, mode: bool) {
     let enable = if mode { 1 } else { 0 };
     if let Some(ref ec) = ec {
@@ -466,6 +491,8 @@ fn keypress_mock_data(
     keypress: Option<Key>,
     input_deck: &mut InputDeckStatus,
     expansion_bay: &mut EcResponseExpansionBayStatus,
+    // TODO: Also do something with this
+    hw_diag: &mut EcResponseGetHwDiag,
 ) {
     // TODO: Can this be created from a macro?
     let zero_key = Char16::try_from('0').unwrap();
@@ -483,6 +510,12 @@ fn keypress_mock_data(
         board_id_0: 0,
         board_id_1: 0,
     };
+    let diag_ok = EcResponseGetHwDiag {
+        // 0 means no issues
+        hw_diag: 0,
+        // BIOS not complete, since it's a UEFI app
+        bios_complete: 0,
+    };
 
     match keypress {
         // State: NoExpansionBay
@@ -491,6 +524,12 @@ fn keypress_mock_data(
                 state: 0,
                 board_id_0: 0,
                 board_id_1: 0,
+            };
+            *hw_diag = EcResponseGetHwDiag {
+                // All possible diags triggered
+                hw_diag: 0xFF,
+                // BIOS not complete, since it's a UEFI app
+                bios_complete: 0,
             };
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
@@ -511,6 +550,7 @@ fn keypress_mock_data(
         // State: NoHubboard
         Some(Key::Printable(key)) if key == one_key => {
             *expansion_bay = bay_present;
+            *hw_diag = diag_ok;
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: false,
@@ -527,6 +567,7 @@ fn keypress_mock_data(
         // State: TouchpadButNoInputmodules
         Some(Key::Printable(key)) if key == two_key => {
             *expansion_bay = bay_present;
+            *hw_diag = diag_ok;
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
@@ -543,6 +584,7 @@ fn keypress_mock_data(
         // State: InputModulesMissing
         Some(Key::Printable(key)) if key == three_key => {
             *expansion_bay = bay_present;
+            *hw_diag = diag_ok;
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
@@ -559,6 +601,7 @@ fn keypress_mock_data(
         // State: InputModulesMissing
         Some(Key::Printable(key)) if key == four_key => {
             *expansion_bay = bay_present;
+            *hw_diag = diag_ok;
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
@@ -575,6 +618,7 @@ fn keypress_mock_data(
         // State: InputModulesMissing
         Some(Key::Printable(key)) if key == five_key => {
             *expansion_bay = bay_present;
+            *hw_diag = diag_ok;
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
@@ -591,6 +635,7 @@ fn keypress_mock_data(
         // State: NoTouchpad
         Some(Key::Printable(key)) if key == six_key => {
             *expansion_bay = bay_present;
+            *hw_diag = diag_ok;
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
@@ -607,6 +652,7 @@ fn keypress_mock_data(
         // State: Finished
         Some(Key::Printable(key)) if key == seven_key => {
             *expansion_bay = bay_present;
+            *hw_diag = diag_ok;
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::On,
                 hubboard_present: true,
@@ -624,6 +670,14 @@ fn keypress_mock_data(
     }
 }
 
+fn bay_ok(expansion_bay: &EcResponseExpansionBayStatus, hw_diag: &EcResponseGetHwDiag) -> bool {
+    // TODO: In DVT1 the UMA fan module does not have board ID resistors, so we can't detect it
+    // Currently we just have to rely on the fans.
+    // In DVT2 we can add this check.
+    //if !expansion_bay.expansion_bay_board().is_some() && hw_diag.fan_fault() == (false, false) {
+    hw_diag.fan_fault() == (false, false) && expansion_bay.hatch_switch_closed()
+}
+
 pub fn start(
     bs: &BootServices,
     _st: &SystemTable<Boot>,
@@ -631,10 +685,11 @@ pub fn start(
 ) -> uefi::Result<bool> {
     let mut input_deck = get_input_deck(ec);
     let mut expansion_bay = get_expansion_bay(ec);
+    let mut hw_diag = get_hw_diag(ec);
 
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
-    if input_deck.fully_populated() && expansion_bay.module_enabled() {
+    if input_deck.fully_populated() && bay_ok(&expansion_bay, &hw_diag) {
         info!("Started out as fully populated, booting immediately");
         return Ok(false);
     }
@@ -670,8 +725,9 @@ pub fn start(
         if !azalea && ec.is_some() {
             input_deck = get_input_deck(ec);
             expansion_bay = get_expansion_bay(ec);
+            hw_diag = get_hw_diag(ec);
         } else {
-            keypress_mock_data(state.keypress, &mut input_deck, &mut expansion_bay);
+            keypress_mock_data(state.keypress, &mut input_deck, &mut expansion_bay, &mut hw_diag);
         }
         // TODO: Maybe mock power button press?
         let button_pressed = button_pressed(ec);
@@ -684,7 +740,7 @@ pub fn start(
             break;
         }
 
-        let need_redraw = state.need_redraw(&input_deck, &expansion_bay);
+        let need_redraw = state.need_redraw(&input_deck, &expansion_bay, &hw_diag);
 
         // Detect long press of power button
         if button_pressed && state.prev_pressed && !need_redraw {
@@ -702,7 +758,7 @@ pub fn start(
         }
 
         if need_redraw {
-            state.frame = state.next_state(&input_deck, &expansion_bay);
+            state.frame = state.next_state(&input_deck, &expansion_bay, &hw_diag);
             state.draw_state(&mut buffer, &input_deck);
             draw_version(&mut buffer, None);
             buffer.blit(&mut gop)?;
@@ -726,8 +782,10 @@ pub fn start(
         });
         state.keypress = input.read_key().unwrap();
 
+        // Save current values to access and compare them in next iteration
         state.prev_input_deck = Some(input_deck.clone());
         state.prev_expansion_bay = Some(expansion_bay.clone());
+        state.prev_hw_diag = Some(hw_diag.clone());
         state.prev_pressed = button_pressed;
     }
     let _ = clear_screen(&mut buffer, &mut gop);
