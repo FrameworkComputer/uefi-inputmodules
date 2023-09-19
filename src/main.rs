@@ -20,6 +20,8 @@ use crate::state_machine::set_uefi_app_mode;
 
 mod buffer;
 mod drawing;
+// Allow dead code because it's the old implementation that we will remove
+#[allow(dead_code)]
 mod gui;
 mod sleep;
 mod state_machine;
@@ -73,9 +75,7 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         boot_services.close_event(event).unwrap();
     }
 
-    return Status::SUCCESS;
-    // Put here to avoid unused warning
-    let _ = gui::draw_background(boot_services, &system_table, &None);
+    Status::SUCCESS
 }
 
 fn has_shell_args(boot_services: &BootServices) -> uefi::Result<bool> {

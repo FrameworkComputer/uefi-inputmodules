@@ -133,6 +133,7 @@ impl State {
             _ => {
                 // Step by step QR Code left
                 // TODO: Add QR codes when they're ready
+                _ = self.bitmaps.qr_code_left();
                 //self.bitmaps.qr_code_left().draw(buffer);
 
                 // Button indicators right
@@ -410,7 +411,7 @@ pub fn get_expansion_bay(ec: &Option<CrosEc>) -> EcResponseExpansionBayStatus {
 
     let ec = ec.as_ref().ok_or(EcError::DeviceError("No EC".to_string()));
     #[cfg(not(feature = "azalea"))]
-    let expansion_bay = ec.and_then(|ec| EcRequestExpansionBayStatus {}.send_command(&ec));
+    let expansion_bay = ec.and_then(|ec| EcRequestExpansionBayStatus {}.send_command(ec));
     #[cfg(feature = "azalea")]
     let expansion_bay: Result<EcResponseExpansionBayStatus, ()> = Result::Err(());
     if let Ok(expansion_bay) = expansion_bay {
@@ -476,7 +477,7 @@ fn get_hw_diag(ec: &Option<CrosEc>) -> EcResponseGetHwDiag {
 
     let ec = ec.as_ref().ok_or(EcError::DeviceError("No EC".to_string()));
     #[cfg(not(feature = "azalea"))]
-    let hw_diag = ec.and_then(|ec| EcRequestGetHwDiag {}.send_command(&ec));
+    let hw_diag = ec.and_then(|ec| EcRequestGetHwDiag {}.send_command(ec));
     #[cfg(feature = "azalea")]
     let hw_diag: Result<EcResponseGetHwDiag, ()> = Result::Err(());
 
@@ -802,8 +803,8 @@ pub fn start(
 
         // Save current values to access and compare them in next iteration
         state.prev_input_deck = Some(input_deck.clone());
-        state.prev_expansion_bay = Some(expansion_bay.clone());
-        state.prev_hw_diag = Some(hw_diag.clone());
+        state.prev_expansion_bay = Some(expansion_bay);
+        state.prev_hw_diag = Some(hw_diag);
         state.prev_pressed = button_pressed;
     }
     let _ = clear_screen(&mut buffer, &mut gop);

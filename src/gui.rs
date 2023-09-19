@@ -713,6 +713,7 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_main(
     buffer: &mut Buffer,
     image: &Image<ImageRaw<Rgb888>>,
