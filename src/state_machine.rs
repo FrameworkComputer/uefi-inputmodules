@@ -3,8 +3,9 @@ use embedded_graphics::prelude::Point;
 
 use alloc::string::ToString;
 use framework_lib::chromium_ec::commands::{
-    EcRequestExpansionBayStatus, EcRequestUefiAppBtnStatus, EcRequestUefiAppMode,
-    EcResponseExpansionBayStatus, ExpansionByStates, ExpansionBayBoard, EcRequestGetHwDiag, EcResponseGetHwDiag,
+    EcRequestExpansionBayStatus, EcRequestGetHwDiag, EcRequestUefiAppBtnStatus,
+    EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionBayBoard,
+    ExpansionByStates,
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
@@ -728,7 +729,12 @@ pub fn start(
             expansion_bay = get_expansion_bay(ec);
             hw_diag = get_hw_diag(ec);
         } else {
-            keypress_mock_data(state.keypress, &mut input_deck, &mut expansion_bay, &mut hw_diag);
+            keypress_mock_data(
+                state.keypress,
+                &mut input_deck,
+                &mut expansion_bay,
+                &mut hw_diag,
+            );
         }
         // TODO: Maybe mock power button press?
         let button_pressed = button_pressed(ec);

@@ -545,11 +545,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>) {
     } else {
         top_left
     };
-    let text = Text::new(
-        &ver_text,
-        pos,
-        MonoTextStyle::new(&font, Rgb888::WHITE),
-    );
+    let text = Text::new(&ver_text, pos, MonoTextStyle::new(&font, Rgb888::WHITE));
 
     // Make sure the background is cleared if we only update the version
     let background = text.bounding_box();
