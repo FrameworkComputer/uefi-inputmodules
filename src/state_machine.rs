@@ -4,12 +4,11 @@ use embedded_graphics::prelude::Point;
 use alloc::string::ToString;
 use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestGetHwDiag, EcRequestUefiAppBtnStatus,
-    EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionBayBoard,
-    ExpansionByStates,
+    EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionByStates,
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
-use framework_lib::chromium_ec::{CrosEc, EcError, EcRequestRaw};
+use framework_lib::chromium_ec::{CrosEc, EcError, EcRequestRaw, EcResponseStatus, EcResult};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::prelude::BootServices;
@@ -24,6 +23,8 @@ use uefi_services::{print, println};
 use crate::buffer::Buffer;
 use crate::drawing::*;
 use crate::sleep::sleep_or;
+
+const FAILED_INPUT: &str = "Failed to get keypress";
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -451,14 +452,19 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
 
 fn button_pressed(ec: &Option<CrosEc>) -> bool {
     if let Some(ref ec) = ec {
-        let btn_status = EcRequestUefiAppBtnStatus {}.send_command(ec).unwrap();
-        btn_status.status == 0
+        // TODO: Maybe check some other errors
+        match (EcRequestUefiAppBtnStatus {}.send_command(ec)) {
+            Ok(btn_status) => btn_status.status == 0,
+            // On old EC version
+            EcResult::Err(EcError::Response(EcResponseStatus::InvalidCommand)) => false,
+            // Other error
+            _ => false,
+        }
     } else {
         false
     }
 }
 
-// TODO: Need to handle the error here
 fn get_hw_diag(ec: &Option<CrosEc>) -> EcResponseGetHwDiag {
     let emulated_diag = EcResponseGetHwDiag {
         // 0 means no issues
@@ -473,19 +479,22 @@ fn get_hw_diag(ec: &Option<CrosEc>) -> EcResponseGetHwDiag {
     let hw_diag = ec.and_then(|ec| EcRequestGetHwDiag {}.send_command(&ec));
     #[cfg(feature = "azalea")]
     let hw_diag: Result<EcResponseGetHwDiag, ()> = Result::Err(());
-    if let Ok(hw_diag) = hw_diag {
-        //println!("Got it!");
-        hw_diag
-    } else {
-        //println!("Emulated bay data");
-        emulated_diag
+
+    match hw_diag {
+        Ok(hw_diag) => hw_diag,
+        // On old EC version
+        EcResult::Err(EcError::Response(EcResponseStatus::InvalidCommand)) => emulated_diag,
+        // Other error
+        _ => emulated_diag,
     }
 }
 
 pub fn set_uefi_app_mode(ec: &Option<CrosEc>, mode: bool) {
     let enable = if mode { 1 } else { 0 };
     if let Some(ref ec) = ec {
-        EcRequestUefiAppMode { enable }.send_command(ec).unwrap();
+        // Ignore error
+        // TODO: Is there anything we should do on error?
+        let _res = EcRequestUefiAppMode { enable }.send_command(ec);
     }
 }
 
@@ -714,8 +723,10 @@ pub fn start(
     };
 
     // Get Input protocol to detect keypresses
-    let input_handle = bs.get_handle_for_protocol::<Input>().unwrap();
-    let mut input = bs.open_protocol_exclusive::<Input>(input_handle).unwrap();
+    let input_handle = bs.get_handle_for_protocol::<Input>().expect(FAILED_INPUT);
+    let mut input = bs
+        .open_protocol_exclusive::<Input>(input_handle)
+        .expect(FAILED_INPUT);
 
     let mut state = State::new();
     let mut long_press = 0;
@@ -787,7 +798,7 @@ pub fn start(
         sleep_or(bs, 10, unsafe {
             Some(input.wait_for_key_event().unsafe_clone())
         });
-        state.keypress = input.read_key().unwrap();
+        state.keypress = input.read_key().expect(FAILED_INPUT);
 
         // Save current values to access and compare them in next iteration
         state.prev_input_deck = Some(input_deck.clone());
