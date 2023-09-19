@@ -33,7 +33,8 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     let event = uefi_services::init(&mut system_table).unwrap();
     let boot_services = system_table.boot_services();
 
-    #[cfg(not(feature = "qemu"))]
+    // Only error prints in release build
+    #[cfg(not(debug_assertions))]
     log::set_max_level(log::LevelFilter::Error);
 
     if let Ok(true) = has_shell_args(boot_services) {
