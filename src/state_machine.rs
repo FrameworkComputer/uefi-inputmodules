@@ -130,7 +130,8 @@ impl State {
             }
             _ => {
                 // Step by step QR Code left
-                self.bitmaps.qr_code_left().draw(buffer);
+                // TODO: Add QR codes when they're ready
+                //self.bitmaps.qr_code_left().draw(buffer);
 
                 // Button indicators right
                 self.bitmaps.button_short_skip().draw(buffer);
