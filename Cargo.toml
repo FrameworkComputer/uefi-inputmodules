@@ -32,9 +32,9 @@ version = "0.2.1"
 default-features = false
 
 [dependencies.framework_lib]
-path = "/home/zoid/clone/framework-system/framework_lib"
-#git = "ssh://git@github.com/FrameworkComputer/framework-system.git"
-#branch = "PRIVATE"
+#path = "/home/zoid/clone/framework-system/framework_lib"
+git = "ssh://git@github.com/FrameworkComputer/framework-system-private.git"
+branch = "PRIVATE"
 features = ["uefi"]
 default-features = false
 
