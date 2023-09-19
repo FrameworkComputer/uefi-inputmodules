@@ -15,6 +15,9 @@ azalea: $(SOURCES)
 qemu: $(SOURCES)
 	cargo build --target x86_64-unknown-uefi --features qemu
 
+qemu-release: $(SOURCES)
+	cargo build --release --target x86_64-unknown-uefi --features qemu
+
 target/x86_64-unknown-uefi/debug/inputmodules.efi: $(SOURCES)
 	cargo build --target x86_64-unknown-uefi
 

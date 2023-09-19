@@ -85,8 +85,11 @@ Pre-reqs:
 - Need to put `OVMF_CODE.fd` and `OVMF_VARS.fd` in the root folder (if it doesn't work automatically).
 
 ```sh
-make qemu
-make run
+# Debug version
+make qemu && make run
+
+# Release version
+make qemu-release && make run TARGET=release
 ```
 
 You can cycle through different amounts of population by pressing the numbers 0
