@@ -539,10 +539,15 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>) {
     let bottom_right = (Point::new(WIDTH_I32 - 40 - 2 * 132 - 20, HEIGHT_I32 - 40 - 171)
         + Point::new(0, 132 - cs.y * height))
         - Point::new(cs.x * ver_len + cs.x, 0);
-    // let top_left = Point::new(100, 100);
+    let top_left = Point::new(20, 20);
+    let pos = if built_info::DEBUG {
+        bottom_right
+    } else {
+        top_left
+    };
     let text = Text::new(
         &ver_text,
-        bottom_right,
+        pos,
         MonoTextStyle::new(&font, Rgb888::WHITE),
     );
 
