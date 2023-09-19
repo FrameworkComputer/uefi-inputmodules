@@ -78,12 +78,11 @@ cp target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi /boot/efi
 
 ## Debugging
 To test in QEMU build the QEMU version and run it.
-QEMU has a separate version because the screen resolution is much smaller.
 
 Pre-reqs:
 
 - QEMU
-- Need to put `OVMF_CODE.fd` and `OVMF_VARS.fd` in the root folder (if it doesn't work automatically.
+- Need to put `OVMF_CODE.fd` and `OVMF_VARS.fd` in the root folder (if it doesn't work automatically).
 
 ```sh
 make qemu
@@ -104,9 +103,23 @@ Upon saving and rebooting, QEMU should launch in that resolution. Most likely
 it will not fit on your screen, so you'll have to make it smaller from the
 window menu: "View" -> "Zoom Out".
 
-Then you can just run the regular release binary:
+## Behavior and Design Guidelines
 
-```sh
-make release
-make run
-```
+- Basics
+  - MUST not panic
+  - SHOULD not do any logging (except maybe errors) in release build
+  - SHOULD save as much space as possible in binary
+  - MUST exit immediately if everything is okay on application start
+  - SHOULD avoid a tight busyloop to avoid running the CPU too hot
+  - SHOULD show input modules in their correct position
+- UEFI Interaction
+  - MUST clear screen to black on exit otherwise it might only be partially redrawn by the bootloader
+  - MUST disable UEFI App mode on exit so that regular power button behavior is restored
+- User Guide
+  - When touchpad is installed but any top-row module isn't, show how to remove touchpad
+  - We don't want to allow booting without Expansion Bay Module (because no fan)
+    - But we at least need to allow user to get into setup menu to enable standalone mode
+- Limitations
+  - Can't detect exactly which input module is present because they're not powered on until all are installed
+    - But different sizes have different resistors, so we can at least detect the size (and KB vs no KB)
+  - Can't detect touchpad position, all locations are wired together
