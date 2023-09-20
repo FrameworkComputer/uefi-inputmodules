@@ -248,7 +248,7 @@ dependencies = [
 [[package]]
 name = "framework_lib"
 version = "0.1.0"
-source = "git+ssh://git@github.com/FrameworkComputer/framework-system-private.git?branch=PRIVATE#c4bcfd03f276c45d04356e3bf6e06ac46faf473e"
+source = "git+ssh://git@github.com/FrameworkComputer/framework-system.git?branch=uefi-inputmodule-app-ignore-framework#7300299802231c13a5bd85b6e41a449bec305a2a"
 dependencies = [
  "built",
  "guid_macros",
@@ -288,7 +288,7 @@ dependencies = [
 [[package]]
 name = "guid_macros"
 version = "0.11.0"
-source = "git+ssh://git@github.com/FrameworkComputer/framework-system-private.git?branch=PRIVATE#c4bcfd03f276c45d04356e3bf6e06ac46faf473e"
+source = "git+ssh://git@github.com/FrameworkComputer/framework-system.git?branch=uefi-inputmodule-app-ignore-framework#7300299802231c13a5bd85b6e41a449bec305a2a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -331,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "inputmodules"
-version = "0.2.0"
+version = "0.2.0-pre"
 dependencies = [
  "built",
  "cfg-if",
