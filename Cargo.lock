@@ -331,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "inputmodules"
-version = "0.2.0-pre"
+version = "0.2.1"
 dependencies = [
  "built",
  "cfg-if",

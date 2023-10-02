@@ -15,7 +15,7 @@
   BASE_NAME                      = InputmodulesApp
   FILE_GUID                      = CC34A436-EC78-4330-96CB-1AD2216CF87B
   MODULE_TYPE                    = UEFI_DRIVER
-  VERSION_STRING                 = 0.1.2
+  VERSION_STRING                 = 0.2.1
 
 #
 # The following information is for reference only and not required by the build tools.
@@ -24,7 +24,7 @@
 #
 
 [Binaries]
-  PE32|inputmodules_app_v0.1.2.efi
+  PE32|inputmodules_app_v0.2.1.efi
 
 [Packages]
   MdePkg/MdePkg.dec
