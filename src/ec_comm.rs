@@ -1,7 +1,7 @@
-use alloc::string::ToString;
 use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestGetHwDiag, EcRequestUefiAppBtnStatus,
     EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionByStates,
+    BOARD_VERSION_12,
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
@@ -11,55 +11,103 @@ use log::{debug, error, info, trace};
 use uefi::proto::console::text::Key;
 use uefi::Char16;
 
+/// Get current state of expansion bay
+///
+/// If error or command not supported (early EC version), mock as OK, to avoid preventing boot.
+/// If no EC => not fully populated to allow for testing
 pub fn get_expansion_bay(ec: &Option<CrosEc>) -> EcResponseExpansionBayStatus {
-    let emulated_bay = EcResponseExpansionBayStatus {
+    let all_ok = EcResponseExpansionBayStatus {
+        state: (ExpansionByStates::ModuleEnabled as u8)
+            | (ExpansionByStates::HatchSwitchClosed as u8),
+        // Double 12 is dual interposer
+        board_id_0: BOARD_VERSION_12,
+        board_id_1: BOARD_VERSION_12,
+    };
+    let not_ok = EcResponseExpansionBayStatus {
         state: 0,
         board_id_0: 0,
         board_id_1: 0,
     };
 
-    let ec = ec.as_ref().ok_or(EcError::DeviceError("No EC".to_string()));
-    #[cfg(not(feature = "azalea"))]
-    let expansion_bay = ec.and_then(|ec| EcRequestExpansionBayStatus {}.send_command(ec));
+    // Pretend there's no EC because the EC is guaranteed not to have this command
     #[cfg(feature = "azalea")]
-    let expansion_bay: Result<EcResponseExpansionBayStatus, ()> = Result::Err(());
-    if let Ok(expansion_bay) = expansion_bay {
-        //println!("Got it!");
-        expansion_bay
+    let ec = None;
+
+    let ec = if let Some(ec) = ec {
+        ec
     } else {
-        //println!("Emulated bay data");
-        emulated_bay
+        // If not EC, fake missing module so we can test the app
+        return not_ok;
+    };
+
+    match (EcRequestExpansionBayStatus {}.send_command(ec)) {
+        Ok(expansion_bay) => expansion_bay,
+        // Old EC version
+        EcResult::Err(EcError::Response(EcResponseStatus::InvalidCommand)) => all_ok,
+        // Other error or no EC
+        _ => all_ok,
     }
 }
 
+/// Get current state of hubboard and input deck
+///
+/// If no EC => unpopulated
+/// If any error => populated
+/// This will make sure the system can always boot,
+/// but on testing systems (QEMU, 13inch) it will show an issue to help debug.
 pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
-    let emulated_deck = InputDeckStatus {
+    let populated = InputDeckStatus {
+        state: InputDeckState::On,
+        hubboard_present: true,
+        touchpad_present: true,
+        top_row: TopRowPositions {
+            pos0: InputModuleType::KeyboardA,
+            pos1: InputModuleType::Disconnected,
+            pos2: InputModuleType::Disconnected,
+            pos3: InputModuleType::KeyboardB,
+            pos4: InputModuleType::Disconnected,
+        },
+    };
+    let no_hubboard = InputDeckStatus {
         state: InputDeckState::On,
         hubboard_present: false,
         touchpad_present: true,
         top_row: TopRowPositions {
-            pos0: InputModuleType::GenericC,
-            pos1: InputModuleType::GenericC,
-            pos2: InputModuleType::GenericA,
-            pos3: InputModuleType::Disconnected,
+            pos0: InputModuleType::KeyboardA,
+            pos1: InputModuleType::Disconnected,
+            pos2: InputModuleType::Disconnected,
+            pos3: InputModuleType::KeyboardB,
             pos4: InputModuleType::Disconnected,
         },
     };
 
-    let ec = ec.as_ref().ok_or(EcError::DeviceError("No EC".to_string()));
-    #[cfg(not(feature = "azalea"))]
-    let input_deck = ec.and_then(|ec| ec.get_input_deck_status());
+    // Pretend there's no EC because the EC is guaranteed not to have this command
     #[cfg(feature = "azalea")]
-    let input_deck: Result<InputDeckStatus, ()> = Result::Err(());
-    if let Ok(input_deck) = input_deck {
-        //println!("Got it!");
-        input_deck
+    let ec = None;
+
+    let ec = if let Some(ec) = ec {
+        ec
     } else {
-        //println!("Emulated deck data");
-        emulated_deck
+        // If not EC, fake missing module so we can test the app
+        return no_hubboard;
+    };
+
+    let input_deck = ec.get_input_deck_status();
+    match input_deck {
+        Ok(input_deck) => input_deck,
+        // Old EC version
+        EcResult::Err(EcError::Response(EcResponseStatus::InvalidCommand)) => populated,
+        // Other error or no EC
+        _ => populated,
     }
 }
 
+/// Ask EC if the power button is pressed right now
+///
+/// If command not supported (early EC version), mock as false.
+/// If other error also return false.
+/// If no EC (QEMU) also return false.
+/// false is a safe default.
 pub fn button_pressed(ec: &Option<CrosEc>) -> bool {
     if let Some(ref ec) = ec {
         // TODO: Maybe check some other errors
@@ -75,30 +123,55 @@ pub fn button_pressed(ec: &Option<CrosEc>) -> bool {
     }
 }
 
+/// Get Hardware Diagnostics from EC
+///
+/// If no EC => flag HW diag
+/// If any error => no HW diag error
+/// This will make sure the system can always boot,
+/// but on testing systems (QEMU, 13inch) it will show an issue to help debug.
 pub fn get_hw_diag(ec: &Option<CrosEc>) -> EcResponseGetHwDiag {
-    let emulated_diag = EcResponseGetHwDiag {
-        // 0 means no issues
-        //hw_diag: 0,
+    let not_ok = EcResponseGetHwDiag {
+        // All HW diags flagged (more than possible in reality)
         hw_diag: 0xFF,
         // BIOS not complete, since it's a UEFI app
         bios_complete: 0,
     };
+    let all_ok = EcResponseGetHwDiag {
+        // No HW diag issue
+        hw_diag: 0,
+        // BIOS not complete, since it's a UEFI app
+        bios_complete: 0,
+    };
 
-    let ec = ec.as_ref().ok_or(EcError::DeviceError("No EC".to_string()));
-    #[cfg(not(feature = "azalea"))]
-    let hw_diag = ec.and_then(|ec| EcRequestGetHwDiag {}.send_command(ec));
+    // Pretend there's no EC because the EC is guaranteed not to have this command
     #[cfg(feature = "azalea")]
-    let hw_diag: Result<EcResponseGetHwDiag, ()> = Result::Err(());
+    let ec = None;
 
-    match hw_diag {
-        Ok(hw_diag) => hw_diag,
-        // On old EC version
-        EcResult::Err(EcError::Response(EcResponseStatus::InvalidCommand)) => emulated_diag,
-        // Other error
-        _ => emulated_diag,
+    let ec = if let Some(ec) = ec {
+        ec
+    } else {
+        // If not EC, fake missing module so we can test the app
+        return not_ok;
+    };
+
+    match (EcRequestGetHwDiag {}.send_command(ec)) {
+        Ok(diag) => diag,
+        // Old EC version
+        EcResult::Err(EcError::Response(EcResponseStatus::InvalidCommand)) => all_ok,
+        // Other error or no EC
+        _ => all_ok,
     }
 }
 
+/// Set (enable/disable UEFI App mode)
+///
+/// If error - ignore
+/// If no EC - do nothing
+/// Safe default.
+///
+/// The only issue could be if enabling works but disabling fails.
+/// Then the system will be in a state where the power button is disabled, which is not good.
+/// Only an EC reset will restore it.
 pub fn set_uefi_app_mode(ec: &Option<CrosEc>, mode: bool) {
     let enable = if mode { 1 } else { 0 };
     if let Some(ref ec) = ec {
