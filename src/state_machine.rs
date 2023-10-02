@@ -399,6 +399,39 @@ fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutput>, 
     Some((gop, Buffer::new(width, height)))
 }
 
+fn get_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
+    let input_handles =
+        if let Ok(input_handles) = bs.locate_handle_buffer(SearchType::ByProtocol(&Input::GUID)) {
+            input_handles
+        } else {
+            info!("Input protocol is missing");
+            return None;
+        };
+
+    if let Some(handle) = input_handles.iter().next() {
+        unsafe {
+            bs.open_protocol::<Input>(
+                OpenProtocolParams {
+                    handle: *handle,
+                    agent: bs.image_handle(),
+                    controller: None,
+                },
+                OpenProtocolAttributes::GetProtocol,
+            )
+            .ok()
+        }
+    } else {
+        info!("No Input handles found");
+        None
+    }
+}
+
+// Avoid using because it might cause trouble with later boot process
+fn _get_exclusive_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
+    let input_handle = bs.get_handle_for_protocol::<Input>().ok()?;
+    bs.open_protocol_exclusive::<Input>(input_handle).ok()
+}
+
 fn bay_ok(expansion_bay: &EcResponseExpansionBayStatus, hw_diag: &EcResponseGetHwDiag) -> bool {
     // TODO: In DVT1 the UMA fan module does not have board ID resistors, so we can't detect it
     // Currently we just have to rely on the fans.
@@ -441,10 +474,7 @@ pub fn start(
     };
 
     // Get Input protocol to detect keypresses
-    let input_handle = bs.get_handle_for_protocol::<Input>().expect(FAILED_INPUT);
-    let mut input = bs
-        .open_protocol_exclusive::<Input>(input_handle)
-        .expect(FAILED_INPUT);
+    let mut input = get_input_protocol(bs).expect("Should always have input protocol");
 
     let mut state = State::new();
     let mut long_press = 0;
