@@ -80,7 +80,9 @@ impl StateBitmaps {
         if self.qr_code_left.is_none() {
             let png = include_bytes!("../resources/figma/qrcode-FRANNB.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.qr_code_left = Some(image_bytes);
         }
 
@@ -99,7 +101,9 @@ impl StateBitmaps {
         if self.button_long_off.is_none() {
             let png = include_bytes!("../resources/figma/button-long-off.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.button_long_off = Some(image_bytes);
         }
 
@@ -118,7 +122,9 @@ impl StateBitmaps {
         if self.button_short_skip.is_none() {
             let png = include_bytes!("../resources/figma/button-short-skip.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.button_short_skip = Some(image_bytes);
         }
 
@@ -137,7 +143,9 @@ impl StateBitmaps {
         if self.button_boot.is_none() {
             let png = include_bytes!("../resources/figma/button-boot.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.button_boot = Some(image_bytes);
         }
 
@@ -156,7 +164,9 @@ impl StateBitmaps {
         if self.laptop_latches_closed.is_none() {
             let png = include_bytes!("../resources/figma/laptop-latch-closed.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.laptop_latches_closed = Some(image_bytes);
         }
 
@@ -172,7 +182,9 @@ impl StateBitmaps {
         if self.laptop_latches_open.is_none() {
             let png = include_bytes!("../resources/figma/laptop-latch-open.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             // TODO: Add more of this assertion
             assert_eq!(image_bytes.len() % 1296, 0);
             self.laptop_latches_open = Some(image_bytes);
@@ -190,7 +202,9 @@ impl StateBitmaps {
         if self.no_expansion_bay_instr.is_none() {
             let png = include_bytes!("../resources/figma/no-expansion-bay-instructions.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.no_expansion_bay_instr = Some(image_bytes);
         }
 
@@ -211,7 +225,9 @@ impl StateBitmaps {
         if self.no_hubboard_instr.is_none() {
             let png = include_bytes!("../resources/figma/no-hubboard-instructions.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.no_hubboard_instr = Some(image_bytes);
         }
 
@@ -230,7 +246,9 @@ impl StateBitmaps {
         if self.touchpad_no_modules_instr.is_none() {
             let png = include_bytes!("../resources/figma/touchpad-no-modules-instructions.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.touchpad_no_modules_instr = Some(image_bytes);
         }
 
@@ -249,7 +267,9 @@ impl StateBitmaps {
         if self.inputmodules_missing_instr.is_none() {
             let png = include_bytes!("../resources/figma/inputmodules-missing-instructions.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.inputmodules_missing_instr = Some(image_bytes);
         }
 
@@ -268,7 +288,9 @@ impl StateBitmaps {
         if self.no_touchpad_instr.is_none() {
             let png = include_bytes!("../resources/figma/no-touchpad-instructions.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.no_touchpad_instr = Some(image_bytes);
         }
 
@@ -287,7 +309,9 @@ impl StateBitmaps {
         if self.latch_open_help_l.is_none() {
             let png = include_bytes!("../resources/figma/latch-open-help-l.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.latch_open_help_l = Some(image_bytes);
         }
 
@@ -306,7 +330,9 @@ impl StateBitmaps {
         if self.latch_open_help_r.is_none() {
             let png = include_bytes!("../resources/figma/latch-open-help-r.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.latch_open_help_r = Some(image_bytes);
         }
 
@@ -322,7 +348,9 @@ impl StateBitmaps {
         if self.latch_close_help_l.is_none() {
             let png = include_bytes!("../resources/figma/latch-close-help-l.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.latch_close_help_l = Some(image_bytes);
         }
 
@@ -341,7 +369,9 @@ impl StateBitmaps {
         if self.latch_close_help_r.is_none() {
             let png = include_bytes!("../resources/figma/latch-close-help-r.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.latch_close_help_r = Some(image_bytes);
         }
 
@@ -357,7 +387,9 @@ impl StateBitmaps {
         if self.touchpad.is_none() {
             let png = include_bytes!("../resources/figma/touchpad.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.touchpad = Some(image_bytes);
         }
 
@@ -376,7 +408,9 @@ impl StateBitmaps {
         if self.keyboard.is_none() {
             let png = include_bytes!("../resources/figma/keyboard.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.keyboard = Some(image_bytes);
         }
 
@@ -396,7 +430,9 @@ impl StateBitmaps {
         if self.b1_module.is_none() {
             let png = include_bytes!("../resources/figma/b1-module.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.b1_module = Some(image_bytes);
         }
 
@@ -416,7 +452,9 @@ impl StateBitmaps {
         if self.c1_module.is_none() {
             let png = include_bytes!("../resources/figma/c1-module.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.c1_module = Some(image_bytes);
         }
 
@@ -436,7 +474,9 @@ impl StateBitmaps {
         if self.hubboard_missing.is_none() {
             let png = include_bytes!("../resources/figma/hubboard-missing.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.hubboard_missing = Some(image_bytes);
         }
 
@@ -452,7 +492,9 @@ impl StateBitmaps {
         if self.expansion_bay_populated.is_none() {
             let png = include_bytes!("../resources/figma/expansion-bay-installed.png");
             let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
             self.expansion_bay_populated = Some(image_bytes);
         }
 

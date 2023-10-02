@@ -209,38 +209,57 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
     // Rects for Lotus (2560 x 1600 x 24)
     let png = include_bytes!("../resources/baseboard.png");
     let mut decoder = zune_png::PngDecoder::new(png);
-    let zune_core::result::DecodingResult::U8(background_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let zune_core::result::DecodingResult::U8(background_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
     let png = include_bytes!("../resources/instructions.png");
     let mut decoder = zune_png::PngDecoder::new(png);
-    let zune_core::result::DecodingResult::U8(instructions_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let zune_core::result::DecodingResult::U8(instructions_image) = decoder.decode().unwrap()
+    else {
+        panic!("Failed to decode PNG")
+    };
 
     let png = include_bytes!("../resources/trackpad.png");
     let mut decoder = zune_png::PngDecoder::new(png);
-    let zune_core::result::DecodingResult::U8(trackpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let zune_core::result::DecodingResult::U8(trackpad_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
     let png = include_bytes!("../resources/csize.png");
     let mut decoder = zune_png::PngDecoder::new(png);
-    let zune_core::result::DecodingResult::U8(csize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let zune_core::result::DecodingResult::U8(csize_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
     let png = include_bytes!("../resources/keyboard.png");
     let mut decoder = zune_png::PngDecoder::new(png);
-    let zune_core::result::DecodingResult::U8(asize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let zune_core::result::DecodingResult::U8(asize_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
     let png = include_bytes!("../resources/numpad.png");
     let mut decoder = zune_png::PngDecoder::new(png);
-    let zune_core::result::DecodingResult::U8(numpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let zune_core::result::DecodingResult::U8(numpad_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
     let png = include_bytes!("../resources/bsize.png");
     let mut decoder = zune_png::PngDecoder::new(png);
-    let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
     let png = include_bytes!("../resources/thumbsup.png");
     let mut decoder = zune_png::PngDecoder::new(png);
-    let zune_core::result::DecodingResult::U8(thumbsup_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let zune_core::result::DecodingResult::U8(thumbsup_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
     let png = include_bytes!("../resources/thumbsdown.png");
     let mut decoder = zune_png::PngDecoder::new(png);
-    let zune_core::result::DecodingResult::U8(thumbsdown_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let zune_core::result::DecodingResult::U8(thumbsdown_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
     let y_top = 756;
     let x_left = 1210;
