@@ -12,11 +12,12 @@ use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::console::text::{Input, Key, ScanCode};
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
 use uefi::table::{Boot, SystemTable};
-use uefi::Identify;
+use uefi::{Char16, Identify};
 #[allow(unused_imports)]
 use uefi_services::{print, println};
 
 use crate::buffer::Buffer;
+use crate::built_info;
 use crate::drawing::*;
 use crate::ec_comm;
 use crate::sleep::sleep_or;
@@ -24,11 +25,18 @@ use crate::sleep::sleep_or;
 const FAILED_INPUT: &str = "Failed to get keypress";
 
 #[allow(dead_code)]
-#[derive(Debug)]
 pub struct DebugInfo {
-    power_button: bool,
-    ec_present: bool,
-    long_press: i32,
+    pub power_button: bool,
+    pub ec_present: bool,
+    pub long_press: i32,
+    pub bay_state: u8,
+    pub gpu0: u8,
+    pub gpu1: u8,
+    pub bay_enabled: bool,
+    pub bay_fault: bool,
+    pub hatch_closed: bool,
+    pub hw_diag: u32,
+    pub deck: InputDeckStatus,
 }
 
 pub struct State {
@@ -41,6 +49,7 @@ pub struct State {
     prev_expansion_bay: Option<EcResponseExpansionBayStatus>,
     prev_hw_diag: Option<EcResponseGetHwDiag>,
     prev_pressed: bool,
+    verbose: bool,
     keypress: Option<Key>,
 }
 
@@ -68,6 +77,7 @@ impl State {
             prev_expansion_bay: None,
             prev_hw_diag: None,
             prev_pressed: false,
+            verbose: built_info::DEBUG,
             keypress: None,
         }
     }
@@ -508,6 +518,15 @@ pub fn start(
 
         let need_redraw = state.need_redraw(&input_deck, &expansion_bay, &hw_diag);
 
+        let q_key = Char16::try_from('?').unwrap();
+        let need_redraw = match state.keypress {
+            Some(Key::Printable(key)) if key == q_key => {
+                state.verbose = !state.verbose;
+                true
+            }
+            _ => need_redraw,
+        };
+
         // Detect long press of power button
         if button_pressed && state.prev_pressed && !need_redraw {
             if long_press > 4 {
@@ -526,21 +545,25 @@ pub fn start(
         if need_redraw {
             state.frame = state.next_state(&input_deck, &expansion_bay, &hw_diag);
             state.draw_state(&mut buffer, &input_deck);
-            draw_version(&mut buffer, None);
+            draw_version(
+                &mut buffer,
+                Some(DebugInfo {
+                    power_button: button_pressed,
+                    ec_present: ec.is_some(),
+                    long_press,
+                    gpu0: expansion_bay.board_id_0,
+                    gpu1: expansion_bay.board_id_1,
+                    bay_state: expansion_bay.state,
+                    bay_enabled: expansion_bay.module_enabled(),
+                    bay_fault: expansion_bay.module_fault(),
+                    hatch_closed: expansion_bay.hatch_switch_closed(),
+                    hw_diag: hw_diag.hw_diag,
+                    deck: input_deck.clone(),
+                }),
+                state.verbose,
+            );
             buffer.blit(&mut gop)?;
         }
-
-        #[cfg(feature = "azalea")]
-        draw_version(
-            &mut buffer,
-            Some(DebugInfo {
-                power_button: button_pressed,
-                ec_present: ec.is_some(),
-                long_press,
-            }),
-        );
-        #[cfg(feature = "azalea")]
-        buffer.blit(&mut gop)?;
 
         // Put CPU to sleep until key press or 10ms timeout
         sleep_or(bs, 10, unsafe {

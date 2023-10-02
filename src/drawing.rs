@@ -1,4 +1,5 @@
 use alloc::format;
+use alloc::string::String;
 use alloc::vec::Vec;
 use embedded_graphics::geometry::{AnchorPoint, Dimensions, Size};
 use embedded_graphics::image::{Image, ImageRaw};
@@ -10,6 +11,7 @@ use embedded_graphics::primitives::{
 };
 use embedded_graphics::text::Text;
 use embedded_graphics::Drawable;
+use framework_lib::chromium_ec::input_deck::{InputModuleType, TopRowPositions};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::proto::console::gop::GraphicsOutput;
@@ -515,24 +517,64 @@ pub fn draw_textbox(buffer: &mut Buffer, pos: Point, color: TextColor, text: &st
     text.draw(buffer).unwrap();
 }
 
-pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>) {
+fn mod_name(module: &InputModuleType) -> &str {
+    match module {
+        InputModuleType::GenericA => "A1",
+        InputModuleType::GenericB => "B1",
+        InputModuleType::GenericC => "C1",
+        InputModuleType::KeyboardB => "NP",
+        InputModuleType::KeyboardA => "KB",
+        InputModuleType::Touchpad => "TP",
+        InputModuleType::Disconnected => "No",
+        _ => "??",
+    }
+}
+
+fn top_row_string(top_row: &TopRowPositions) -> String {
+    format!(
+        "{}-{}-{}----{}-{}",
+        mod_name(&top_row.pos0),
+        mod_name(&top_row.pos1),
+        mod_name(&top_row.pos2),
+        mod_name(&top_row.pos3),
+        mod_name(&top_row.pos4),
+    )
+}
+
+pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose: bool) {
     // Place version information in the lower right corner
     let font = ascii::FONT_9X18_BOLD;
     let cs = Point::new(
         font.character_size.width as i32,
         font.character_size.height as i32,
     );
-    let (height, ver_text) = if built_info::DEBUG {
+    let (height, ver_text) = if verbose {
         (
             4,
             if let Some(debug_info) = debug_info {
                 format!(
-                    "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}\n{:?}",
+                    "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}\nB:{}, EC:{}, Long:{}\nBay State:{}, GPU0:{}, GPU1: {}, En:{}, Fault:{}\nHW Diag: {:#032b}\nDeckState:{:?}, Hub:{}, TP:{}, {}",
                     built_info::PKG_VERSION,
                     built_info::GIT_HEAD_REF.unwrap_or("?"),
                     built_info::GIT_COMMIT_HASH.unwrap_or("?"),
                     built_info::GIT_DIRTY.unwrap_or(false),
-                    debug_info
+                    // Basics
+                    debug_info.power_button,
+                    debug_info.ec_present,
+                    debug_info.long_press,
+                    // Bay
+                    debug_info.bay_state,
+                    debug_info.gpu0,
+                    debug_info.gpu1,
+                    debug_info.bay_enabled,
+                    debug_info.bay_fault,
+                    // HW Diag
+                    debug_info.hw_diag,
+                    // Input Deck
+                    debug_info.deck.state,
+                    debug_info.deck.hubboard_present,
+                    debug_info.deck.touchpad_present,
+                    top_row_string(&debug_info.deck.top_row),
                 )
             } else {
                 format!(
@@ -560,11 +602,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>) {
         + Point::new(0, 132 - cs.y * height))
         - Point::new(cs.x * ver_len + cs.x, 0);
     let top_left = Point::new(20, 20);
-    let pos = if built_info::DEBUG {
-        bottom_right
-    } else {
-        top_left
-    };
+    let pos = if verbose { bottom_right } else { top_left };
     let text = Text::new(&ver_text, pos, MonoTextStyle::new(&font, Rgb888::WHITE));
 
     // Make sure the background is cleared if we only update the version
