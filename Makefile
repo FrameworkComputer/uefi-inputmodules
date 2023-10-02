@@ -9,11 +9,14 @@ clean:
 	rm -f target/x86_64-unknown-uefi/debug/inputmodules.efi
 	rm -f target/x86_64-unknown-uefi/release/inputmodules.efi
 
+azalea: $(SOURCES)
+	cargo build --target x86_64-unknown-uefi --features azalea
+
 qemu: $(SOURCES)
 	cargo build --target x86_64-unknown-uefi --features qemu
 
-bmp: $(SOURCES)
-	cargo build --target x86_64-unknown-uefi --features bmp
+qemu-release: $(SOURCES)
+	cargo build --release --target x86_64-unknown-uefi --features qemu
 
 target/x86_64-unknown-uefi/debug/inputmodules.efi: $(SOURCES)
 	cargo build --target x86_64-unknown-uefi

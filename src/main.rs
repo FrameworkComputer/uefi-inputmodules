@@ -16,7 +16,14 @@ use uefi::Identify;
 #[allow(unused_imports)]
 use uefi_services::{print, println};
 
+mod buffer;
+mod drawing;
+mod ec_comm;
+// Allow dead code because it's the old implementation that we will remove
+#[allow(dead_code)]
 mod gui;
+mod sleep;
+mod state_machine;
 mod built_info {
     // The file has been placed there by the build script.
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
@@ -24,17 +31,47 @@ mod built_info {
 
 #[entry]
 fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    uefi_services::init(&mut system_table).unwrap();
+    let event = uefi_services::init(&mut system_table).unwrap();
     let boot_services = system_table.boot_services();
 
-    #[cfg(not(feature = "qemu"))]
+    // Only error prints in release build
+    #[cfg(not(debug_assertions))]
     log::set_max_level(log::LevelFilter::Error);
 
     if let Ok(true) = has_shell_args(boot_services) {
         print_module_status();
     } else {
         info!("No shell arg, launching GUI");
-        gui::draw_background(boot_services, &system_table).unwrap();
+
+        #[cfg(not(feature = "qemu"))]
+        let ec = Some(CrosEc::new());
+        #[cfg(feature = "qemu")]
+        let ec = None;
+
+        ec_comm::set_uefi_app_mode(&ec, true);
+        let gui_res = state_machine::start(boot_services, &system_table, &ec);
+        ec_comm::set_uefi_app_mode(&ec, false);
+
+        let poweroff = gui_res.unwrap();
+        if poweroff {
+            // TODO: Remove debug print and stall
+            println!("Shutting down;");
+            boot_services.stall(1_000_000);
+
+            // Shut down the system
+            // TODO: I should do  this outside of this function
+            let rt = system_table.runtime_services();
+            rt.reset(
+                uefi::table::runtime::ResetType::Shutdown,
+                Status::SUCCESS,
+                None,
+            );
+        }
+    }
+
+    if let Some(event) = event {
+        // Will crash when Linux boots if we don't call this
+        boot_services.close_event(event).unwrap();
     }
 
     Status::SUCCESS

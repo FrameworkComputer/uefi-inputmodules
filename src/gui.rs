@@ -1,26 +1,22 @@
-use core::ffi::c_void;
-use core::ptr::NonNull;
-
 use alloc::format;
-use alloc::vec;
-use alloc::vec::Vec;
 use embedded_graphics::image::ImageRaw;
 use embedded_graphics::primitives::{
     PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle,
 };
+use framework_lib::chromium_ec::commands::{EcRequestUefiAppBtnStatus, EcRequestUefiAppMode};
 use framework_lib::chromium_ec::input_deck::{self, InputDeckState};
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
-use framework_lib::chromium_ec::CrosEc;
+use framework_lib::chromium_ec::{CrosEc, EcRequestRaw};
 #[allow(unused_imports)]
 use log::{debug, error, info};
-use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
+use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::console::text::{Input, Key, ScanCode};
-use uefi::table::boot::{BootServices, EventType, Tpl};
+use uefi::table::boot::BootServices;
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
+use uefi::Identify;
 use uefi::Result;
 #[allow(unused_imports)]
 use uefi::{prelude::*, Char16};
-use uefi::{Event, Identify};
 #[allow(unused_imports)]
 use uefi_services::{print, println};
 
@@ -31,76 +27,9 @@ use embedded_graphics::{
     prelude::*,
     text::Text,
 };
-#[cfg(feature = "bmp")]
-use tinybmp::Bmp;
 
+use crate::buffer::Buffer;
 use crate::built_info;
-
-struct Buffer {
-    width: usize,
-    height: usize,
-    pixels: Vec<BltPixel>,
-}
-
-impl OriginDimensions for Buffer {
-    fn size(&self) -> Size {
-        Size::new(self.width as u32, self.height as u32)
-    }
-}
-
-impl DrawTarget for Buffer {
-    type Color = Rgb888;
-    // `ExampleDisplay` uses a framebuffer and doesn't need to communicate with the display
-    // controller to draw pixel, which means that drawing operations can never fail. To reflect
-    // this the type `Infallible` was chosen as the `Error` type.
-    type Error = core::convert::Infallible;
-
-    fn draw_iter<I>(&mut self, pixels: I) -> core::result::Result<(), Self::Error>
-    where
-        I: IntoIterator<Item = Pixel<Self::Color>>,
-    {
-        for Pixel(coord, color) in pixels.into_iter() {
-            // Check if the pixel coordinates are out of bounds (negative or greater than
-            // (63,63)). `DrawTarget` implementation are required to discard any out of bounds
-            // pixels without returning an error or causing a panic.
-            if coord.x < self.width as i32 && coord.y < self.height as i32 {
-                // Calculate the index in the framebuffer.
-                let pixel = self.pixel(coord.x as usize, coord.y as usize).unwrap();
-                pixel.red = color.r();
-                pixel.green = color.g();
-                pixel.blue = color.b();
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl Buffer {
-    /// Create a new `Buffer`.
-    fn new(width: usize, height: usize) -> Self {
-        Buffer {
-            width,
-            height,
-            pixels: vec![BltPixel::new(0, 0, 0); width * height],
-        }
-    }
-
-    /// Get a single pixel.
-    fn pixel(&mut self, x: usize, y: usize) -> Option<&mut BltPixel> {
-        self.pixels.get_mut(y * self.width + x)
-    }
-
-    /// Blit the buffer to the framebuffer.
-    fn blit(&self, gop: &mut GraphicsOutput) -> Result {
-        gop.blt(BltOp::BufferToVideo {
-            buffer: &self.pixels,
-            src: BltRegion::Full,
-            dest: (0, 0),
-            dims: (self.width, self.height),
-        })
-    }
-}
 
 const BG_COLOR: Rgb888 = Rgb888::new(0x28, 0x25, 0x24);
 const RED_WARN: Rgb888 = Rgb888::new(0xff, 0xe1, 0xe0);
@@ -175,7 +104,7 @@ fn show_touchpad(
     }
 }
 
-fn get_input_deck(emulated_deck: &InputDeckStatus, _ec: &Option<CrosEc>) -> InputDeckStatus {
+pub fn get_input_deck(emulated_deck: &InputDeckStatus, _ec: &Option<CrosEc>) -> InputDeckStatus {
     #[cfg(not(feature = "qemu"))]
     let input_deck = _ec.as_ref().unwrap().get_input_deck_status();
     #[cfg(feature = "qemu")]
@@ -189,12 +118,7 @@ fn get_input_deck(emulated_deck: &InputDeckStatus, _ec: &Option<CrosEc>) -> Inpu
     }
 }
 
-pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
-    #[cfg(not(feature = "qemu"))]
-    let ec = Some(CrosEc::new());
-    #[cfg(feature = "qemu")]
-    let ec = None;
-
+pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> Result {
     let mut emulated_deck = InputDeckStatus {
         state: input_deck::InputDeckState::Disconnected,
         hubboard_present: false,
@@ -207,7 +131,9 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             pos4: input_deck::InputModuleType::Disconnected,
         },
     };
-    let input_deck = get_input_deck(&emulated_deck, &ec);
+    let input_deck = get_input_deck(&emulated_deck, ec);
+    let mut pressed: u8 = 255;
+    let mut ctr: u64 = 0;
 
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
@@ -280,138 +206,78 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         }
     }
 
-    cfg_if::cfg_if! {
-        // Rects for QEMU (1024 x 768 x 24)
-        if #[cfg(feature = "qemu")] {
-            cfg_if::cfg_if! {
-                if #[cfg(feature = "bmp")] {
-                    //let background_image =
-                    //    include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768.bmp");
-                    let background_image =
-                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-noback.bmp");
-                } else if #[cfg(feature = "png")] {
-                    let png = include_bytes!("../resources/baseboard-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(background_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    // Rects for Lotus (2560 x 1600 x 24)
+    let png = include_bytes!("../resources/baseboard.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(background_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
-                    let png = include_bytes!("../resources/instructions-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(instructions_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/instructions.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(instructions_image) = decoder.decode().unwrap()
+    else {
+        panic!("Failed to decode PNG")
+    };
 
-                    let png = include_bytes!("../resources/trackpad-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(trackpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/trackpad.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(trackpad_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
-                    let png = include_bytes!("../resources/csize-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(csize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/csize.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(csize_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
-                    let png = include_bytes!("../resources/keyboard-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(asize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/keyboard.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(asize_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
-                    let png = include_bytes!("../resources/numpad-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(numpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/numpad.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(numpad_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
-                    let png = include_bytes!("../resources/bsize-small.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/bsize.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
-                    let png = include_bytes!("../resources/thumbsup.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(thumbsup_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-                    let png = include_bytes!("../resources/thumbsdown.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(thumbsdown_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-                } else if #[cfg(feature = "jpeg")] {
-                    let jpeg =
-                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-1024-768-tiny.jpg");
-                    let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
-                    let background_image = decoder.decode().unwrap();
-                }
-            }
-            let y_top = 350;
-            let x_left = 420;
-            let c_width = 46;
-            let a_width = 374;
-            let b_width = 91;
-            let touchpad_height = 150;
-            let y_bottom = y_top + touchpad_height;
-            let screen_width = 1024;
-            let screen_height = 768;
-            let text_pos = Point::new(35, 110);
-            let text2_pos = Point::new(35, 640);
-            let help1_pos = Point::new(50, 280);
-            let help2_pos = Point::new(455, 640);
-            let help3_pos = Point::new(545, 280);
-            let instr_font = ascii::FONT_5X7;
-            let big_font = ascii::FONT_9X15;
-        } else {
-            // Rects for Lotus (2560 x 1600 x 24)
-            cfg_if::cfg_if! {
-                if #[cfg(feature = "bmp")] {
-                    let background_image = include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600.bmp");
-                } else if #[cfg(feature = "png")] {
-                    let png = include_bytes!("../resources/baseboard.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(background_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let png = include_bytes!("../resources/thumbsup.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(thumbsup_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
+    let png = include_bytes!("../resources/thumbsdown.png");
+    let mut decoder = zune_png::PngDecoder::new(png);
+    let zune_core::result::DecodingResult::U8(thumbsdown_image) = decoder.decode().unwrap() else {
+        panic!("Failed to decode PNG")
+    };
 
-                    let png = include_bytes!("../resources/instructions.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(instructions_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+    let y_top = 756;
+    let x_left = 1210;
+    let a_width = 806;
+    let b_width = 196;
+    let c_width = 100;
+    let touchpad_height = 324;
+    let y_bottom = y_top + touchpad_height;
+    let screen_width = 2560;
+    let screen_height = 1600;
+    let text_pos = Point::new(133, 280);
+    let text2_pos = Point::new(133, 1360);
+    let help1_pos = Point::new(205, 610);
+    let help2_pos = Point::new(1090, 1390);
+    let help3_pos = Point::new(1320, 610);
+    let instr_font = ascii::FONT_9X18_BOLD; //_BOLD;
+    let big_font = ascii::FONT_10X20;
 
-                    let png = include_bytes!("../resources/trackpad.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(trackpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-
-                    let png = include_bytes!("../resources/csize.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(csize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-
-                    let png = include_bytes!("../resources/keyboard.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(asize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-
-                    let png = include_bytes!("../resources/numpad.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(numpad_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-
-                    let png = include_bytes!("../resources/bsize.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(bsize_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-
-                    let png = include_bytes!("../resources/thumbsup.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(thumbsup_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-                    let png = include_bytes!("../resources/thumbsdown.png");
-                    let mut decoder = zune_png::PngDecoder::new(png);
-                    let zune_core::result::DecodingResult::U8(thumbsdown_image) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
-                } else if #[cfg(feature = "jpeg")] {
-                    let jpeg =
-                        include_bytes!("../resources/framework-laptop-16-input-module-topdown-2560x1600-tiny.jpg");
-                    let mut decoder = zune_jpeg::JpegDecoder::new(jpeg);
-                    let background_image = decoder.decode().unwrap();
-                }
-            }
-            let y_top = 756;
-            let x_left = 1210;
-            let a_width = 806;
-            let b_width = 196;
-            let c_width = 100;
-            let touchpad_height = 324;
-            let y_bottom = y_top + touchpad_height;
-            let screen_width = 2560;
-            let screen_height = 1600;
-            let text_pos = Point::new(133, 280);
-            let text2_pos = Point::new(133, 1360);
-            let help1_pos = Point::new(205, 610);
-            let help2_pos = Point::new(1090, 1390);
-            let help3_pos = Point::new(1320, 610);
-            let instr_font = ascii::FONT_9X18_BOLD;//_BOLD;
-            let big_font = ascii::FONT_10X20;
-        }
-    }
     let left_c1_rect: Rectangle = Rectangle::with_corners(
         Point::new(x_left, y_top),
         Point::new(x_left + c_width, y_bottom),
@@ -446,62 +312,22 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     );
 
     // Have to export in GIMP as RGB888
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "bmp")] {
-            let background_bmp: Bmp<Rgb888> = Bmp::from_slice(background_image).unwrap();
-            let image = Image::new(&background_bmp, Point::new(0, 0));
-        } else {
-            #[cfg(feature = "qemu")]
-            let background_bmp = ImageRaw::<Rgb888>::new(&background_image, screen_width);
-            #[cfg(not(feature = "qemu"))]
-            let background_bmp = ImageRaw::<Rgb888>::new(&background_image, screen_width);
-            let image = Image::new(&background_bmp, Point::new(0, 0));
+    let background_bmp = ImageRaw::<Rgb888>::new(&background_image, screen_width);
+    let image = Image::new(&background_bmp, Point::new(0, 0));
 
-            #[cfg(feature = "qemu")]
-            let instructions_bmp = ImageRaw::<Rgb888>::new(&instructions_image, screen_width);
-            #[cfg(not(feature = "qemu"))]
-            let instructions_bmp = ImageRaw::<Rgb888>::new(&instructions_image, screen_width);
-            let instructions_image = Image::new(&instructions_bmp, Point::new(0, 0));
+    let instructions_bmp = ImageRaw::<Rgb888>::new(&instructions_image, screen_width);
+    let instructions_image = Image::new(&instructions_bmp, Point::new(0, 0));
 
-            #[cfg(feature = "qemu")]
-            let trackpad_bmp = ImageRaw::<Rgb888>::new(&trackpad_image, a_width as u32);
-            #[cfg(feature = "qemu")]
-            let trackpad_image = Image::new(&trackpad_bmp, touchpad_rect.top_left);
-            #[cfg(not(feature = "qemu"))]
-            let trackpad_bmp = ImageRaw::<Rgb888>::new(&trackpad_image, a_width as u32);
-            #[cfg(not(feature = "qemu"))]
-            let trackpad_image = Image::new(&trackpad_bmp, touchpad_rect.top_left);
+    let trackpad_bmp = ImageRaw::<Rgb888>::new(&trackpad_image, a_width as u32);
+    let trackpad_image = Image::new(&trackpad_bmp, touchpad_rect.top_left);
 
-            #[cfg(feature = "qemu")]
-            let csize_bmp = ImageRaw::<Rgb888>::new(&csize_image, c_width as u32);
-            #[cfg(not(feature = "qemu"))]
-            let csize_bmp = ImageRaw::<Rgb888>::new(&csize_image, c_width as u32);
+    let csize_bmp = ImageRaw::<Rgb888>::new(&csize_image, c_width as u32);
+    let asize_bmp = ImageRaw::<Rgb888>::new(&asize_image, a_width as u32);
+    let numpad_bmp = ImageRaw::<Rgb888>::new(&numpad_image, b_width as u32);
+    let bsize_bmp = ImageRaw::<Rgb888>::new(&bsize_image, b_width as u32);
 
-            #[cfg(feature = "qemu")]
-            let asize_bmp = ImageRaw::<Rgb888>::new(&asize_image, a_width as u32);
-            #[cfg(not(feature = "qemu"))]
-            let asize_bmp = ImageRaw::<Rgb888>::new(&asize_image, a_width as u32);
-
-            #[cfg(feature = "qemu")]
-            let numpad_bmp = ImageRaw::<Rgb888>::new(&numpad_image, b_width as u32);
-            #[cfg(not(feature = "qemu"))]
-            let numpad_bmp = ImageRaw::<Rgb888>::new(&numpad_image, b_width as u32);
-
-            #[cfg(feature = "qemu")]
-            let bsize_bmp = ImageRaw::<Rgb888>::new(&bsize_image, b_width as u32);
-            #[cfg(not(feature = "qemu"))]
-            let bsize_bmp = ImageRaw::<Rgb888>::new(&bsize_image, b_width as u32);
-
-            #[cfg(feature = "qemu")]
-            let thumbsup_bmp = ImageRaw::<Rgb888>::new(&thumbsup_image, 38);
-            #[cfg(not(feature = "qemu"))]
-            let thumbsup_bmp = ImageRaw::<Rgb888>::new(&thumbsup_image, 38);
-            #[cfg(feature = "qemu")]
-            let thumbsdown_bmp = ImageRaw::<Rgb888>::new(&thumbsdown_image, 38);
-            #[cfg(not(feature = "qemu"))]
-            let thumbsdown_bmp = ImageRaw::<Rgb888>::new(&thumbsdown_image, 38);
-        }
-    }
+    let thumbsup_bmp = ImageRaw::<Rgb888>::new(&thumbsup_image, 38);
+    let thumbsdown_bmp = ImageRaw::<Rgb888>::new(&thumbsdown_image, 38);
 
     draw_main(
         &mut buffer,
@@ -511,6 +337,8 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
         size,
         &instr_font,
         &big_font,
+        pressed,
+        ctr,
     );
     let mut show_instructions = false;
 
@@ -527,8 +355,51 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     let four_key = Char16::try_from('4').unwrap();
     let five_key = Char16::try_from('5').unwrap();
     let q_key = Char16::try_from('?').unwrap();
+    let mut need_redraw;
+    let mut prev_input_deck = input_deck;
+    let mut prev_pressed = 100;
+    let mut long_press = 0;
     loop {
-        let input_deck = get_input_deck(&emulated_deck, &ec);
+        if let Some(ref ec) = ec {
+            let btn_status = EcRequestUefiAppBtnStatus {}.send_command(ec).unwrap();
+            pressed = if btn_status.status == 0 { 1 } else { 0 };
+            //if btn_status.flags != 0 {
+            //    debug!("Power button pressed");
+            //    bs.stall(1_000_000);
+            //}
+        }
+        // Short press will exit
+        if prev_pressed == 1 && pressed == 0 {
+            return Ok(());
+        }
+        let input_deck = get_input_deck(&emulated_deck, ec);
+        need_redraw = input_deck != prev_input_deck || pressed != prev_pressed;
+
+        if pressed == 1 && prev_pressed == 1 && !need_redraw {
+            if long_press > 4 {
+                if let Some(ref ec) = ec {
+                    EcRequestUefiAppMode { enable: 0 }.send_command(ec).unwrap();
+                }
+                //TODO: REmove this
+                println!("Shutting down;");
+                bs.stall(1_000_000);
+                // Shut down the system
+                let rt = st.runtime_services();
+                rt.reset(
+                    uefi::table::runtime::ResetType::Shutdown,
+                    Status::SUCCESS,
+                    None,
+                );
+            }
+            // Wait a few seconds and if it's still pressed next time around, it was a long press
+            bs.stall(1_000_000);
+            long_press += 1;
+        } else {
+            long_press = 0;
+        }
+        prev_pressed = pressed;
+        prev_input_deck = input_deck.clone();
+
         //debug!("InputDeck State: {:?}", input_deck.state);
         //debug!("Touchpad present: {:?}", input_deck.touchpad_present);
         //debug!("Hubboard present: {:?}", input_deck.hubboard_present);
@@ -542,7 +413,9 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             return Ok(());
         }
 
-        if !show_instructions {
+        // Instructions don't need updates, they're only drawn once when the button is pressed
+        if !show_instructions && need_redraw {
+            ctr += 1;
             // Reset background to no modules, otherwise we can't reset what's
             // shown when modules are removed or move around.
             draw_main(
@@ -553,6 +426,8 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                 size,
                 &instr_font,
                 &big_font,
+                pressed,
+                ctr,
             );
 
             show_status(
@@ -670,10 +545,10 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                     .draw(&mut buffer)
                     .unwrap();
             }
+            buffer.blit(&mut gop)?;
         }
 
-        buffer.blit(&mut gop)?;
-
+        // Wait a bit, clear the screen and exit
         if input_deck.fully_populated() {
             show_status(
                 true,
@@ -688,7 +563,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             bs.stall(2_000_000);
 
             // Clear screen to black. Otherwise the next app is responsible for clearing.
-            // If the app was launched from the UEFI shell, the user has to manually clear
+            // If the app was launched from the UEFI shell, the user would have to manually clear
             let whole_screen: Rectangle = Rectangle::with_corners(
                 Point::new(0, 0),
                 Point::new(screen_width as i32, screen_height),
@@ -705,10 +580,10 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
             return Ok(());
         }
 
-        // Put CPU to sleep until key press or 1s timeout
-        sleep_or(bs, 1000, unsafe {
-            Some(input.wait_for_key_event().unsafe_clone())
-        });
+        // Put CPU to sleep until key press or 10ms timeout
+        //sleep_or(bs, 10, unsafe {
+        //    Some(input.wait_for_key_event().unsafe_clone())
+        //});
 
         match input.read_key().unwrap() {
             Some(Key::Printable(key)) if key == zero_key => {
@@ -840,6 +715,8 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
                         size,
                         &instr_font,
                         &big_font,
+                        pressed,
+                        ctr,
                     );
                 }
             }
@@ -855,6 +732,7 @@ pub fn draw_background(bs: &BootServices, _st: &SystemTable<Boot>) -> Result {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_main(
     buffer: &mut Buffer,
     image: &Image<ImageRaw<Rgb888>>,
@@ -863,6 +741,8 @@ fn draw_main(
     size: Point,
     instr_font: &embedded_graphics::mono_font::MonoFont,
     big_font: &embedded_graphics::mono_font::MonoFont,
+    pressed: u8,
+    ctr: u64,
 ) {
     image.draw(buffer).unwrap();
     // TODO: Use Roboto Mono font
@@ -891,11 +771,13 @@ fn draw_main(
         (
             4,
             format!(
-                "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}",
+                "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}, BTN: {}, ctr: {}",
                 built_info::PKG_VERSION,
                 built_info::GIT_HEAD_REF.unwrap_or("?"),
                 built_info::GIT_COMMIT_HASH.unwrap_or("?"),
-                built_info::GIT_DIRTY.unwrap_or(false)
+                built_info::GIT_DIRTY.unwrap_or(false),
+                pressed,
+                ctr
             ),
         )
     } else {
@@ -915,26 +797,4 @@ fn draw_main(
         MonoTextStyle::new(ver_font, Rgb888::WHITE),
     );
     text.draw(buffer).unwrap();
-}
-
-unsafe extern "efiapi" fn idle_callback(_event: Event, _context: Option<NonNull<c_void>>) {}
-
-fn sleep_or(bs: &BootServices, ms: u64, or_event: Option<Event>) {
-    let oneshot_timer = unsafe {
-        bs.create_event(EventType::TIMER, Tpl::CALLBACK, Some(idle_callback), None)
-            .unwrap()
-    };
-
-    bs.set_timer(
-        &oneshot_timer,
-        uefi::table::boot::TimerTrigger::Relative(ms * 10_000),
-    )
-    .unwrap();
-
-    let mut events = if let Some(event) = or_event {
-        [oneshot_timer, event]
-    } else {
-        [unsafe { oneshot_timer.unsafe_clone() }, oneshot_timer]
-    };
-    let _which_event_fired = bs.wait_for_event(&mut events).discard_errdata().unwrap();
 }
