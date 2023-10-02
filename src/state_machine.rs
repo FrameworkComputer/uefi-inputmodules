@@ -121,8 +121,8 @@ impl State {
         // Draw laptop with latches either closed or open
         match self.frame {
             StateFrame::Finished => {
-                // Button indicator right
-                self.bitmaps.button_short_skip().draw(buffer);
+                // Boot Button indicator right
+                self.bitmaps.button_boot().draw(buffer);
 
                 // Draw laptop with latches closed
                 self.bitmaps.laptop_latches_closed().draw(buffer);

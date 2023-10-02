@@ -32,6 +32,7 @@ pub struct StateBitmaps {
     qr_code_left: Option<Vec<u8>>,
     button_long_off: Option<Vec<u8>>,
     button_short_skip: Option<Vec<u8>>,
+    button_boot: Option<Vec<u8>>,
     laptop_latches_open: Option<Vec<u8>>,
     laptop_latches_closed: Option<Vec<u8>>,
     no_expansion_bay_instr: Option<Vec<u8>>,
@@ -122,6 +123,25 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.button_short_skip.as_ref().unwrap(),
+            width: 132,
+            pos: Point {
+                x: WIDTH_I32 - 40 - 2 * 132 - 20,
+                y: HEIGHT_I32 - 40 - 171,
+            },
+        }
+    }
+
+    pub fn button_boot(&mut self) -> ImagePlusMeta {
+        if self.button_boot.is_none() {
+            let png = include_bytes!("../resources/figma/button-boot.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else { panic!("Failed to decode PNG") };
+            self.button_boot = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.button_boot.as_ref().unwrap(),
             width: 132,
             pos: Point {
                 x: WIDTH_I32 - 40 - 2 * 132 - 20,
