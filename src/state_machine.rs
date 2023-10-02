@@ -461,10 +461,12 @@ pub fn start(
 
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
-    if input_deck.fully_populated() && bay_ok(&expansion_bay, &hw_diag) {
+    let state = State::new();
+    if state.next_state(&input_deck, &expansion_bay, &hw_diag) == StateFrame::Finished {
         info!("Started out as fully populated, booting immediately");
         return Ok(false);
     }
+
     if !matches!(
         input_deck.state,
         InputDeckState::Disconnected | InputDeckState::TurningOn | InputDeckState::On
