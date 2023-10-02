@@ -132,7 +132,7 @@ pub fn button_pressed(ec: &Option<CrosEc>) -> bool {
 pub fn get_hw_diag(ec: &Option<CrosEc>) -> EcResponseGetHwDiag {
     let not_ok = EcResponseGetHwDiag {
         // All HW diags flagged (more than possible in reality)
-        hw_diag: 0xFF,
+        hw_diag: 0xFFFFFFFF,
         // BIOS not complete, since it's a UEFI app
         bios_complete: 0,
     };
