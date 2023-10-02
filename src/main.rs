@@ -16,10 +16,9 @@ use uefi::Identify;
 #[allow(unused_imports)]
 use uefi_services::{print, println};
 
-use crate::state_machine::set_uefi_app_mode;
-
 mod buffer;
 mod drawing;
+mod ec_comm;
 // Allow dead code because it's the old implementation that we will remove
 #[allow(dead_code)]
 mod gui;
@@ -49,9 +48,9 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         #[cfg(feature = "qemu")]
         let ec = None;
 
-        set_uefi_app_mode(&ec, true);
+        ec_comm::set_uefi_app_mode(&ec, true);
         let gui_res = state_machine::start(boot_services, &system_table, &ec);
-        set_uefi_app_mode(&ec, false);
+        ec_comm::set_uefi_app_mode(&ec, false);
 
         let poweroff = gui_res.unwrap();
         if poweroff {
