@@ -12,6 +12,7 @@ use embedded_graphics::primitives::{
 use embedded_graphics::text::Text;
 use embedded_graphics::Drawable;
 use framework_lib::chromium_ec::input_deck::{InputModuleType, TopRowPositions};
+use framework_lib::power::PowerInfo;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::proto::console::gop::GraphicsOutput;
@@ -594,8 +595,20 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
         (
             4,
             if let Some(debug_info) = debug_info {
+                let power_str = if let Some(power_info) = debug_info.power_info {
+                    if let Some(battery) = power_info.battery {
+                        format!(
+                            "AC: {}, Battery: Yes, Charge: {}%",
+                            power_info.ac_present, battery.charge_percentage
+                        )
+                    } else {
+                        format!("AC: {}, Battery:  No", power_info.ac_present)
+                    }
+                } else {
+                    String::from("???")
+                };
                 format!(
-                    "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}\nB:{}, EC:{}, Long:{}\nBay State:{}, GPU0:{}, GPU1: {}, En:{}, Fault:{}\nHW Diag: {:#032b}\nDeckState:{:?}, Hub:{}, TP:{}, {}",
+                    "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}\nB:{}, EC:{}, Long:{}\nBay State:{}, GPU0:{}, GPU1: {}, En:{}, Fault:{}\nHW Diag: {:#032b}\nDeckState:{:?}, Hub:{}, TP:{}, {}\n{}",
                     built_info::PKG_VERSION,
                     built_info::GIT_HEAD_REF.unwrap_or("?"),
                     built_info::GIT_COMMIT_HASH.unwrap_or("?"),
@@ -617,6 +630,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                     debug_info.deck.hubboard_present,
                     debug_info.deck.touchpad_present,
                     top_row_string(&debug_info.deck.top_row),
+                    power_str
                 )
             } else {
                 format!(
@@ -629,7 +643,24 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
             },
         )
     } else {
-        (1, format!("v{}", built_info::PKG_VERSION))
+        let power_str = if let Some(DebugInfo {
+            power_info:
+                Some(PowerInfo {
+                    battery: Some(battery),
+                    ..
+                }),
+            ..
+        }) = debug_info
+        {
+            if battery.charge_percentage <= 20 {
+                format!("\nBattery Level: {}%!", battery.charge_percentage)
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+        (1, format!("v{}{}", built_info::PKG_VERSION, power_str))
     };
     let ver_len = ver_text.lines().fold(0, |longest, cur| -> i32 {
         let cur_len = cur.len() as i32;

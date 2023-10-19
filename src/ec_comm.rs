@@ -1,3 +1,4 @@
+use alloc::string::ToString;
 use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestGetHwDiag, EcRequestUefiAppBtnStatus,
     EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionByStates,
@@ -6,6 +7,7 @@ use framework_lib::chromium_ec::commands::{
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
 use framework_lib::chromium_ec::{CrosEc, EcError, EcRequestRaw, EcResponseStatus, EcResult};
+use framework_lib::power::{BatteryInformation, PowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::proto::console::text::Key;
@@ -187,6 +189,7 @@ pub fn keypress_mock_data(
     expansion_bay: &mut EcResponseExpansionBayStatus,
     // TODO: Also do something with this
     hw_diag: &mut EcResponseGetHwDiag,
+    power_info: &mut Option<PowerInfo>,
 ) {
     // TODO: Can this be created from a macro?
     let zero_key = Char16::try_from('0').unwrap();
@@ -197,7 +200,10 @@ pub fn keypress_mock_data(
     let five_key = Char16::try_from('5').unwrap();
     let six_key = Char16::try_from('6').unwrap();
     let seven_key = Char16::try_from('7').unwrap();
-    //let q_key = Char16::try_from('?').unwrap();
+    let q_key = Char16::try_from('q').unwrap();
+    let w_key = Char16::try_from('w').unwrap();
+    let e_key = Char16::try_from('e').unwrap();
+    let r_key = Char16::try_from('r').unwrap();
     let bay_present = EcResponseExpansionBayStatus {
         state: (ExpansionByStates::ModuleEnabled as u8)
             | (ExpansionByStates::HatchSwitchClosed as u8),
@@ -359,6 +365,85 @@ pub fn keypress_mock_data(
                     pos4: input_deck::InputModuleType::Disconnected,
                 },
             };
+        }
+        Some(Key::Printable(key)) if key == q_key => {
+            *power_info = Some(PowerInfo {
+                ac_present: true,
+                battery: None,
+            })
+        }
+        Some(Key::Printable(key)) if key == w_key => {
+            *power_info = Some(PowerInfo {
+                ac_present: false,
+                // TODO: 20% battery
+                battery: Some(BatteryInformation {
+                    present_voltage: 15412,   // 15.412
+                    present_rate: 552,        // 552mA
+                    remaining_capacity: 1939, // 1939mAh, 29.883Wh
+                    battery_count: 0,
+                    current_battery_index: 0,
+                    design_capacity: 55800,          // 3572mAh, 55.8Wh
+                    design_voltage: 15400,           // 15.400V
+                    last_full_charge_capacity: 3154, // 3154mAh
+                    cycle_count: 320,
+                    charge_percentage: 20,
+                    manufacturer: "NVT".to_string(),
+                    model_number: "Framewo".to_string(),
+                    serial_number: "027B".to_string(),
+                    battery_type: "LION".to_string(),
+                    discharging: true,
+                    charging: false,
+                    level_critical: false,
+                }),
+            })
+        }
+        Some(Key::Printable(key)) if key == e_key => {
+            *power_info = Some(PowerInfo {
+                ac_present: false,
+                battery: Some(BatteryInformation {
+                    present_voltage: 15412,   // 15.412
+                    present_rate: 552,        // 552mA
+                    remaining_capacity: 1939, // 1939mAh, 29.883Wh
+                    battery_count: 0,
+                    current_battery_index: 0,
+                    design_capacity: 55800,          // 3572mAh, 55.8Wh
+                    design_voltage: 15400,           // 15.400V
+                    last_full_charge_capacity: 3154, // 3154mAh
+                    cycle_count: 320,
+                    charge_percentage: 61,
+                    manufacturer: "NVT".to_string(),
+                    model_number: "Framewo".to_string(),
+                    serial_number: "027B".to_string(),
+                    battery_type: "LION".to_string(),
+                    discharging: true,
+                    charging: false,
+                    level_critical: false,
+                }),
+            })
+        }
+        Some(Key::Printable(key)) if key == r_key => {
+            *power_info = Some(PowerInfo {
+                ac_present: true,
+                battery: Some(BatteryInformation {
+                    present_voltage: 17135,   // 17.135V
+                    present_rate: 2460,       // 2460mA
+                    remaining_capacity: 1939, // 1939mAh, 29.883Wh
+                    battery_count: 0,
+                    current_battery_index: 0,
+                    design_capacity: 55800,          // 3572mAh, 55.8Wh
+                    design_voltage: 15400,           // 15.400V
+                    last_full_charge_capacity: 3154, // 3154mAh
+                    cycle_count: 320,
+                    charge_percentage: 61,
+                    manufacturer: "NVT".to_string(),
+                    model_number: "Framewo".to_string(),
+                    serial_number: "027B".to_string(),
+                    battery_type: "LION".to_string(),
+                    discharging: false,
+                    charging: true,
+                    level_critical: false,
+                }),
+            })
         }
         _ => {}
     }

@@ -248,7 +248,7 @@ dependencies = [
 [[package]]
 name = "framework_lib"
 version = "0.1.0"
-source = "git+ssh://git@github.com/FrameworkComputer/framework-system.git?branch=uefi-inputmodule-app-ignore-framework#7300299802231c13a5bd85b6e41a449bec305a2a"
+source = "git+ssh://git@github.com/FrameworkComputer/framework-system.git?branch=uefi-inputmodule-app-ignore-framework#ed4fe3e346d23850b254a0a1849930f3473e1e8f"
 dependencies = [
  "built",
  "guid_macros",
@@ -288,7 +288,7 @@ dependencies = [
 [[package]]
 name = "guid_macros"
 version = "0.11.0"
-source = "git+ssh://git@github.com/FrameworkComputer/framework-system.git?branch=uefi-inputmodule-app-ignore-framework#7300299802231c13a5bd85b6e41a449bec305a2a"
+source = "git+ssh://git@github.com/FrameworkComputer/framework-system.git?branch=uefi-inputmodule-app-ignore-framework#ed4fe3e346d23850b254a0a1849930f3473e1e8f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -694,7 +694,7 @@ checksum = "238abfbb77c1915110ad968465608b68e869e0772622c9656714e73e5a1a522f"
 [[package]]
 name = "smbios-lib"
 version = "0.9.1"
-source = "git+ssh://git@github.com/FrameworkComputer/smbios-lib.git?branch=no-std#b3e2fff8a6f4b8c2d729467cbbf0c8c41974cd1c"
+source = "git+https://github.com/FrameworkComputer/smbios-lib.git?branch=no-std#b3e2fff8a6f4b8c2d729467cbbf0c8c41974cd1c"
 dependencies = [
  "core-foundation",
  "core-foundation-sys 0.6.2",

@@ -5,6 +5,7 @@ use framework_lib::chromium_ec::commands::{EcResponseExpansionBayStatus, EcRespo
 use framework_lib::chromium_ec::input_deck::InputDeckStatus;
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
+use framework_lib::power::{self, PowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::prelude::BootServices;
@@ -37,6 +38,7 @@ pub struct DebugInfo {
     pub hatch_closed: bool,
     pub hw_diag: u32,
     pub deck: InputDeckStatus,
+    pub power_info: Option<PowerInfo>,
 }
 
 pub struct State {
@@ -48,6 +50,7 @@ pub struct State {
     prev_input_deck: Option<InputDeckStatus>,
     prev_expansion_bay: Option<EcResponseExpansionBayStatus>,
     prev_hw_diag: Option<EcResponseGetHwDiag>,
+    prev_power_info: Option<Option<PowerInfo>>,
     prev_pressed: bool,
     verbose: bool,
     keypress: Option<Key>,
@@ -76,6 +79,7 @@ impl State {
             prev_input_deck: None,
             prev_expansion_bay: None,
             prev_hw_diag: None,
+            prev_power_info: None,
             prev_pressed: false,
             verbose: built_info::DEBUG,
             keypress: None,
@@ -365,10 +369,12 @@ impl State {
         input_deck: &InputDeckStatus,
         expansion_bay: &EcResponseExpansionBayStatus,
         hw_diag: &EcResponseGetHwDiag,
+        power_info: &Option<PowerInfo>,
     ) -> bool {
         Some(input_deck) != self.prev_input_deck.as_ref()
             || Some(expansion_bay) != self.prev_expansion_bay.as_ref()
             || Some(hw_diag) != self.prev_hw_diag.as_ref()
+            || Some(power_info) != self.prev_power_info.as_ref()
     }
 }
 
@@ -458,6 +464,7 @@ pub fn start(
     let mut input_deck = ec_comm::get_input_deck(ec);
     let mut expansion_bay = ec_comm::get_expansion_bay(ec);
     let mut hw_diag = ec_comm::get_hw_diag(ec);
+    let mut power_info = ec.as_ref().and_then(power::power_info);
 
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
@@ -499,12 +506,14 @@ pub fn start(
             input_deck = ec_comm::get_input_deck(ec);
             expansion_bay = ec_comm::get_expansion_bay(ec);
             hw_diag = ec_comm::get_hw_diag(ec);
+            power_info = ec.as_ref().and_then(power::power_info);
         } else {
             ec_comm::keypress_mock_data(
                 state.keypress,
                 &mut input_deck,
                 &mut expansion_bay,
                 &mut hw_diag,
+                &mut power_info,
             );
         }
         // TODO: Maybe mock power button press?
@@ -518,7 +527,7 @@ pub fn start(
             break;
         }
 
-        let need_redraw = state.need_redraw(&input_deck, &expansion_bay, &hw_diag);
+        let need_redraw = state.need_redraw(&input_deck, &expansion_bay, &hw_diag, &power_info);
 
         let q_key = Char16::try_from('?').unwrap();
         let need_redraw = match state.keypress {
@@ -561,6 +570,7 @@ pub fn start(
                     hatch_closed: expansion_bay.hatch_switch_closed(),
                     hw_diag: hw_diag.hw_diag,
                     deck: input_deck.clone(),
+                    power_info: power_info.clone(),
                 }),
                 state.verbose,
             );
@@ -577,6 +587,7 @@ pub fn start(
         state.prev_input_deck = Some(input_deck.clone());
         state.prev_expansion_bay = Some(expansion_bay);
         state.prev_hw_diag = Some(hw_diag);
+        state.prev_power_info = Some(power_info.clone());
         state.prev_pressed = button_pressed;
     }
     let _ = clear_screen(&mut buffer, &mut gop);
