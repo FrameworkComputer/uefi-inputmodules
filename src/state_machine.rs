@@ -163,59 +163,6 @@ impl State {
             }
         }
 
-        // Instruction images
-        match self.frame {
-            StateFrame::NoExpansionBay => {
-                self.bitmaps.no_expansion_bay_instr().draw(buffer);
-            }
-            StateFrame::NoHubboard => {
-                self.bitmaps.no_hubboard_instr().draw(buffer);
-            }
-            StateFrame::TouchpadButNoInputmodules => {
-                self.bitmaps.touchpad_no_modules_instr().draw(buffer);
-            }
-            StateFrame::InputModulesMissing => {
-                self.bitmaps.inputmodules_missing_instr().draw(buffer);
-            }
-            StateFrame::NoTouchpad => {
-                self.bitmaps.no_touchpad_instr().draw(buffer);
-            }
-            StateFrame::Finished => {}
-        }
-
-        // Latch help
-        match self.frame {
-            StateFrame::TouchpadButNoInputmodules => {
-                self.bitmaps.latch_open_help_l().draw(buffer);
-                self.bitmaps.latch_open_help_r().draw(buffer);
-
-                draw_textbox(
-                    buffer,
-                    Point::new(WIDTH_I32 - 218 - 761, 1070),
-                    TextColor::Info,
-                    "1. Unlatch the Latches",
-                );
-                draw_textbox(
-                    buffer,
-                    Point::new(WIDTH_I32 - 218 - 761, 1150),
-                    TextColor::Info,
-                    "2. Unlatch the Latches",
-                );
-            }
-            StateFrame::Finished => {
-                self.bitmaps.latch_close_help_l().draw(buffer);
-                self.bitmaps.latch_close_help_r().draw(buffer);
-
-                draw_textbox(
-                    buffer,
-                    Point::new(1555, 1100),
-                    TextColor::Info,
-                    "Press in latch to lock",
-                );
-            }
-            _ => {}
-        }
-
         // Draw input module positions over laptop
         if matches!(
             self.frame,

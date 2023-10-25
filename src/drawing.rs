@@ -38,15 +38,6 @@ pub struct StateBitmaps {
     button_boot: Option<Vec<u8>>,
     laptop_latches_open: Option<Vec<u8>>,
     laptop_latches_closed: Option<Vec<u8>>,
-    no_expansion_bay_instr: Option<Vec<u8>>,
-    no_hubboard_instr: Option<Vec<u8>>,
-    touchpad_no_modules_instr: Option<Vec<u8>>,
-    inputmodules_missing_instr: Option<Vec<u8>>,
-    no_touchpad_instr: Option<Vec<u8>>,
-    latch_open_help_l: Option<Vec<u8>>,
-    latch_open_help_r: Option<Vec<u8>>,
-    latch_close_help_l: Option<Vec<u8>>,
-    latch_close_help_r: Option<Vec<u8>>,
     touchpad: Option<Vec<u8>>,
     keyboard: Option<Vec<u8>>,
     b1_module: Option<Vec<u8>>,
@@ -199,191 +190,6 @@ impl StateBitmaps {
         }
     }
 
-    pub fn no_expansion_bay_instr(&mut self) -> ImagePlusMeta {
-        if self.no_expansion_bay_instr.is_none() {
-            let png = include_bytes!("../resources/figma/no-expansion-bay-instructions.png");
-            let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
-                panic!("Failed to decode PNG")
-            };
-            self.no_expansion_bay_instr = Some(image_bytes);
-        }
-
-        ImagePlusMeta {
-            // Guaranteed to be set above
-            data: self.no_expansion_bay_instr.as_ref().unwrap(),
-            width: 761,
-            pos: Point {
-                x: WIDTH_I32 - 218 - 761,
-                // TODO: Instead of moving this up 30, we should move everything up 30 (except QR and buttons)
-                // Otherwise the laptop doesn't lign up with this
-                y: 264 - 30,
-            },
-        }
-    }
-
-    pub fn no_hubboard_instr(&mut self) -> ImagePlusMeta {
-        if self.no_hubboard_instr.is_none() {
-            let png = include_bytes!("../resources/figma/no-hubboard-instructions.png");
-            let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
-                panic!("Failed to decode PNG")
-            };
-            self.no_hubboard_instr = Some(image_bytes);
-        }
-
-        ImagePlusMeta {
-            // Guaranteed to be set above
-            data: self.no_hubboard_instr.as_ref().unwrap(),
-            width: 761,
-            pos: Point {
-                x: WIDTH_I32 - 218 - 761,
-                y: 567,
-            },
-        }
-    }
-
-    pub fn touchpad_no_modules_instr(&mut self) -> ImagePlusMeta {
-        if self.touchpad_no_modules_instr.is_none() {
-            let png = include_bytes!("../resources/figma/touchpad-no-modules-instructions.png");
-            let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
-                panic!("Failed to decode PNG")
-            };
-            self.touchpad_no_modules_instr = Some(image_bytes);
-        }
-
-        ImagePlusMeta {
-            // Guaranteed to be set above
-            data: self.touchpad_no_modules_instr.as_ref().unwrap(),
-            width: 761,
-            pos: Point {
-                x: WIDTH_I32 - 218 - 761,
-                y: 567,
-            },
-        }
-    }
-
-    pub fn inputmodules_missing_instr(&mut self) -> ImagePlusMeta {
-        if self.inputmodules_missing_instr.is_none() {
-            let png = include_bytes!("../resources/figma/inputmodules-missing-instructions.png");
-            let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
-                panic!("Failed to decode PNG")
-            };
-            self.inputmodules_missing_instr = Some(image_bytes);
-        }
-
-        ImagePlusMeta {
-            // Guaranteed to be set above
-            data: self.inputmodules_missing_instr.as_ref().unwrap(),
-            width: 761,
-            pos: Point {
-                x: WIDTH_I32 - 218 - 761,
-                y: 567,
-            },
-        }
-    }
-
-    pub fn no_touchpad_instr(&mut self) -> ImagePlusMeta {
-        if self.no_touchpad_instr.is_none() {
-            let png = include_bytes!("../resources/figma/no-touchpad-instructions.png");
-            let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
-                panic!("Failed to decode PNG")
-            };
-            self.no_touchpad_instr = Some(image_bytes);
-        }
-
-        ImagePlusMeta {
-            // Guaranteed to be set above
-            data: self.no_touchpad_instr.as_ref().unwrap(),
-            width: 761,
-            pos: Point {
-                x: WIDTH_I32 - 218 - 761,
-                y: 567,
-            },
-        }
-    }
-
-    pub fn latch_open_help_l(&mut self) -> ImagePlusMeta {
-        if self.latch_open_help_l.is_none() {
-            let png = include_bytes!("../resources/figma/latch-open-help-l.png");
-            let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
-                panic!("Failed to decode PNG")
-            };
-            self.latch_open_help_l = Some(image_bytes);
-        }
-
-        ImagePlusMeta {
-            // Guaranteed to be set above
-            data: self.latch_open_help_l.as_ref().unwrap(),
-            width: 181,
-            pos: Point {
-                x: 299 - 181,
-                y: 1091,
-            },
-        }
-    }
-
-    pub fn latch_open_help_r(&mut self) -> ImagePlusMeta {
-        if self.latch_open_help_r.is_none() {
-            let png = include_bytes!("../resources/figma/latch-open-help-r.png");
-            let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
-                panic!("Failed to decode PNG")
-            };
-            self.latch_open_help_r = Some(image_bytes);
-        }
-
-        ImagePlusMeta {
-            // Guaranteed to be set above
-            data: self.latch_open_help_r.as_ref().unwrap(),
-            width: 181,
-            pos: Point { x: 1364, y: 1091 },
-        }
-    }
-
-    pub fn latch_close_help_l(&mut self) -> ImagePlusMeta {
-        if self.latch_close_help_l.is_none() {
-            let png = include_bytes!("../resources/figma/latch-close-help-l.png");
-            let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
-                panic!("Failed to decode PNG")
-            };
-            self.latch_close_help_l = Some(image_bytes);
-        }
-
-        ImagePlusMeta {
-            // Guaranteed to be set above
-            data: self.latch_close_help_l.as_ref().unwrap(),
-            width: 181,
-            pos: Point {
-                x: 300 - 181,
-                y: 1091,
-            },
-        }
-    }
-
-    pub fn latch_close_help_r(&mut self) -> ImagePlusMeta {
-        if self.latch_close_help_r.is_none() {
-            let png = include_bytes!("../resources/figma/latch-close-help-r.png");
-            let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
-                panic!("Failed to decode PNG")
-            };
-            self.latch_close_help_r = Some(image_bytes);
-        }
-
-        ImagePlusMeta {
-            // Guaranteed to be set above
-            data: self.latch_close_help_r.as_ref().unwrap(),
-            width: 180,
-            pos: Point { x: 1355, y: 1091 },
-        }
-    }
-
     pub fn touchpad(&mut self) -> ImagePlusMeta {
         if self.touchpad.is_none() {
             let png = include_bytes!("../resources/figma/touchpad.png");
@@ -517,14 +323,14 @@ const GREEN_BORDER: Rgb888 = Rgb888::new(0x00, 0x8a, 0x4e);
 pub enum TextColor {
     Warn,
     Ok,
-    Info,
+    _Info,
 }
 impl TextColor {
     pub fn color(&self) -> (Rgb888, Rgb888, Rgb888) {
         match self {
             TextColor::Warn => (BG_COLOR, RED_WARN, RED_BORDER),
             TextColor::Ok => (BG_COLOR, GREEN_OK, GREEN_BORDER),
-            TextColor::Info => (BG_COLOR, Rgb888::WHITE, Rgb888::BLACK),
+            TextColor::_Info => (BG_COLOR, Rgb888::WHITE, Rgb888::BLACK),
         }
     }
 }
