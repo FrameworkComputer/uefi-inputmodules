@@ -428,20 +428,23 @@ fn has_bay_issue(
     expansion_bay: &EcResponseExpansionBayStatus,
     hw_diag: &EcResponseGetHwDiag,
 ) -> Option<BayIssue> {
+    // Latch is the most important one, since the user can change it live
+    // Once they close it, we can show status of the other expansion bay issues
+    if !expansion_bay.hatch_switch_closed() {
+        return Some(BayIssue::InterposerOpen);
+    }
+
+    // Module presence is second most important, since without a module there won't be any fans
     // TODO: In DVT1 the UMA fan module does not have board ID resistors, so we can't detect it
     // Currently we just have to rely on the fans.
     // In DVT2 we can add this check.
     //if !expansion_bay.expansion_bay_board().is_some() { return Some(BayIssue::ModuleMissing) }
 
     match hw_diag.fan_fault() {
-        (true, true) => return Some(BayIssue::LeftFan),
+        (true, true) => return Some(BayIssue::BothFans),
         (false, true) => return Some(BayIssue::RightFan),
-        (true, false) => return Some(BayIssue::BothFans),
+        (true, false) => return Some(BayIssue::LeftFan),
         (false, false) => {}
-    }
-
-    if !expansion_bay.hatch_switch_closed() {
-        return Some(BayIssue::InterposerOpen);
     }
 
     None
