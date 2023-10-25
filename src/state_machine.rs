@@ -1,3 +1,6 @@
+use alloc::string::ToString;
+use core::fmt;
+
 use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::Point;
 
@@ -56,9 +59,32 @@ pub struct State {
     keypress: Option<Key>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BayIssue {
+    LeftFan,
+    RightFan,
+    BothFans,
+    InterposerOpen,
+    _ModuleMissing,
+}
+impl fmt::Display for BayIssue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            BayIssue::LeftFan => write!(f, "Left Fan not detected"),
+            BayIssue::RightFan => write!(f, "Right Fan not detected"),
+            BayIssue::BothFans => write!(f, "Both Fans not detected"),
+            BayIssue::InterposerOpen => write!(f, "Interposer Door not closed"),
+            BayIssue::_ModuleMissing => write!(
+                f,
+                "Expansion Bay Module or Expansion Bay Cable not detected"
+            ),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
-pub enum StateFrame {
-    NoExpansionBay,
+enum StateFrame {
+    NoExpansionBay(BayIssue),
     NoHubboard,
     TouchpadButNoInputmodules,
     InputModulesMissing,
@@ -88,7 +114,7 @@ impl State {
 
     // Very simple state machine
     // The next state does not depend on the current state
-    pub fn next_state(
+    fn next_state(
         &self,
         input_deck: &InputDeckStatus,
         expansion_bay: &EcResponseExpansionBayStatus,
@@ -97,8 +123,8 @@ impl State {
         // Expected only as the first state
         // Otherwise won't usually happen because you're not supposed to hot-plug the module.
         // Can still happen as later state if the user opens the lid or hatch.
-        if !bay_ok(expansion_bay, hw_diag) {
-            return StateFrame::NoExpansionBay;
+        if let Some(issue) = has_bay_issue(expansion_bay, hw_diag) {
+            return StateFrame::NoExpansionBay(issue);
         }
 
         if !input_deck.hubboard_present {
@@ -157,7 +183,7 @@ impl State {
                 // Draw laptop with latches open
                 self.bitmaps.laptop_latches_open().draw(buffer);
                 // Fix up the laptop
-                if self.frame != StateFrame::NoExpansionBay {
+                if !matches!(self.frame, StateFrame::NoExpansionBay(_)) {
                     self.bitmaps.expansion_bay_populated().draw(buffer)
                 }
                 if self.frame == StateFrame::NoHubboard {
@@ -179,12 +205,12 @@ impl State {
 
         // Help text on the bottom
         match self.frame {
-            StateFrame::NoExpansionBay => {
+            StateFrame::NoExpansionBay(issue) => {
                 draw_textbox(
                     buffer,
                     Point::new(620, HEIGHT_I32 - 96 - 75),
                     TextColor::Warn,
-                    "Expansion Bay Module or Expansion Bay Cable not detected",
+                    &issue.to_string(),
                 );
             }
             StateFrame::NoHubboard => {
@@ -398,12 +424,27 @@ fn _get_exclusive_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Inp
     bs.open_protocol_exclusive::<Input>(input_handle).ok()
 }
 
-fn bay_ok(expansion_bay: &EcResponseExpansionBayStatus, hw_diag: &EcResponseGetHwDiag) -> bool {
+fn has_bay_issue(
+    expansion_bay: &EcResponseExpansionBayStatus,
+    hw_diag: &EcResponseGetHwDiag,
+) -> Option<BayIssue> {
     // TODO: In DVT1 the UMA fan module does not have board ID resistors, so we can't detect it
     // Currently we just have to rely on the fans.
     // In DVT2 we can add this check.
-    //if !expansion_bay.expansion_bay_board().is_some() && hw_diag.fan_fault() == (false, false) {
-    hw_diag.fan_fault() == (false, false) && expansion_bay.hatch_switch_closed()
+    //if !expansion_bay.expansion_bay_board().is_some() { return Some(BayIssue::ModuleMissing) }
+
+    match hw_diag.fan_fault() {
+        (true, true) => return Some(BayIssue::LeftFan),
+        (false, true) => return Some(BayIssue::RightFan),
+        (true, false) => return Some(BayIssue::BothFans),
+        (false, false) => {}
+    }
+
+    if !expansion_bay.hatch_switch_closed() {
+        return Some(BayIssue::InterposerOpen);
+    }
+
+    None
 }
 
 pub fn start(
