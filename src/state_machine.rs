@@ -119,17 +119,20 @@ impl State {
     // Display graphics for the current frame
     // Need to call blit after the function call to show it
     pub fn draw_state(&mut self, buffer: &mut Buffer, input_deck: &InputDeckStatus) {
-        // Draw solid background color #567676
+        // Draw solid background color #F3F2F2
         for y in 0..self.screen_size.height {
             for x in 0..self.screen_size.width {
                 // TODO: Can actually unwrap because the screen size should be correct.
                 if let Some(pixel) = buffer.pixel(x as usize, y as usize) {
-                    pixel.red = 0x56;
-                    pixel.green = 0x76;
-                    pixel.blue = 0x76;
+                    pixel.red = 0xF3;
+                    pixel.green = 0xF2;
+                    pixel.blue = 0xF2;
                 }
             }
         }
+
+        // Draw dark grey bar at the bottom
+        draw_black_bar(buffer);
 
         // Hints on lower left and right
         // Draw laptop with latches either closed or open

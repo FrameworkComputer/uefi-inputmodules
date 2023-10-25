@@ -28,7 +28,8 @@ pub const WIDTH: usize = 2560;
 pub const WIDTH_I32: i32 = 2560;
 pub const HEIGHT: usize = 1600;
 pub const HEIGHT_I32: i32 = 1600;
-pub const BACKGROUND_COLOR: Rgb888 = Rgb888::new(0x56, 0x76, 0x76);
+pub const BACKGROUND_COLOR: Rgb888 = Rgb888::new(0xF3, 0xF2, 0xF2);
+pub const BLACK_BAR: Rgb888 = Rgb888::new(0x33, 0x33, 0x33);
 
 #[derive(Default)]
 pub struct StateBitmaps {
@@ -314,10 +315,18 @@ impl StateBitmaps {
     }
 }
 
+// Text bubble colors
+/// background.on-background
 const BG_COLOR: Rgb888 = Rgb888::new(0x28, 0x25, 0x24);
-const RED_WARN: Rgb888 = Rgb888::new(0xff, 0xe1, 0xe0);
-const RED_BORDER: Rgb888 = Rgb888::new(0xca, 0x1c, 0x16);
+const _RED_WARN: Rgb888 = Rgb888::new(0xff, 0xe1, 0xe0);
+const _RED_BORDER: Rgb888 = Rgb888::new(0xca, 0x1c, 0x16);
+/// warning.warning-10
+const YELLOW_WARN: Rgb888 = Rgb888::new(0xff, 0xf6, 0xe0);
+/// warning.warning-30
+const YELLOW_BORDER: Rgb888 = Rgb888::new(0xff, 0xdb, 0x80);
+/// success.on-success
 const GREEN_OK: Rgb888 = Rgb888::new(0xf5, 0xff, 0xfb);
+/// success.success
 const GREEN_BORDER: Rgb888 = Rgb888::new(0x00, 0x8a, 0x4e);
 
 pub enum TextColor {
@@ -328,7 +337,7 @@ pub enum TextColor {
 impl TextColor {
     pub fn color(&self) -> (Rgb888, Rgb888, Rgb888) {
         match self {
-            TextColor::Warn => (BG_COLOR, RED_WARN, RED_BORDER),
+            TextColor::Warn => (BG_COLOR, YELLOW_WARN, YELLOW_BORDER),
             TextColor::Ok => (BG_COLOR, GREEN_OK, GREEN_BORDER),
             TextColor::_Info => (BG_COLOR, Rgb888::WHITE, Rgb888::BLACK),
         }
@@ -482,16 +491,28 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
         - Point::new(cs.x * ver_len + cs.x, 0);
     let top_left = Point::new(20, 20);
     let pos = if verbose { bottom_right } else { top_left };
-    let text = Text::new(&ver_text, pos, MonoTextStyle::new(&font, Rgb888::WHITE));
+    let text = Text::new(
+        &ver_text,
+        pos,
+        MonoTextStyle::new(&font, if verbose { BACKGROUND_COLOR } else { BLACK_BAR }),
+    );
 
     // Make sure the background is cleared if we only update the version
     let background = text.bounding_box();
     let blank_style = PrimitiveStyleBuilder::new()
-        .fill_color(BACKGROUND_COLOR)
+        .fill_color(if verbose { BLACK_BAR } else { BACKGROUND_COLOR })
         .build();
     background.into_styled(blank_style).draw(buffer).unwrap();
 
     text.draw(buffer).unwrap();
+}
+
+pub fn draw_black_bar(buffer: &mut Buffer) {
+    let tl = Point::new(0, (HEIGHT as i32) - 300);
+    let br = Point::new(WIDTH as i32, HEIGHT as i32);
+    let rect = Rectangle::with_corners(tl, br);
+    let style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new().fill_color(BLACK_BAR).build();
+    rect.into_styled(style).draw(buffer).unwrap();
 }
 
 pub fn clear_screen(buffer: &mut Buffer, gop: &mut ScopedProtocol<GraphicsOutput>) -> uefi::Result {
