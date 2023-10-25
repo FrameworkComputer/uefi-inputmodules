@@ -2,7 +2,8 @@ use alloc::string::ToString;
 use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestGetHwDiag, EcRequestUefiAppBtnStatus,
     EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionByStates,
-    BOARD_VERSION_12,
+    BOARD_VERSION_11, BOARD_VERSION_12, BOARD_VERSION_15, DIAGNOSTICS_NO_LEFT_FAN,
+    DIAGNOSTICS_NO_RIGHT_FAN,
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
@@ -192,82 +193,100 @@ pub fn keypress_mock_data(
     power_info: &mut Option<PowerInfo>,
 ) {
     // TODO: Can this be created from a macro?
-    let zero_key = Char16::try_from('0').unwrap();
     let one_key = Char16::try_from('1').unwrap();
     let two_key = Char16::try_from('2').unwrap();
     let three_key = Char16::try_from('3').unwrap();
     let four_key = Char16::try_from('4').unwrap();
     let five_key = Char16::try_from('5').unwrap();
     let six_key = Char16::try_from('6').unwrap();
-    let seven_key = Char16::try_from('7').unwrap();
+    let _seven_key = Char16::try_from('7').unwrap();
     let q_key = Char16::try_from('q').unwrap();
     let w_key = Char16::try_from('w').unwrap();
     let e_key = Char16::try_from('e').unwrap();
-    let r_key = Char16::try_from('r').unwrap();
-    let bay_present = EcResponseExpansionBayStatus {
-        state: (ExpansionByStates::ModuleEnabled as u8)
-            | (ExpansionByStates::HatchSwitchClosed as u8),
-        board_id_0: 0,
-        board_id_1: 0,
-    };
-    let diag_ok = EcResponseGetHwDiag {
-        // 0 means no issues
-        hw_diag: 0,
-        // BIOS not complete, since it's a UEFI app
-        bios_complete: 0,
-    };
+    let z_key = Char16::try_from('z').unwrap();
+    let x_key = Char16::try_from('x').unwrap();
+    let c_key = Char16::try_from('c').unwrap();
+    let v_key = Char16::try_from('v').unwrap();
+    let a_key = Char16::try_from('a').unwrap();
+    let s_key = Char16::try_from('s').unwrap();
+    let d_key = Char16::try_from('d').unwrap();
+    let f_key = Char16::try_from('f').unwrap();
+    let g_key = Char16::try_from('g').unwrap();
+    let l_key = Char16::try_from('l').unwrap();
+    let h_key = Char16::try_from('h').unwrap();
 
     match keypress {
-        // State: NoExpansionBay
-        Some(Key::Printable(key)) if key == zero_key => {
-            *expansion_bay = EcResponseExpansionBayStatus {
-                state: 0,
-                board_id_0: 0,
-                board_id_1: 0,
+        Some(Key::Printable(key)) if key == a_key => {
+            *power_info = if let Some(mut info) = (*power_info).take() {
+                info.ac_present = !info.ac_present;
+                Some(info)
+            } else {
+                power_info.clone()
             };
-            *hw_diag = EcResponseGetHwDiag {
-                // All possible diags triggered
-                hw_diag: 0xFF,
-                // BIOS not complete, since it's a UEFI app
-                bios_complete: 0,
-            };
-            *input_deck = InputDeckStatus {
-                state: input_deck::InputDeckState::Disconnected,
-                hubboard_present: false,
-                touchpad_present: false,
-                top_row: input_deck::TopRowPositions {
-                    pos0: input_deck::InputModuleType::Disconnected,
-                    pos1: input_deck::InputModuleType::Disconnected,
-                    pos2: input_deck::InputModuleType::Disconnected,
-                    pos3: input_deck::InputModuleType::Disconnected,
-                    pos4: input_deck::InputModuleType::Disconnected,
+        }
+        Some(Key::Printable(key)) if key == h_key => {
+            input_deck.hubboard_present = !input_deck.hubboard_present;
+        }
+        Some(Key::Printable(key)) if key == l_key => {
+            if (*expansion_bay).hatch_switch_closed() {
+                expansion_bay.state &= !(ExpansionByStates::HatchSwitchClosed as u8);
+            } else {
+                expansion_bay.state |= ExpansionByStates::HatchSwitchClosed as u8;
+            }
+        }
+        Some(Key::Printable(key)) if key == z_key => {
+            hw_diag.hw_diag = (1 << DIAGNOSTICS_NO_LEFT_FAN) + (1 << DIAGNOSTICS_NO_RIGHT_FAN);
+        }
+        Some(Key::Printable(key)) if key == x_key => {
+            hw_diag.hw_diag = 1 << DIAGNOSTICS_NO_RIGHT_FAN;
+        }
+        Some(Key::Printable(key)) if key == c_key => {
+            hw_diag.hw_diag = 1 << DIAGNOSTICS_NO_LEFT_FAN;
+        }
+        Some(Key::Printable(key)) if key == v_key => {
+            hw_diag.hw_diag = 0;
+        }
+        Some(Key::Printable(key)) if key == q_key => {
+            (*expansion_bay) = EcResponseExpansionBayStatus {
+                state: if expansion_bay.hatch_switch_closed() {
+                    ExpansionByStates::HatchSwitchClosed as u8
+                } else {
+                    0
                 },
+                // No module
+                board_id_0: BOARD_VERSION_15,
+                board_id_1: BOARD_VERSION_15,
+            };
+        }
+        Some(Key::Printable(key)) if key == w_key => {
+            (*expansion_bay) = EcResponseExpansionBayStatus {
+                state: if expansion_bay.hatch_switch_closed() {
+                    ExpansionByStates::HatchSwitchClosed as u8
+                } else {
+                    0
+                },
+                // Single Interposer
+                board_id_0: BOARD_VERSION_11,
+                board_id_1: BOARD_VERSION_15,
+            };
+        }
+        Some(Key::Printable(key)) if key == e_key => {
+            (*expansion_bay) = EcResponseExpansionBayStatus {
+                state: if expansion_bay.hatch_switch_closed() {
+                    ExpansionByStates::HatchSwitchClosed as u8
+                } else {
+                    0
+                },
+                // Dual Interposer
+                board_id_0: BOARD_VERSION_12,
+                board_id_1: BOARD_VERSION_12,
             };
         }
         _ => {}
     }
     match keypress {
-        // State: NoHubboard
-        Some(Key::Printable(key)) if key == one_key => {
-            *expansion_bay = bay_present;
-            *hw_diag = diag_ok;
-            *input_deck = InputDeckStatus {
-                state: input_deck::InputDeckState::Disconnected,
-                hubboard_present: false,
-                touchpad_present: false,
-                top_row: input_deck::TopRowPositions {
-                    pos0: input_deck::InputModuleType::Disconnected,
-                    pos1: input_deck::InputModuleType::Disconnected,
-                    pos2: input_deck::InputModuleType::Disconnected,
-                    pos3: input_deck::InputModuleType::Disconnected,
-                    pos4: input_deck::InputModuleType::Disconnected,
-                },
-            };
-        }
         // State: TouchpadButNoInputmodules
-        Some(Key::Printable(key)) if key == two_key => {
-            *expansion_bay = bay_present;
-            *hw_diag = diag_ok;
+        Some(Key::Printable(key)) if key == one_key => {
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
@@ -282,9 +301,7 @@ pub fn keypress_mock_data(
             };
         }
         // State: InputModulesMissing
-        Some(Key::Printable(key)) if key == three_key => {
-            *expansion_bay = bay_present;
-            *hw_diag = diag_ok;
+        Some(Key::Printable(key)) if key == two_key => {
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
@@ -299,9 +316,7 @@ pub fn keypress_mock_data(
             };
         }
         // State: InputModulesMissing
-        Some(Key::Printable(key)) if key == four_key => {
-            *expansion_bay = bay_present;
-            *hw_diag = diag_ok;
+        Some(Key::Printable(key)) if key == three_key => {
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
@@ -316,9 +331,7 @@ pub fn keypress_mock_data(
             };
         }
         // State: InputModulesMissing
-        Some(Key::Printable(key)) if key == five_key => {
-            *expansion_bay = bay_present;
-            *hw_diag = diag_ok;
+        Some(Key::Printable(key)) if key == four_key => {
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
@@ -333,9 +346,7 @@ pub fn keypress_mock_data(
             };
         }
         // State: NoTouchpad
-        Some(Key::Printable(key)) if key == six_key => {
-            *expansion_bay = bay_present;
-            *hw_diag = diag_ok;
+        Some(Key::Printable(key)) if key == five_key => {
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
@@ -350,9 +361,7 @@ pub fn keypress_mock_data(
             };
         }
         // State: Finished
-        Some(Key::Printable(key)) if key == seven_key => {
-            *expansion_bay = bay_present;
-            *hw_diag = diag_ok;
+        Some(Key::Printable(key)) if key == six_key => {
             *input_deck = InputDeckStatus {
                 state: input_deck::InputDeckState::On,
                 hubboard_present: true,
@@ -366,27 +375,26 @@ pub fn keypress_mock_data(
                 },
             };
         }
-        Some(Key::Printable(key)) if key == q_key => {
+        Some(Key::Printable(key)) if key == a_key => {
             *power_info = Some(PowerInfo {
                 ac_present: true,
                 battery: None,
             })
         }
-        Some(Key::Printable(key)) if key == w_key => {
+        Some(Key::Printable(key)) if key == s_key => {
             *power_info = Some(PowerInfo {
                 ac_present: false,
-                // TODO: 20% battery
                 battery: Some(BatteryInformation {
-                    present_voltage: 15412,   // 15.412
-                    present_rate: 552,        // 552mA
-                    remaining_capacity: 1939, // 1939mAh, 29.883Wh
+                    present_voltage: 16280,  // 16.280
+                    present_rate: 674,       // 674mA
+                    remaining_capacity: 293, // 293mAh, 4.339Wh
                     battery_count: 0,
                     current_battery_index: 0,
                     design_capacity: 55800,          // 3572mAh, 55.8Wh
                     design_voltage: 15400,           // 15.400V
                     last_full_charge_capacity: 3154, // 3154mAh
                     cycle_count: 320,
-                    charge_percentage: 20,
+                    charge_percentage: 5,
                     manufacturer: "NVT".to_string(),
                     model_number: "Framewo".to_string(),
                     serial_number: "027B".to_string(),
@@ -397,7 +405,31 @@ pub fn keypress_mock_data(
                 }),
             })
         }
-        Some(Key::Printable(key)) if key == e_key => {
+        Some(Key::Printable(key)) if key == d_key => {
+            *power_info = Some(PowerInfo {
+                ac_present: true,
+                battery: Some(BatteryInformation {
+                    present_voltage: 16280,  // 16.280
+                    present_rate: 2348,      // 2348mA
+                    remaining_capacity: 180, // 180mAh, 2.930Wh
+                    battery_count: 0,
+                    current_battery_index: 0,
+                    design_capacity: 55800,          // 3572mAh, 55.8Wh
+                    design_voltage: 15400,           // 15.400V
+                    last_full_charge_capacity: 3154, // 3154mAh
+                    cycle_count: 320,
+                    charge_percentage: 5,
+                    manufacturer: "NVT".to_string(),
+                    model_number: "Framewo".to_string(),
+                    serial_number: "027B".to_string(),
+                    battery_type: "LION".to_string(),
+                    discharging: false,
+                    charging: true,
+                    level_critical: false,
+                }),
+            })
+        }
+        Some(Key::Printable(key)) if key == f_key => {
             *power_info = Some(PowerInfo {
                 ac_present: false,
                 battery: Some(BatteryInformation {
@@ -421,7 +453,7 @@ pub fn keypress_mock_data(
                 }),
             })
         }
-        Some(Key::Printable(key)) if key == r_key => {
+        Some(Key::Printable(key)) if key == g_key => {
             *power_info = Some(PowerInfo {
                 ac_present: true,
                 battery: Some(BatteryInformation {
