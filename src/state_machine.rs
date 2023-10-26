@@ -550,6 +550,8 @@ pub fn start(
         if need_redraw {
             state.frame = state.next_state(&input_deck, &expansion_bay, &hw_diag);
             state.draw_state(&mut buffer, &input_deck);
+
+            draw_battery_info(&mut buffer, &power_info);
             draw_version(
                 &mut buffer,
                 Some(DebugInfo {

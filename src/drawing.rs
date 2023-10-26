@@ -318,8 +318,8 @@ impl StateBitmaps {
 // Text bubble colors
 /// background.on-background
 const BG_COLOR: Rgb888 = Rgb888::new(0x28, 0x25, 0x24);
-const _RED_WARN: Rgb888 = Rgb888::new(0xff, 0xe1, 0xe0);
-const _RED_BORDER: Rgb888 = Rgb888::new(0xca, 0x1c, 0x16);
+const RED_WARN: Rgb888 = Rgb888::new(0xff, 0xe1, 0xe0);
+const RED_BORDER: Rgb888 = Rgb888::new(0xca, 0x1c, 0x16);
 /// warning.warning-10
 const YELLOW_WARN: Rgb888 = Rgb888::new(0xff, 0xf6, 0xe0);
 /// warning.warning-30
@@ -330,6 +330,7 @@ const GREEN_OK: Rgb888 = Rgb888::new(0xf5, 0xff, 0xfb);
 const GREEN_BORDER: Rgb888 = Rgb888::new(0x00, 0x8a, 0x4e);
 
 pub enum TextColor {
+    Error,
     Warn,
     Ok,
     _Info,
@@ -337,6 +338,7 @@ pub enum TextColor {
 impl TextColor {
     pub fn color(&self) -> (Rgb888, Rgb888, Rgb888) {
         match self {
+            TextColor::Error => (BG_COLOR, RED_WARN, RED_BORDER),
             TextColor::Warn => (BG_COLOR, YELLOW_WARN, YELLOW_BORDER),
             TextColor::Ok => (BG_COLOR, GREEN_OK, GREEN_BORDER),
             TextColor::_Info => (BG_COLOR, Rgb888::WHITE, Rgb888::BLACK),
@@ -399,6 +401,31 @@ fn top_row_string(top_row: &TopRowPositions) -> String {
     )
 }
 
+pub fn draw_battery_info(buffer: &mut Buffer, power_info: &Option<PowerInfo>) {
+    if let Some(PowerInfo {
+        battery: Some(ref battery),
+        ac_present,
+    }) = power_info
+    {
+        if battery.charge_percentage <= 20 {
+            draw_textbox(
+                buffer,
+                Point::new(WIDTH as i32 / 2, 100),
+                TextColor::Error,
+                &format!(
+                    "Battery is at {}% charge - {}",
+                    battery.charge_percentage,
+                    if *ac_present {
+                        "Charging"
+                    } else {
+                        "Not charging"
+                    }
+                ),
+            );
+        }
+    };
+}
+
 pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose: bool) {
     // Place version information in the lower right corner
     let font = ascii::FONT_9X18_BOLD;
@@ -420,7 +447,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                         format!("AC: {}, Battery:  No", power_info.ac_present)
                     }
                 } else {
-                    String::from("???")
+                    String::from("AC/Battery: ???")
                 };
                 format!(
                     "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}\nB:{}, EC:{}, Long:{}\nBay State:{}, GPU0:{}, GPU1: {}, En:{}, Fault:{}\nHW Diag: {:#032b}\nDeckState:{:?}, Hub:{}, TP:{}, {}\n{}",
@@ -458,24 +485,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
             },
         )
     } else {
-        let power_str = if let Some(DebugInfo {
-            power_info:
-                Some(PowerInfo {
-                    battery: Some(battery),
-                    ..
-                }),
-            ..
-        }) = debug_info
-        {
-            if battery.charge_percentage <= 20 {
-                format!("\nBattery Level: {}%!", battery.charge_percentage)
-            } else {
-                String::new()
-            }
-        } else {
-            String::new()
-        };
-        (1, format!("v{}{}", built_info::PKG_VERSION, power_str))
+        (1, format!("v{}", built_info::PKG_VERSION))
     };
     let ver_len = ver_text.lines().fold(0, |longest, cur| -> i32 {
         let cur_len = cur.len() as i32;
