@@ -571,8 +571,8 @@ pub fn start(
             buffer.blit(&mut gop)?;
         }
 
-        // Put CPU to sleep until key press or 10ms timeout
-        sleep_or(bs, 10, unsafe {
+        // Put CPU to sleep until key press or 100ms timeout
+        sleep_or(bs, 100, unsafe {
             Some(input.wait_for_key_event().unsafe_clone())
         });
         state.keypress = input.read_key().expect(FAILED_INPUT);
