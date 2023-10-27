@@ -591,8 +591,10 @@ pub fn start(
             buffer.blit(&mut gop)?;
         }
 
-        // Put CPU to sleep until key press or 100ms timeout
-        sleep_or(bs, 100, unsafe {
+        // TODO: It needs to be very low to detect short power button presses,
+        // but it doesn't have to be that low for the input modules. Maybe we can find a compromise
+        // Put CPU to sleep until key press or 10ms timeout
+        sleep_or(bs, 10, unsafe {
             Some(input.wait_for_key_event().unsafe_clone())
         });
         state.keypress = input.read_key().expect(FAILED_INPUT);
