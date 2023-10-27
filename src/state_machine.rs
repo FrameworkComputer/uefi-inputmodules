@@ -160,35 +160,49 @@ impl State {
         // Draw dark grey bar at the bottom
         draw_black_bar(buffer);
 
+        // Draw laptop with latches open
+        self.bitmaps.laptop_latches_open().draw(buffer);
+
+        // Fix up the laptop
+        match self.frame {
+            StateFrame::NoExpansionBay(bay_issue) => {
+                if bay_issue == BayIssue::InterposerOpen {
+                    self.bitmaps.latch_warning().draw(buffer)
+                }
+                self.bitmaps.expansion_bay_missing().draw(buffer)
+            }
+            StateFrame::NoHubboard => self.bitmaps.hubboard_missing().draw(buffer),
+            _ => {}
+        }
+
         // Hints on lower left and right
-        // Draw laptop with latches either closed or open
         match self.frame {
             StateFrame::Finished => {
                 // Boot Button indicator right
                 self.bitmaps.button_boot().draw(buffer);
 
-                // Draw laptop with latches closed
-                self.bitmaps.laptop_latches_closed().draw(buffer);
+                // Overlay latches closed
+                self.bitmaps.latches_closed_left().draw(buffer);
+                self.bitmaps.latches_closed_right().draw(buffer);
             }
             _ => {
-                // Step by step QR Code left
-                // TODO: Add QR codes when they're ready
-                _ = self.bitmaps.qr_code_left();
-                //self.bitmaps.qr_code_left().draw(buffer);
-
                 // Button indicators right
                 self.bitmaps.button_short_skip().draw(buffer);
                 self.bitmaps.button_long_off().draw(buffer);
+            }
+        }
 
-                // Draw laptop with latches open
-                self.bitmaps.laptop_latches_open().draw(buffer);
-                // Fix up the laptop
-                if !matches!(self.frame, StateFrame::NoExpansionBay(_)) {
-                    self.bitmaps.expansion_bay_populated().draw(buffer)
-                }
-                if self.frame == StateFrame::NoHubboard {
-                    self.bitmaps.hubboard_missing().draw(buffer)
-                }
+        // QR Codes
+        match self.frame {
+            StateFrame::NoExpansionBay(_) => {
+                self.bitmaps.qr_code_1().draw(buffer);
+            }
+            StateFrame::NoHubboard => {
+                self.bitmaps.qr_code_2().draw(buffer);
+            }
+            StateFrame::Finished => {}
+            _ => {
+                self.bitmaps.qr_code_3().draw(buffer);
             }
         }
 
@@ -204,11 +218,13 @@ impl State {
         }
 
         // Help text on the bottom
+        let warn_x = WIDTH_I32 / 2;
+        let warn_y = HEIGHT_I32 - 114 - 75;
         match self.frame {
             StateFrame::NoExpansionBay(issue) => {
                 draw_textbox(
                     buffer,
-                    Point::new(620, HEIGHT_I32 - 96 - 75),
+                    Point::new(warn_x, warn_y),
                     TextColor::Warn,
                     &issue.to_string(),
                 );
@@ -216,7 +232,7 @@ impl State {
             StateFrame::NoHubboard => {
                 draw_textbox(
                     buffer,
-                    Point::new(620, HEIGHT_I32 - 96 - 75),
+                    Point::new(warn_x, warn_y),
                     TextColor::Warn,
                     "Input Module Connector Board not detected",
                 );
@@ -224,7 +240,7 @@ impl State {
             StateFrame::TouchpadButNoInputmodules => {
                 draw_textbox(
                     buffer,
-                    Point::new(620, HEIGHT_I32 - 96 - 75),
+                    Point::new(warn_x, warn_y),
                     TextColor::Warn,
                     "Input Module not detected",
                 );
@@ -232,7 +248,7 @@ impl State {
             StateFrame::InputModulesMissing => {
                 draw_textbox(
                     buffer,
-                    Point::new(620, HEIGHT_I32 - 96 - 75),
+                    Point::new(warn_x, warn_y),
                     TextColor::Warn,
                     "Input Module not detected",
                 );
@@ -240,7 +256,7 @@ impl State {
             StateFrame::NoTouchpad => {
                 draw_textbox(
                     buffer,
-                    Point::new(620, HEIGHT_I32 - 96 - 75),
+                    Point::new(warn_x, warn_y),
                     TextColor::Warn,
                     "Touchpad not detected",
                 );
@@ -248,7 +264,7 @@ impl State {
             StateFrame::Finished => {
                 draw_textbox(
                     buffer,
-                    Point::new(620, HEIGHT_I32 - 96 - 75),
+                    Point::new(warn_x, warn_y),
                     TextColor::Ok,
                     "Input Modules and Touchpad detected",
                 );
@@ -264,8 +280,8 @@ impl State {
             self.bitmaps.c1_module().draw_pos(
                 buffer,
                 Point {
-                    x: 329 + 98 - 1,
-                    y: HEIGHT_I32 - 263 - 263 - 319,
+                    x: 829 + 84,
+                    y: 583,
                 },
             );
         }
@@ -273,8 +289,8 @@ impl State {
             self.bitmaps.c1_module().draw_pos(
                 buffer,
                 Point {
-                    x: 329 + 804 - 2,
-                    y: HEIGHT_I32 - 263 - 263 - 319,
+                    x: 829 + 736,
+                    y: 583,
                 },
             );
         }
@@ -282,8 +298,8 @@ impl State {
             self.bitmaps.c1_module().draw_pos(
                 buffer,
                 Point {
-                    x: 329 + 804 + 98 - 3,
-                    y: HEIGHT_I32 - 263 - 263 - 319,
+                    x: 829 + 84 + 736,
+                    y: 583,
                 },
             );
         }
@@ -291,13 +307,9 @@ impl State {
         if input_deck.top_row.pos0 == InputModuleType::GenericA
             || input_deck.top_row.pos0 == InputModuleType::KeyboardA
         {
-            self.bitmaps.keyboard().draw_pos(
-                buffer,
-                Point {
-                    x: 329,
-                    y: HEIGHT_I32 - 263 - 263 - 319,
-                },
-            );
+            self.bitmaps
+                .keyboard()
+                .draw_pos(buffer, Point { x: 829, y: 583 });
         }
         if input_deck.top_row.pos1 == InputModuleType::GenericA
             || input_deck.top_row.pos1 == InputModuleType::KeyboardA
@@ -310,27 +322,33 @@ impl State {
             self.bitmaps.keyboard().draw_pos(
                 buffer,
                 Point {
-                    x: 329 + 97 * 2 - 1,
-                    y: HEIGHT_I32 - 263 - 263 - 319,
+                    x: 829 + 84 * 2,
+                    y: 583,
                 },
             );
         }
 
-        if input_deck.top_row.pos0 == InputModuleType::GenericB
-            || input_deck.top_row.pos0 == InputModuleType::KeyboardB
-        {
-            // TODO: Numpad image
+        if input_deck.top_row.pos0 == InputModuleType::GenericB {
             self.bitmaps.b1_module().draw(buffer);
         }
-        if input_deck.top_row.pos3 == InputModuleType::GenericB
-            || input_deck.top_row.pos3 == InputModuleType::KeyboardB
-        {
-            // TODO: Numpad image
+        if input_deck.top_row.pos0 == InputModuleType::KeyboardB {
+            self.bitmaps.numpad().draw(buffer);
+        }
+        if input_deck.top_row.pos3 == InputModuleType::GenericB {
             self.bitmaps.b1_module().draw_pos(
                 buffer,
                 Point {
-                    x: 329 + 804 - 2,
-                    y: HEIGHT_I32 - 263 - 263 - 319,
+                    x: 829 + 736,
+                    y: 583,
+                },
+            );
+        }
+        if input_deck.top_row.pos3 == InputModuleType::KeyboardB {
+            self.bitmaps.numpad().draw_pos(
+                buffer,
+                Point {
+                    x: 829 + 736,
+                    y: 583,
                 },
             );
         }

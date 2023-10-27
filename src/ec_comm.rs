@@ -76,7 +76,7 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
         hubboard_present: false,
         touchpad_present: true,
         top_row: TopRowPositions {
-            pos0: InputModuleType::KeyboardA,
+            pos0: InputModuleType::GenericB,
             pos1: InputModuleType::Disconnected,
             pos2: InputModuleType::Disconnected,
             pos3: InputModuleType::KeyboardB,

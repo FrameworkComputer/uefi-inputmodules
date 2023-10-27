@@ -33,18 +33,24 @@ pub const BLACK_BAR: Rgb888 = Rgb888::new(0x33, 0x33, 0x33);
 
 #[derive(Default)]
 pub struct StateBitmaps {
-    qr_code_left: Option<Vec<u8>>,
+    qr_code_1: Option<Vec<u8>>,
+    qr_code_2: Option<Vec<u8>>,
+    qr_code_3: Option<Vec<u8>>,
     button_long_off: Option<Vec<u8>>,
     button_short_skip: Option<Vec<u8>>,
     button_boot: Option<Vec<u8>>,
     laptop_latches_open: Option<Vec<u8>>,
-    laptop_latches_closed: Option<Vec<u8>>,
+    latches_closed_left: Option<Vec<u8>>,
+    latches_closed_right: Option<Vec<u8>>,
     touchpad: Option<Vec<u8>>,
     keyboard: Option<Vec<u8>>,
     b1_module: Option<Vec<u8>>,
+    numpad: Option<Vec<u8>>,
+    _macropad: Option<Vec<u8>>,
     c1_module: Option<Vec<u8>>,
     hubboard_missing: Option<Vec<u8>>,
-    expansion_bay_populated: Option<Vec<u8>>,
+    expansion_bay_missing: Option<Vec<u8>>,
+    latch_warning: Option<Vec<u8>>,
 }
 
 pub struct ImagePlusMeta<'a> {
@@ -69,24 +75,55 @@ impl<'a> ImagePlusMeta<'a> {
 }
 
 impl StateBitmaps {
-    pub fn qr_code_left(&mut self) -> ImagePlusMeta {
-        if self.qr_code_left.is_none() {
-            let png = include_bytes!("../resources/figma/qrcode-FRANNB.png");
+    pub fn qr_code_1(&mut self) -> ImagePlusMeta {
+        if self.qr_code_1.is_none() {
+            let png = include_bytes!("../resources/figma/qr-code-expansion-bay.png");
             let mut decoder = PngDecoder::new(png);
             let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
                 panic!("Failed to decode PNG")
             };
-            self.qr_code_left = Some(image_bytes);
+            self.qr_code_1 = Some(image_bytes);
         }
 
         ImagePlusMeta {
             // Guaranteed to be set above
-            data: self.qr_code_left.as_ref().unwrap(),
-            width: 132,
-            pos: Point {
-                x: 40,
-                y: HEIGHT_I32 - 40 - 171,
-            },
+            data: self.qr_code_1.as_ref().unwrap(),
+            width: 168,
+            pos: Point { x: 1814, y: 967 },
+        }
+    }
+    pub fn qr_code_2(&mut self) -> ImagePlusMeta {
+        if self.qr_code_2.is_none() {
+            let png = include_bytes!("../resources/figma/qr-code-hubboard.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.qr_code_2 = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.qr_code_2.as_ref().unwrap(),
+            width: 168,
+            pos: Point { x: 1814, y: 967 },
+        }
+    }
+    pub fn qr_code_3(&mut self) -> ImagePlusMeta {
+        if self.qr_code_3.is_none() {
+            let png = include_bytes!("../resources/figma/qr-code-inputmodules.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.qr_code_3 = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.qr_code_3.as_ref().unwrap(),
+            width: 168,
+            pos: Point { x: 1814, y: 967 },
         }
     }
 
@@ -103,10 +140,10 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.button_long_off.as_ref().unwrap(),
-            width: 132,
+            width: 148,
             pos: Point {
-                x: WIDTH_I32 - 40 - 132,
-                y: HEIGHT_I32 - 40 - 171,
+                x: WIDTH_I32 - 30 - 148,
+                y: HEIGHT_I32 - 30 - 164,
             },
         }
     }
@@ -124,10 +161,10 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.button_short_skip.as_ref().unwrap(),
-            width: 132,
+            width: 148,
             pos: Point {
-                x: WIDTH_I32 - 40 - 2 * 132 - 20,
-                y: HEIGHT_I32 - 40 - 171,
+                x: WIDTH_I32 - 30 * 2 - 148 * 2,
+                y: HEIGHT_I32 - 30 - 164,
             },
         }
     }
@@ -145,29 +182,47 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.button_boot.as_ref().unwrap(),
-            width: 132,
+            width: 148,
             pos: Point {
-                x: WIDTH_I32 - 40 - 2 * 132 - 20,
-                y: HEIGHT_I32 - 40 - 171,
+                x: WIDTH_I32 - 30 - 148,
+                y: HEIGHT_I32 - 30 - 164,
             },
         }
     }
 
-    pub fn laptop_latches_closed(&mut self) -> ImagePlusMeta {
-        if self.laptop_latches_closed.is_none() {
-            let png = include_bytes!("../resources/figma/laptop-latch-closed.png");
+    pub fn latches_closed_left(&mut self) -> ImagePlusMeta {
+        if self.latches_closed_left.is_none() {
+            let png = include_bytes!("../resources/figma/latch-closed-left.png");
             let mut decoder = PngDecoder::new(png);
             let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
                 panic!("Failed to decode PNG")
             };
-            self.laptop_latches_closed = Some(image_bytes);
+            self.latches_closed_left = Some(image_bytes);
         }
 
         ImagePlusMeta {
             // Guaranteed to be set above
-            data: self.laptop_latches_closed.as_ref().unwrap(),
-            width: 1296,
-            pos: Point { x: 180, y: 263 },
+            data: self.latches_closed_left.as_ref().unwrap(),
+            width: 24,
+            pos: Point { x: 805, y: 1112 },
+        }
+    }
+
+    pub fn latches_closed_right(&mut self) -> ImagePlusMeta {
+        if self.latches_closed_right.is_none() {
+            let png = include_bytes!("../resources/figma/latch-closed-right.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.latches_closed_right = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.latches_closed_right.as_ref().unwrap(),
+            width: 24,
+            pos: Point { x: 1731, y: 1112 },
         }
     }
 
@@ -179,15 +234,15 @@ impl StateBitmaps {
                 panic!("Failed to decode PNG")
             };
             // TODO: Add more of this assertion
-            assert_eq!(image_bytes.len() % 1296, 0);
+            assert_eq!(image_bytes.len() % 1176, 0);
             self.laptop_latches_open = Some(image_bytes);
         }
 
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.laptop_latches_open.as_ref().unwrap(),
-            width: 1296,
-            pos: Point { x: 180, y: 263 },
+            width: 1176,
+            pos: Point { x: 692, y: 136 },
         }
     }
 
@@ -204,11 +259,8 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.touchpad.as_ref().unwrap(),
-            width: 997,
-            pos: Point {
-                x: 329,
-                y: HEIGHT_I32 - 263 - 263,
-            },
+            width: 904,
+            pos: Point { x: 828, y: 874 },
         }
     }
 
@@ -225,11 +277,11 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.keyboard.as_ref().unwrap(),
-            width: 804,
+            width: 736,
             // Middle position
             pos: Point {
-                x: 329 + 97,
-                y: HEIGHT_I32 - 263 - 263 - 319,
+                x: 829 + 84,
+                y: 583,
             },
         }
     }
@@ -247,12 +299,47 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.b1_module.as_ref().unwrap(),
-            width: 195,
+            width: 168,
             // Top left position
-            pos: Point {
-                x: 329,
-                y: HEIGHT_I32 - 263 - 263 - 319,
-            },
+            pos: Point { x: 829, y: 583 },
+        }
+    }
+
+    pub fn numpad(&mut self) -> ImagePlusMeta {
+        if self.numpad.is_none() {
+            let png = include_bytes!("../resources/figma/numpad.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.numpad = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.numpad.as_ref().unwrap(),
+            width: 168,
+            // Top left position
+            pos: Point { x: 829, y: 583 },
+        }
+    }
+
+    pub fn _macropad(&mut self) -> ImagePlusMeta {
+        if self._macropad.is_none() {
+            let png = include_bytes!("../resources/figma/macropad.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self._macropad = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self._macropad.as_ref().unwrap(),
+            width: 168,
+            // Top left position
+            pos: Point { x: 829, y: 583 },
         }
     }
 
@@ -269,12 +356,9 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.c1_module.as_ref().unwrap(),
-            width: 98,
+            width: 84,
             // Top left position
-            pos: Point {
-                x: 329,
-                y: HEIGHT_I32 - 263 - 263 - 319,
-            },
+            pos: Point { x: 829, y: 583 },
         }
     }
 
@@ -291,26 +375,44 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.hubboard_missing.as_ref().unwrap(),
-            width: 87,
-            pos: Point { x: 180, y: 263 } + Point { x: 978, y: 715 },
+            width: 79,
+            pos: Point { x: 1573, y: 781 },
         }
     }
 
-    pub fn expansion_bay_populated(&mut self) -> ImagePlusMeta {
-        if self.expansion_bay_populated.is_none() {
-            let png = include_bytes!("../resources/figma/expansion-bay-installed.png");
+    pub fn expansion_bay_missing(&mut self) -> ImagePlusMeta {
+        if self.expansion_bay_missing.is_none() {
+            let png = include_bytes!("../resources/figma/expansion-bay-missing.png");
             let mut decoder = PngDecoder::new(png);
             let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
                 panic!("Failed to decode PNG")
             };
-            self.expansion_bay_populated = Some(image_bytes);
+            self.expansion_bay_missing = Some(image_bytes);
         }
 
         ImagePlusMeta {
             // Guaranteed to be set above
-            data: self.expansion_bay_populated.as_ref().unwrap(),
-            width: 1007,
-            pos: Point { x: 180, y: 263 } + Point { x: 144, y: 377 },
+            data: self.expansion_bay_missing.as_ref().unwrap(),
+            width: 916,
+            pos: Point { x: 822, y: 477 },
+        }
+    }
+
+    pub fn latch_warning(&mut self) -> ImagePlusMeta {
+        if self.latch_warning.is_none() {
+            let png = include_bytes!("../resources/figma/latch-warning.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.latch_warning = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.latch_warning.as_ref().unwrap(),
+            width: 188,
+            pos: Point { x: 1181, y: 616 },
         }
     }
 }
@@ -350,13 +452,24 @@ const TEXT_PAD: u32 = 30;
 const TEXT_YPAD: u32 = 45;
 const TEXT_BORDER: u32 = 2;
 const TEXT_LEFTPAD: i32 = (TEXT_PAD + TEXT_BORDER) as i32;
-pub fn draw_textbox(buffer: &mut Buffer, pos: Point, color: TextColor, text: &str) {
+pub fn draw_textbox(buffer: &mut Buffer, pos: Point, color: TextColor, text_str: &str) {
     let font = ascii::FONT_9X18_BOLD;
     //let font = ascii::FONT_10X20;
     let (fg_color, bg_color, border_color) = color.color();
+
+    // Move the text over to the left a bit, depending how long it is
+    let middle = {
+        let text = Text::new(
+            text_str,
+            pos + Point::new(TEXT_LEFTPAD, TEXT_OFFSET),
+            MonoTextStyle::new(&font, fg_color),
+        );
+        TEXT_PAD + (text.bounding_box().size.width / 2)
+    };
+
     let text = Text::new(
-        text,
-        pos + Point::new(TEXT_LEFTPAD, TEXT_OFFSET),
+        text_str,
+        pos + Point::new(TEXT_LEFTPAD, TEXT_OFFSET) - Point::new(middle as i32, 0),
         MonoTextStyle::new(&font, fg_color),
     );
 
@@ -496,7 +609,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
         }
     });
     // Next to the button icons
-    let bottom_right = (Point::new(WIDTH_I32 - 40 - 2 * 132 - 20, HEIGHT_I32 - 40 - 171)
+    let bottom_right = (Point::new(WIDTH_I32 - 30 * 2 - 2 * 148, HEIGHT_I32 - 40 - 171)
         + Point::new(0, 132 - cs.y * height))
         - Point::new(cs.x * ver_len + cs.x, 0);
     let top_left = Point::new(20, 20);
