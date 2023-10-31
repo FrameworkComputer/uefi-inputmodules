@@ -345,7 +345,8 @@ impl StateBitmaps {
 
     pub fn c1_module(&mut self) -> ImagePlusMeta {
         if self.c1_module.is_none() {
-            let png = include_bytes!("../resources/figma/c1-module.png");
+            // let png = include_bytes!("../resources/figma/c1c2-silver-module.png");
+            let png = include_bytes!("../resources/figma/c1c2-black-module.png");
             let mut decoder = PngDecoder::new(png);
             let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
                 panic!("Failed to decode PNG")
