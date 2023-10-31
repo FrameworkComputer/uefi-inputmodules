@@ -4,7 +4,9 @@ use core::fmt;
 use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::Point;
 
-use framework_lib::chromium_ec::commands::{EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionBayIssue, ExpansionBayBoard};
+use framework_lib::chromium_ec::commands::{
+    EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionBayBoard, ExpansionBayIssue,
+};
 use framework_lib::chromium_ec::input_deck::InputDeckStatus;
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
@@ -66,7 +68,8 @@ enum BayIssue {
     RightFan,
     BothFans,
     InterposerOpen,
-    _ModuleMissing,
+    ModuleMissing,
+    BadConnection,
 }
 impl fmt::Display for BayIssue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -75,10 +78,8 @@ impl fmt::Display for BayIssue {
             BayIssue::RightFan => write!(f, "Right Fan not detected"),
             BayIssue::BothFans => write!(f, "Both Fans not detected"),
             BayIssue::InterposerOpen => write!(f, "Interposer Door not closed"),
-            BayIssue::_ModuleMissing => write!(
-                f,
-                "Expansion Bay Module or Expansion Bay Cable not detected"
-            ),
+            BayIssue::ModuleMissing => write!(f, "Expansion Bay Module not detected"),
+            BayIssue::BadConnection => write!(f, "Expansion Bay Cable improperly connected"),
         }
     }
 }
@@ -454,10 +455,14 @@ fn has_bay_issue(
     }
 
     // Module presence is second most important, since without a module there won't be any fans
-    // TODO: In DVT1 the UMA fan module does not have board ID resistors, so we can't detect it
-    // Currently we just have to rely on the fans.
-    // In DVT2 we can add this check.
-    //if !expansion_bay.expansion_bay_board().is_some() { return Some(BayIssue::ModuleMissing) }
+    // The DVT1 the UMA fan module does not have board ID resistors, so we can't detect it.
+    // We just have to rely on the fans.
+    // Since DVT2 UMA module we can check it
+    match expansion_bay.expansion_bay_board() {
+        Err(ExpansionBayIssue::NoModule) => return Some(BayIssue::ModuleMissing),
+        Err(ExpansionBayIssue::BadConnection(_, _)) => return Some(BayIssue::BadConnection),
+        Ok(_) => {}
+    }
 
     match hw_diag.fan_fault() {
         (true, true) => return Some(BayIssue::BothFans),
