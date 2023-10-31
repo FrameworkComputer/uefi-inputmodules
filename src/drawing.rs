@@ -523,8 +523,12 @@ pub fn draw_battery_info(buffer: &mut Buffer, power_info: &Option<PowerInfo>) {
         if battery.charge_percentage <= 20 {
             draw_textbox(
                 buffer,
-                Point::new(WIDTH as i32 / 2, 100),
-                TextColor::Error,
+                Point::new(WIDTH as i32 / 2, 0),
+                if *ac_present {
+                    TextColor::Warn
+                } else {
+                    TextColor::Error
+                },
                 &format!(
                     "Battery is at {}% charge - {}",
                     battery.charge_percentage,
@@ -553,33 +557,38 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                 let power_str = if let Some(power_info) = debug_info.power_info {
                     if let Some(battery) = power_info.battery {
                         format!(
-                            "AC: {}, Battery: Yes, Charge: {}%",
+                            "AC Power: {}, Battery: Yes, Charge: {}%",
                             power_info.ac_present, battery.charge_percentage
                         )
                     } else {
-                        format!("AC: {}, Battery:  No", power_info.ac_present)
+                        format!("AC Power: {}, Battery:  No", power_info.ac_present)
                     }
                 } else {
-                    String::from("AC/Battery: ???")
+                    String::from("AC/DC:    ???")
                 };
                 format!(
-                    "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}\nB:{}, EC:{}, Long:{}\nBay State:{}, GPU0:{}, GPU1: {}, En:{}, Fault:{}\nHW Diag: {:#032b}\nDeckState:{:?}, Hub:{}, TP:{}, {}\n{}",
+                    // TODO: Pad dirty to the end
+                    "Version:  {}\nRef:      {}, Dirty:{}\nCommit:   {}\nHas EC:   {}, PwrBtn pressed:{}, PwrBtn Long press cnt:{}\nBay State:{}, En:{}, Fault:{}, Closed:{}\nBayModule:IDs: ({}, {}), {:?}\nHW Diag:  {}\n          {:#032b}\nDeckState:{:?}, Hubboard:{}, Touchpad:{}, {}\n{}",
                     built_info::PKG_VERSION,
                     built_info::GIT_HEAD_REF.unwrap_or("?"),
-                    built_info::GIT_COMMIT_HASH.unwrap_or("?"),
                     built_info::GIT_DIRTY.unwrap_or(false),
+                    built_info::GIT_COMMIT_HASH.unwrap_or("?"),
                     // Basics
                     debug_info.power_button,
                     debug_info.ec_present,
                     debug_info.long_press,
-                    // Bay
+                    // Bay State
                     debug_info.bay_state,
-                    debug_info.gpu0,
-                    debug_info.gpu1,
                     debug_info.bay_enabled,
                     debug_info.bay_fault,
+                    debug_info.hatch_closed,
+                    // Bay Module IDs
+                    debug_info.gpu0,
+                    debug_info.gpu1,
+                    debug_info.bay_module,
                     // HW Diag
                     debug_info.hw_diag,
+                    { debug_info.hw_diag.hw_diag },
                     // Input Deck
                     debug_info.deck.state,
                     debug_info.deck.hubboard_present,

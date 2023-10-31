@@ -4,7 +4,7 @@ use core::fmt;
 use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::Point;
 
-use framework_lib::chromium_ec::commands::{EcResponseExpansionBayStatus, EcResponseGetHwDiag};
+use framework_lib::chromium_ec::commands::{EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionBayIssue, ExpansionBayBoard};
 use framework_lib::chromium_ec::input_deck::InputDeckStatus;
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
@@ -34,12 +34,13 @@ pub struct DebugInfo {
     pub ec_present: bool,
     pub long_press: i32,
     pub bay_state: u8,
+    pub bay_module: Result<ExpansionBayBoard, ExpansionBayIssue>,
     pub gpu0: u8,
     pub gpu1: u8,
     pub bay_enabled: bool,
     pub bay_fault: bool,
     pub hatch_closed: bool,
-    pub hw_diag: u32,
+    pub hw_diag: EcResponseGetHwDiag,
     pub deck: InputDeckStatus,
     pub power_info: Option<PowerInfo>,
 }
@@ -576,13 +577,14 @@ pub fn start(
                     power_button: button_pressed,
                     ec_present: ec.is_some(),
                     long_press,
+                    bay_module: expansion_bay.expansion_bay_board(),
                     gpu0: expansion_bay.board_id_0,
                     gpu1: expansion_bay.board_id_1,
                     bay_state: expansion_bay.state,
                     bay_enabled: expansion_bay.module_enabled(),
                     bay_fault: expansion_bay.module_fault(),
                     hatch_closed: expansion_bay.hatch_switch_closed(),
-                    hw_diag: hw_diag.hw_diag,
+                    hw_diag,
                     deck: input_deck.clone(),
                     power_info: power_info.clone(),
                 }),

@@ -34,7 +34,7 @@ default-features = false
 [dependencies.framework_lib]
 #path = "/home/zoid/clone/framework-system/framework_lib"
 git = "ssh://git@github.com/FrameworkComputer/framework-system.git"
-branch = "uefi-inputmodule-app-ignore-framework"
+#branch = "main"
 features = ["uefi"]
 default-features = false
 
