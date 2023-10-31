@@ -31,6 +31,9 @@ pub const HEIGHT_I32: i32 = 1600;
 pub const BACKGROUND_COLOR: Rgb888 = Rgb888::new(0xF3, 0xF2, 0xF2);
 pub const BLACK_BAR: Rgb888 = Rgb888::new(0x33, 0x33, 0x33);
 
+pub const WARN_X: i32 = WIDTH_I32 / 2;
+pub const WARN_Y: i32 = HEIGHT_I32 - 114 - 75;
+
 #[derive(Default)]
 pub struct StateBitmaps {
     qr_code_1: Option<Vec<u8>>,
@@ -52,6 +55,16 @@ pub struct StateBitmaps {
     hubboard_missing: Option<Vec<u8>>,
     expansion_bay_missing: Option<Vec<u8>>,
     latch_warning: Option<Vec<u8>>,
+    fans_missing_text: Option<Vec<u8>>,
+    hubboard_missing_text: Option<Vec<u8>>,
+    inputmodules_touchpad_ok_text: Option<Vec<u8>>,
+    inputmodules_not_detected_text: Option<Vec<u8>>,
+    interposer_door_open_text: Option<Vec<u8>>,
+    left_fan_not_detected_text: Option<Vec<u8>>,
+    module_missing_text: Option<Vec<u8>>,
+    bay_bad_connection_text: Option<Vec<u8>>,
+    right_fan_not_detected_text: Option<Vec<u8>>,
+    touchpad_not_detected_text: Option<Vec<u8>>,
 }
 
 pub struct ImagePlusMeta<'a> {
@@ -436,6 +449,217 @@ impl StateBitmaps {
             pos: Point { x: 1181, y: 616 },
         }
     }
+    pub fn fans_missing_text(&mut self) -> ImagePlusMeta {
+        if self.fans_missing_text.is_none() {
+            let png = include_bytes!("../resources/figma/warning-text/fans-missing.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.fans_missing_text = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.fans_missing_text.as_ref().unwrap(),
+            width: 336,
+            pos: Point {
+                x: WARN_X - 336 / 2,
+                y: WARN_Y,
+            },
+        }
+    }
+
+    pub fn hubboard_missing_text(&mut self) -> ImagePlusMeta {
+        if self.hubboard_missing_text.is_none() {
+            let png = include_bytes!("../resources/figma/warning-text/hubboard-missing.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.hubboard_missing_text = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.hubboard_missing_text.as_ref().unwrap(),
+            width: 645,
+            pos: Point {
+                x: WARN_X - 645 / 2,
+                y: WARN_Y,
+            },
+        }
+    }
+
+    pub fn inputmodules_touchpad_ok_text(&mut self) -> ImagePlusMeta {
+        if self.inputmodules_touchpad_ok_text.is_none() {
+            let png =
+                include_bytes!("../resources/figma/warning-text/inputmodules-and-touchpad-ok.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.inputmodules_touchpad_ok_text = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.inputmodules_touchpad_ok_text.as_ref().unwrap(),
+            width: 577,
+            pos: Point {
+                x: WARN_X - 557 / 2,
+                y: WARN_Y,
+            },
+        }
+    }
+
+    pub fn inputmodules_not_detected_text(&mut self) -> ImagePlusMeta {
+        if self.inputmodules_not_detected_text.is_none() {
+            let png =
+                include_bytes!("../resources/figma/warning-text/inputmodules-not-detected.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.inputmodules_not_detected_text = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.inputmodules_not_detected_text.as_ref().unwrap(),
+            width: 453,
+            pos: Point {
+                x: WARN_X - 453 / 2,
+                y: WARN_Y,
+            },
+        }
+    }
+
+    pub fn interposer_door_open_text(&mut self) -> ImagePlusMeta {
+        if self.interposer_door_open_text.is_none() {
+            let png = include_bytes!("../resources/figma/warning-text/interposer-door-open.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.interposer_door_open_text = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.interposer_door_open_text.as_ref().unwrap(),
+            width: 440,
+            pos: Point {
+                x: WARN_X - 440 / 2,
+                y: WARN_Y,
+            },
+        }
+    }
+
+    pub fn left_fan_not_detected_text(&mut self) -> ImagePlusMeta {
+        if self.left_fan_not_detected_text.is_none() {
+            let png = include_bytes!("../resources/figma/warning-text/left-fan-not-detected.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.left_fan_not_detected_text = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.left_fan_not_detected_text.as_ref().unwrap(),
+            width: 376,
+            pos: Point {
+                x: WARN_X - 376 / 2,
+                y: WARN_Y,
+            },
+        }
+    }
+
+    pub fn module_missing_text(&mut self) -> ImagePlusMeta {
+        if self.module_missing_text.is_none() {
+            let png = include_bytes!("../resources/figma/warning-text/module-missing.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.module_missing_text = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.module_missing_text.as_ref().unwrap(),
+            width: 546,
+            pos: Point {
+                x: WARN_X - 546 / 2,
+                y: WARN_Y,
+            },
+        }
+    }
+
+    pub fn bay_bad_connection_text(&mut self) -> ImagePlusMeta {
+        if self.bay_bad_connection_text.is_none() {
+            let png = include_bytes!("../resources/figma/warning-text/bay-bad-connection.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.bay_bad_connection_text = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.bay_bad_connection_text.as_ref().unwrap(),
+            width: 631,
+            pos: Point {
+                x: WARN_X - 631 / 2,
+                y: WARN_Y,
+            },
+        }
+    }
+
+    pub fn right_fan_not_detected_text(&mut self) -> ImagePlusMeta {
+        if self.right_fan_not_detected_text.is_none() {
+            let png = include_bytes!("../resources/figma/warning-text/right-fan-not-detected.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.right_fan_not_detected_text = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.right_fan_not_detected_text.as_ref().unwrap(),
+            width: 393,
+            pos: Point {
+                x: WARN_X - 393 / 2,
+                y: WARN_Y,
+            },
+        }
+    }
+
+    pub fn touchpad_not_detected_text(&mut self) -> ImagePlusMeta {
+        if self.touchpad_not_detected_text.is_none() {
+            let png = include_bytes!("../resources/figma/warning-text/touchpad-not-detected.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.touchpad_not_detected_text = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.touchpad_not_detected_text.as_ref().unwrap(),
+            width: 395,
+            pos: Point {
+                x: WARN_X - 395 / 2,
+                y: WARN_Y,
+            },
+        }
+    }
 }
 
 // Text bubble colors
@@ -455,7 +679,7 @@ const GREEN_BORDER: Rgb888 = Rgb888::new(0x00, 0x8a, 0x4e);
 pub enum TextColor {
     Error,
     Warn,
-    Ok,
+    _Ok,
     _Info,
 }
 impl TextColor {
@@ -463,7 +687,7 @@ impl TextColor {
         match self {
             TextColor::Error => (BG_COLOR, RED_WARN, RED_BORDER),
             TextColor::Warn => (BG_COLOR, YELLOW_WARN, YELLOW_BORDER),
-            TextColor::Ok => (BG_COLOR, GREEN_OK, GREEN_BORDER),
+            TextColor::_Ok => (BG_COLOR, GREEN_OK, GREEN_BORDER),
             TextColor::_Info => (BG_COLOR, Rgb888::WHITE, Rgb888::BLACK),
         }
     }

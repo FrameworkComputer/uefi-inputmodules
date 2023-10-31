@@ -1,4 +1,5 @@
-use alloc::string::ToString;
+// TODO: For when I ported the font
+// use alloc::string::ToString;
 use core::fmt;
 
 use embedded_graphics::geometry::Size;
@@ -220,56 +221,77 @@ impl State {
         }
 
         // Help text on the bottom
-        let warn_x = WIDTH_I32 / 2;
-        let warn_y = HEIGHT_I32 - 114 - 75;
         match self.frame {
-            StateFrame::NoExpansionBay(issue) => {
-                draw_textbox(
-                    buffer,
-                    Point::new(warn_x, warn_y),
-                    TextColor::Warn,
-                    &issue.to_string(),
-                );
+            StateFrame::NoExpansionBay(BayIssue::BadConnection) => {
+                self.bitmaps.bay_bad_connection_text().draw(buffer);
             }
+            StateFrame::NoExpansionBay(BayIssue::BothFans) => {
+                self.bitmaps.fans_missing_text().draw(buffer);
+            }
+            StateFrame::NoExpansionBay(BayIssue::InterposerOpen) => {
+                self.bitmaps.interposer_door_open_text().draw(buffer);
+            }
+            StateFrame::NoExpansionBay(BayIssue::LeftFan) => {
+                self.bitmaps.left_fan_not_detected_text().draw(buffer);
+            }
+            StateFrame::NoExpansionBay(BayIssue::ModuleMissing) => {
+                self.bitmaps.module_missing_text().draw(buffer);
+            }
+            StateFrame::NoExpansionBay(BayIssue::RightFan) => {
+                self.bitmaps.right_fan_not_detected_text().draw(buffer);
+            }
+            // StateFrame::NoExpansionBay(issue) => {
+            //     draw_textbox(
+            //         buffer,
+            //         Point::new(WARN_X, WARN_Y),
+            //         TextColor::Warn,
+            //         &issue.to_string(),
+            //     );
+            // }
             StateFrame::NoHubboard => {
-                draw_textbox(
-                    buffer,
-                    Point::new(warn_x, warn_y),
-                    TextColor::Warn,
-                    "Input Module Connector Board not detected",
-                );
+                self.bitmaps.hubboard_missing_text().draw(buffer);
+                // draw_textbox(
+                //     buffer,
+                //     Point::new(WARN_X, WARN_Y),
+                //     TextColor::Warn,
+                //     "Input Module Connector Board not detected",
+                // );
             }
             StateFrame::TouchpadButNoInputmodules => {
-                draw_textbox(
-                    buffer,
-                    Point::new(warn_x, warn_y),
-                    TextColor::Warn,
-                    "Input Module not detected",
-                );
+                self.bitmaps.inputmodules_not_detected_text().draw(buffer);
+                // draw_textbox(
+                //     buffer,
+                //     Point::new(WARN_X, WARN_Y),
+                //     TextColor::Warn,
+                //     "Input Module not detected",
+                // );
             }
             StateFrame::InputModulesMissing => {
-                draw_textbox(
-                    buffer,
-                    Point::new(warn_x, warn_y),
-                    TextColor::Warn,
-                    "Input Module not detected",
-                );
+                self.bitmaps.inputmodules_not_detected_text().draw(buffer);
+                // draw_textbox(
+                //     buffer,
+                //     Point::new(WARN_X, WARN_Y),
+                //     TextColor::Warn,
+                //     "Input Module not detected",
+                // );
             }
             StateFrame::NoTouchpad => {
-                draw_textbox(
-                    buffer,
-                    Point::new(warn_x, warn_y),
-                    TextColor::Warn,
-                    "Touchpad not detected",
-                );
+                self.bitmaps.touchpad_not_detected_text().draw(buffer);
+                // draw_textbox(
+                //     buffer,
+                //     Point::new(WARN_X, WARN_Y),
+                //     TextColor::Warn,
+                //     "Touchpad not detected",
+                // );
             }
             StateFrame::Finished => {
-                draw_textbox(
-                    buffer,
-                    Point::new(warn_x, warn_y),
-                    TextColor::Ok,
-                    "Input Modules and Touchpad detected",
-                );
+                self.bitmaps.inputmodules_touchpad_ok_text().draw(buffer);
+                // draw_textbox(
+                //     buffer,
+                //     Point::new(WARN_X, WARN_Y),
+                //     TextColor::Ok,
+                //     "Input Modules and Touchpad detected",
+                // );
             }
         }
     }
