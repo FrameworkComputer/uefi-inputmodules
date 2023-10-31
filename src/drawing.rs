@@ -48,6 +48,7 @@ pub struct StateBitmaps {
     numpad: Option<Vec<u8>>,
     _macropad: Option<Vec<u8>>,
     c1_module: Option<Vec<u8>>,
+    c2_module: Option<Vec<u8>>,
     hubboard_missing: Option<Vec<u8>>,
     expansion_bay_missing: Option<Vec<u8>>,
     latch_warning: Option<Vec<u8>>,
@@ -259,8 +260,9 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.touchpad.as_ref().unwrap(),
-            width: 904,
-            pos: Point { x: 828, y: 874 },
+            width: 736,
+            // Middle position
+            pos: Point { x: 912, y: 874 },
         }
     }
 
@@ -345,7 +347,6 @@ impl StateBitmaps {
 
     pub fn c1_module(&mut self) -> ImagePlusMeta {
         if self.c1_module.is_none() {
-            // let png = include_bytes!("../resources/figma/c1c2-silver-module.png");
             let png = include_bytes!("../resources/figma/c1c2-black-module.png");
             let mut decoder = PngDecoder::new(png);
             let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
@@ -360,6 +361,25 @@ impl StateBitmaps {
             width: 84,
             // Top left position
             pos: Point { x: 829, y: 583 },
+        }
+    }
+
+    pub fn c2_module(&mut self) -> ImagePlusMeta {
+        if self.c2_module.is_none() {
+            let png = include_bytes!("../resources/figma/c1c2-silver-module.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.c2_module = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.c2_module.as_ref().unwrap(),
+            width: 84,
+            // Bottom left position
+            pos: Point { x: 829, y: 874 },
         }
     }
 

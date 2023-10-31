@@ -356,7 +356,64 @@ impl State {
         }
 
         if input_deck.touchpad_present {
-            self.bitmaps.touchpad().draw(buffer);
+            let left_kb = matches!(
+                input_deck.top_row.pos0,
+                InputModuleType::GenericA | InputModuleType::KeyboardA
+            );
+            let right_kb = matches!(
+                input_deck.top_row.pos2,
+                InputModuleType::GenericA | InputModuleType::KeyboardA
+            );
+            if left_kb {
+                self.bitmaps.touchpad().draw_pos(
+                    buffer,
+                    Point {
+                        x: 912 - 83,
+                        y: 874,
+                    },
+                );
+                self.bitmaps.c2_module().draw_pos(
+                    buffer,
+                    Point {
+                        x: 829 + 735,
+                        y: 874,
+                    },
+                );
+                self.bitmaps.c2_module().draw_pos(
+                    buffer,
+                    Point {
+                        x: 829 + 83 + 735,
+                        y: 874,
+                    },
+                );
+            } else if right_kb {
+                self.bitmaps.c2_module().draw(buffer);
+                self.bitmaps.c2_module().draw_pos(
+                    buffer,
+                    Point {
+                        x: 829 + 83,
+                        y: 874,
+                    },
+                );
+                self.bitmaps.touchpad().draw_pos(
+                    buffer,
+                    Point {
+                        x: 912 + 83,
+                        y: 874,
+                    },
+                );
+            } else {
+                // Middle is the default case
+                self.bitmaps.c2_module().draw(buffer);
+                self.bitmaps.touchpad().draw(buffer);
+                self.bitmaps.c2_module().draw_pos(
+                    buffer,
+                    Point {
+                        x: 829 + 83 + 736 - 1,
+                        y: 874,
+                    },
+                );
+            }
         }
     }
 
