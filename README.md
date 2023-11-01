@@ -126,3 +126,14 @@ window menu: "View" -> "Zoom Out".
   - Can't detect exactly which input module is present because they're not powered on until all are installed
     - But different sizes have different resistors, so we can at least detect the size (and KB vs no KB)
   - Can't detect touchpad position, all locations are wired together
+
+## QEMU Special Keys
+
+Controls:
+
+- A, S, D, F, G: AC/Battery states (No Battery, 5%, 5% charging, 20%, 20% charging)
+- Q, W, E: Module selection (No Module, bad connection, dual)
+- Z, X, C: Fan selection (No Fan, Left, Right, Both)
+- L: Latch toggle
+- H: Hubboard toggle
+- 1, 2, 3, 4, 5, 6, 7: Inputmodules (None, Only Touchpad, 1, 2, 3, 3+Touchpad)

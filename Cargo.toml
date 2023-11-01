@@ -1,6 +1,6 @@
 [package]
 name = "inputmodules"
-version = "0.2.1"
+version = "0.3.1"
 edition = "2021"
 rust-version = "1.61"
 build = "build.rs"
@@ -34,7 +34,7 @@ default-features = false
 [dependencies.framework_lib]
 #path = "/home/zoid/clone/framework-system/framework_lib"
 git = "ssh://git@github.com/FrameworkComputer/framework-system.git"
-branch = "uefi-inputmodule-app-ignore-framework"
+#branch = "main"
 features = ["uefi"]
 default-features = false
 
