@@ -2,7 +2,7 @@ use alloc::string::ToString;
 use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestGetHwDiag, EcRequestUefiAppBtnStatus,
     EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionByStates,
-    BOARD_VERSION_11, BOARD_VERSION_12, BOARD_VERSION_15, DIAGNOSTICS_NO_LEFT_FAN,
+    BOARD_VERSION_12, BOARD_VERSION_13, BOARD_VERSION_15, DIAGNOSTICS_NO_LEFT_FAN,
     DIAGNOSTICS_NO_RIGHT_FAN,
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
@@ -265,8 +265,8 @@ pub fn keypress_mock_data(
                 } else {
                     0
                 },
-                // Single Interposer
-                board_id_0: BOARD_VERSION_11,
+                // UMA Fan
+                board_id_0: BOARD_VERSION_13,
                 board_id_1: BOARD_VERSION_15,
             };
         }
