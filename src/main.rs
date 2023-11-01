@@ -52,8 +52,8 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         let gui_res = state_machine::start(boot_services, &system_table, &ec);
         ec_comm::set_uefi_app_mode(&ec, false);
 
-        let poweroff = gui_res.unwrap();
-        if poweroff {
+        let reset = gui_res.unwrap();
+        if let Some(reset_type) = reset {
             // TODO: Remove debug print and stall
             println!("Shutting down;");
             boot_services.stall(1_000_000);
@@ -61,11 +61,7 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
             // Shut down the system
             // TODO: I should do  this outside of this function
             let rt = system_table.runtime_services();
-            rt.reset(
-                uefi::table::runtime::ResetType::Shutdown,
-                Status::SUCCESS,
-                None,
-            );
+            rt.reset(reset_type, Status::SUCCESS, None);
         }
     }
 
