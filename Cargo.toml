@@ -34,7 +34,7 @@ default-features = false
 [dependencies.framework_lib]
 #path = "/home/zoid/clone/framework-system/framework_lib"
 git = "https://github.com/FrameworkComputer/framework-system"
-branch = "dvt2-boardid-fix"
+#branch = "main"
 features = ["uefi"]
 default-features = false
 

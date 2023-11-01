@@ -248,7 +248,7 @@ dependencies = [
 [[package]]
 name = "framework_lib"
 version = "0.1.0"
-source = "git+https://github.com/FrameworkComputer/framework-system?branch=dvt2-boardid-fix#4b7547ac1c5c85d5ed4911b081b26806998036f3"
+source = "git+https://github.com/FrameworkComputer/framework-system#999b27106fb44f1f6aa0882bd049302803c86c28"
 dependencies = [
  "built",
  "guid_macros",
@@ -288,7 +288,7 @@ dependencies = [
 [[package]]
 name = "guid_macros"
 version = "0.11.0"
-source = "git+https://github.com/FrameworkComputer/framework-system?branch=dvt2-boardid-fix#4b7547ac1c5c85d5ed4911b081b26806998036f3"
+source = "git+https://github.com/FrameworkComputer/framework-system#999b27106fb44f1f6aa0882bd049302803c86c28"
 dependencies = [
  "proc-macro2",
  "quote",
