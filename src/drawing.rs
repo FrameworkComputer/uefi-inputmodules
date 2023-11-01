@@ -41,6 +41,7 @@ pub struct StateBitmaps {
     qr_code_3: Option<Vec<u8>>,
     button_long_off: Option<Vec<u8>>,
     button_short_skip: Option<Vec<u8>>,
+    button_short_reboot: Option<Vec<u8>>,
     button_boot: Option<Vec<u8>>,
     laptop_latches_open: Option<Vec<u8>>,
     latches_closed_left: Option<Vec<u8>>,
@@ -56,6 +57,7 @@ pub struct StateBitmaps {
     expansion_bay_missing: Option<Vec<u8>>,
     latch_warning: Option<Vec<u8>>,
     fans_missing_text: Option<Vec<u8>>,
+    interposer_closed_text: Option<Vec<u8>>,
     hubboard_missing_text: Option<Vec<u8>>,
     inputmodules_touchpad_ok_text: Option<Vec<u8>>,
     inputmodules_not_detected_text: Option<Vec<u8>>,
@@ -175,6 +177,27 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.button_short_skip.as_ref().unwrap(),
+            width: 148,
+            pos: Point {
+                x: WIDTH_I32 - 30 * 2 - 148 * 2,
+                y: HEIGHT_I32 - 30 - 164,
+            },
+        }
+    }
+
+    pub fn button_short_reboot(&mut self) -> ImagePlusMeta {
+        if self.button_short_reboot.is_none() {
+            let png = include_bytes!("../resources/figma/button-short-reboot.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.button_short_reboot = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.button_short_reboot.as_ref().unwrap(),
             width: 148,
             pos: Point {
                 x: WIDTH_I32 - 30 * 2 - 148 * 2,
@@ -465,6 +488,27 @@ impl StateBitmaps {
             width: 336,
             pos: Point {
                 x: WARN_X - 336 / 2,
+                y: WARN_Y,
+            },
+        }
+    }
+
+    pub fn interposer_closed_text(&mut self) -> ImagePlusMeta {
+        if self.interposer_closed_text.is_none() {
+            let png = include_bytes!("../resources/figma/warning-text/interposer-closed.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.interposer_closed_text = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.interposer_closed_text.as_ref().unwrap(),
+            width: 795,
+            pos: Point {
+                x: WARN_X - 795 / 2,
                 y: WARN_Y,
             },
         }

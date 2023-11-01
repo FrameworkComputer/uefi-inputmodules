@@ -14,14 +14,15 @@ use framework_lib::chromium_ec::CrosEc;
 use framework_lib::power::{self, PowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
-use uefi::prelude::BootServices;
+use uefi::prelude::{BootServices, RuntimeServices};
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::console::text::{Input, Key, ScanCode};
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
+use uefi::table::runtime::{VariableAttributes, VariableVendor};
 use uefi::table::{Boot, SystemTable};
-use uefi::{Char16, Identify};
+use uefi::{cstr16, guid, Char16, Identify};
 #[allow(unused_imports)]
-use uefi_services::{print, println};
+use uefi_services::{print, println, system_table};
 
 use crate::buffer::Buffer;
 use crate::built_info;
@@ -30,6 +31,9 @@ use crate::ec_comm;
 use crate::sleep::sleep_or;
 
 const FAILED_INPUT: &str = "Failed to get keypress";
+
+const EFI_OS_INDICATIONS_BOOT_TO_FW_UI: u64 = 0x0000000000000001;
+const EFI_GLOBAL_VARIABLE_GUID: uefi::Guid = guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
 
 #[allow(dead_code)]
 pub struct DebugInfo {
@@ -85,9 +89,12 @@ impl fmt::Display for BayIssue {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum StateFrame {
     NoExpansionBay(BayIssue),
+    /// The interposer door was closed
+    /// Meaning the Expansion Bay Module was powered on after BIOS early init, need to reboot
+    InterposerClosed,
     NoHubboard,
     TouchpadButNoInputmodules,
     InputModulesMissing,
@@ -123,10 +130,35 @@ impl State {
         expansion_bay: &EcResponseExpansionBayStatus,
         hw_diag: &EcResponseGetHwDiag,
     ) -> StateFrame {
+        // Can't get out of this, need to reboot
+        if self.frame == StateFrame::InterposerClosed {
+            return self.frame;
+        }
+
+        let prev_bay_issue = if let (Some(ref prev_expansion_bay), Some(ref pre_hw_diag)) =
+            (self.prev_expansion_bay, self.prev_hw_diag)
+        {
+            has_bay_issue(prev_expansion_bay, pre_hw_diag)
+        } else {
+            None
+        };
+        let bay_issue = has_bay_issue(expansion_bay, hw_diag);
+        let door_was_open = Some(BayIssue::InterposerOpen) == prev_bay_issue;
+        let door_now_open = Some(BayIssue::InterposerOpen) == bay_issue;
+        let need_reinit = matches!(
+            expansion_bay.expansion_bay_board(),
+            Ok(ExpansionBayBoard::DualInterposer) | Ok(ExpansionBayBoard::SingleInterposer)
+        );
+        // If the user closes the door, we need to reboot to reinitialize the module
+        // But only if it's a GPU or similar module
+        if door_was_open && !door_now_open && need_reinit {
+            return StateFrame::InterposerClosed;
+        }
+
         // Expected only as the first state
         // Otherwise won't usually happen because you're not supposed to hot-plug the module.
         // Can still happen as later state if the user opens the lid or hatch.
-        if let Some(issue) = has_bay_issue(expansion_bay, hw_diag) {
+        if let Some(issue) = bay_issue {
             return StateFrame::NoExpansionBay(issue);
         }
 
@@ -168,7 +200,7 @@ impl State {
 
         // Fix up the laptop
         match self.frame {
-            StateFrame::NoExpansionBay(BayIssue::InterposerOpen) => {
+            StateFrame::NoExpansionBay(BayIssue::InterposerOpen) | StateFrame::InterposerClosed => {
                 self.bitmaps.latch_warning().draw(buffer)
             }
             StateFrame::NoExpansionBay(_) => self.bitmaps.expansion_bay_missing().draw(buffer),
@@ -186,6 +218,10 @@ impl State {
                 self.bitmaps.latches_closed_left().draw(buffer);
                 self.bitmaps.latches_closed_right().draw(buffer);
             }
+            StateFrame::InterposerClosed => {
+                self.bitmaps.button_short_reboot().draw(buffer);
+                self.bitmaps.button_long_off().draw(buffer);
+            }
             _ => {
                 // Button indicators right
                 self.bitmaps.button_short_skip().draw(buffer);
@@ -195,7 +231,7 @@ impl State {
 
         // QR Codes
         match self.frame {
-            StateFrame::NoExpansionBay(_) => {
+            StateFrame::NoExpansionBay(_) | StateFrame::InterposerClosed => {
                 self.bitmaps.qr_code_1().draw(buffer);
             }
             StateFrame::NoHubboard => {
@@ -246,6 +282,15 @@ impl State {
             //         &issue.to_string(),
             //     );
             // }
+            StateFrame::InterposerClosed => {
+                self.bitmaps.interposer_closed_text().draw(buffer);
+                // draw_textbox(
+                //     buffer,
+                //     Point::new(WARN_X, WARN_Y),
+                //     TextColor::Warn,
+                //     "Expansion Bay Interposer Door Closed - Reboot Required",
+                // );
+            }
             StateFrame::NoHubboard => {
                 self.bitmaps.hubboard_missing_text().draw(buffer);
                 // draw_textbox(
@@ -551,11 +596,42 @@ fn has_bay_issue(
     None
 }
 
+/// Set OS indications so that a reboot will boot into setup menu
+fn set_os_indications_setupmenu(rt: &RuntimeServices) {
+    let vendor = VariableVendor(EFI_GLOBAL_VARIABLE_GUID);
+    let mut buf = [0; 8];
+    rt.get_variable(cstr16!("OsIndicationsSupported"), &vendor, &mut buf)
+        .expect("failed to get variable");
+    let os_indications: u64 = u64::from_ne_bytes(buf);
+    debug!("OS Indications: {:?}", os_indications);
+
+    let os_indications = if rt
+        .get_variable(cstr16!("OsIndications"), &vendor, &mut buf)
+        .is_ok()
+    {
+        u64::from_ne_bytes(buf) | EFI_OS_INDICATIONS_BOOT_TO_FW_UI
+    } else {
+        EFI_OS_INDICATIONS_BOOT_TO_FW_UI
+    };
+    debug!("OS Indications: {:?}", os_indications);
+
+    let attrs = VariableAttributes::NON_VOLATILE
+        | VariableAttributes::BOOTSERVICE_ACCESS
+        | VariableAttributes::RUNTIME_ACCESS;
+    rt.set_variable(
+        cstr16!("OsIndications"),
+        &vendor,
+        attrs,
+        &u64::to_ne_bytes(os_indications),
+    )
+    .expect("failed to set variable");
+}
+
 pub fn start(
     bs: &BootServices,
-    _st: &SystemTable<Boot>,
+    st: &SystemTable<Boot>,
     ec: &Option<CrosEc>,
-) -> uefi::Result<bool> {
+) -> uefi::Result<Option<uefi::table::runtime::ResetType>> {
     let mut input_deck = ec_comm::get_input_deck(ec);
     let mut expansion_bay = ec_comm::get_expansion_bay(ec);
     let mut hw_diag = ec_comm::get_hw_diag(ec);
@@ -566,7 +642,7 @@ pub fn start(
     let state = State::new();
     if state.next_state(&input_deck, &expansion_bay, &hw_diag) == StateFrame::Finished {
         info!("Started out as fully populated, booting immediately");
-        return Ok(false);
+        return Ok(None);
     }
 
     if !matches!(
@@ -575,7 +651,7 @@ pub fn start(
     ) {
         println!("Input Deck State Overridden: {:?}. No detection of modules possible - continuing to boot ", input_deck.state);
         bs.stall(1_000_000);
-        return Ok(false);
+        return Ok(None);
     }
 
     // Get GOP protocol to draw on the screen
@@ -584,7 +660,7 @@ pub fn start(
     } else {
         // Something went wrong with GOP initialization, keep booting
         // TODO: Maybe in DVT2 we should still assert here?
-        return Ok(false);
+        return Ok(None);
     };
 
     // Get Input protocol to detect keypresses
@@ -616,10 +692,22 @@ pub fn start(
 
         // Detect short press of power button
         // Short press (or ESC) will exit and boot (skip all further checks)
-        if (!button_pressed && state.prev_pressed && long_press == 1)
-            || state.keypress == Some(Key::Special(ScanCode::ESCAPE))
-        {
-            break;
+        let short_press = (!button_pressed && state.prev_pressed && long_press == 1)
+            || state.keypress == Some(Key::Special(ScanCode::ESCAPE));
+        match (short_press, state.frame) {
+            // Reboot
+            (true, StateFrame::InterposerClosed) => {
+                return Ok(Some(uefi::table::runtime::ResetType::Cold))
+            }
+            // Just exit and continue
+            (true, _) => break,
+            _ => {}
+        }
+
+        if state.keypress == Some(Key::Special(ScanCode::FUNCTION_12)) {
+            let rt = st.runtime_services();
+            set_os_indications_setupmenu(rt);
+            return Ok(Some(uefi::table::runtime::ResetType::Cold));
         }
 
         let need_redraw = state.need_redraw(&input_deck, &expansion_bay, &hw_diag, &power_info);
@@ -637,7 +725,7 @@ pub fn start(
         if button_pressed && state.prev_pressed && !need_redraw {
             if long_press > 4 {
                 // Exit and signal that we need to poweroff
-                return Ok(true);
+                return Ok(Some(uefi::table::runtime::ResetType::Shutdown));
             }
             // Wait a second
             sleep_or(bs, 1_000, unsafe {
@@ -691,5 +779,5 @@ pub fn start(
         state.prev_pressed = button_pressed;
     }
     let _ = clear_screen(&mut buffer, &mut gop);
-    Ok(false)
+    Ok(None)
 }
