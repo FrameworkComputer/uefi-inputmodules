@@ -132,7 +132,7 @@ window menu: "View" -> "Zoom Out".
 Controls:
 
 - A, S, D, F, G: AC/Battery states (No Battery, 5%, 5% charging, 20%, 20% charging)
-- Q, W, E: Module selection (No Module, single, dual)
+- Q, W, E: Module selection (No Module, bad connection, dual)
 - Z, X, C: Fan selection (No Fan, Left, Right, Both)
 - L: Latch toggle
 - H: Hubboard toggle

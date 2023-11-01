@@ -168,12 +168,10 @@ impl State {
 
         // Fix up the laptop
         match self.frame {
-            StateFrame::NoExpansionBay(bay_issue) => {
-                if bay_issue == BayIssue::InterposerOpen {
-                    self.bitmaps.latch_warning().draw(buffer)
-                }
-                self.bitmaps.expansion_bay_missing().draw(buffer)
+            StateFrame::NoExpansionBay(BayIssue::InterposerOpen) => {
+                self.bitmaps.latch_warning().draw(buffer)
             }
+            StateFrame::NoExpansionBay(_) => self.bitmaps.expansion_bay_missing().draw(buffer),
             StateFrame::NoHubboard => self.bitmaps.hubboard_missing().draw(buffer),
             _ => {}
         }
