@@ -54,12 +54,12 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
         let reset = gui_res.unwrap();
         if let Some(reset_type) = reset {
-            // TODO: Remove debug print and stall
-            println!("Shutting down;");
+            #[cfg(debug_assertions)]
+            info!("Shutting down");
             boot_services.stall(1_000_000);
 
             // Shut down the system
-            // TODO: I should do  this outside of this function
+            // TODO: I should do this outside of this function
             let rt = system_table.runtime_services();
             rt.reset(reset_type, Status::SUCCESS, None);
         }
