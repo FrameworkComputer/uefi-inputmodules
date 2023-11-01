@@ -14,12 +14,13 @@ use framework_lib::chromium_ec::CrosEc;
 use framework_lib::power::{self, PowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
-use uefi::prelude::BootServices;
+use uefi::prelude::{BootServices, RuntimeServices};
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::console::text::{Input, Key, ScanCode};
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
+use uefi::table::runtime::{VariableAttributes, VariableVendor};
 use uefi::table::{Boot, SystemTable};
-use uefi::{Char16, Identify};
+use uefi::{cstr16, guid, Char16, Identify};
 #[allow(unused_imports)]
 use uefi_services::{print, println, system_table};
 
@@ -30,6 +31,9 @@ use crate::ec_comm;
 use crate::sleep::sleep_or;
 
 const FAILED_INPUT: &str = "Failed to get keypress";
+
+const EFI_OS_INDICATIONS_BOOT_TO_FW_UI: u64 = 0x0000000000000001;
+const EFI_GLOBAL_VARIABLE_GUID: uefi::Guid = guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
 
 #[allow(dead_code)]
 pub struct DebugInfo {
@@ -592,9 +596,40 @@ fn has_bay_issue(
     None
 }
 
+/// Set OS indications so that a reboot will boot into setup menu
+fn set_os_indications_setupmenu(rt: &RuntimeServices) {
+    let vendor = VariableVendor(EFI_GLOBAL_VARIABLE_GUID);
+    let mut buf = [0; 8];
+    rt.get_variable(cstr16!("OsIndicationsSupported"), &vendor, &mut buf)
+        .expect("failed to get variable");
+    let os_indications: u64 = u64::from_ne_bytes(buf);
+    debug!("OS Indications: {:?}", os_indications);
+
+    let os_indications = if rt
+        .get_variable(cstr16!("OsIndications"), &vendor, &mut buf)
+        .is_ok()
+    {
+        u64::from_ne_bytes(buf) | EFI_OS_INDICATIONS_BOOT_TO_FW_UI
+    } else {
+        EFI_OS_INDICATIONS_BOOT_TO_FW_UI
+    };
+    debug!("OS Indications: {:?}", os_indications);
+
+    let attrs = VariableAttributes::NON_VOLATILE
+        | VariableAttributes::BOOTSERVICE_ACCESS
+        | VariableAttributes::RUNTIME_ACCESS;
+    rt.set_variable(
+        cstr16!("OsIndications"),
+        &vendor,
+        attrs,
+        &u64::to_ne_bytes(os_indications),
+    )
+    .expect("failed to set variable");
+}
+
 pub fn start(
     bs: &BootServices,
-    _st: &SystemTable<Boot>,
+    st: &SystemTable<Boot>,
     ec: &Option<CrosEc>,
 ) -> uefi::Result<Option<uefi::table::runtime::ResetType>> {
     let mut input_deck = ec_comm::get_input_deck(ec);
@@ -667,6 +702,12 @@ pub fn start(
             // Just exit and continue
             (true, _) => break,
             _ => {}
+        }
+
+        if state.keypress == Some(Key::Special(ScanCode::FUNCTION_12)) {
+            let rt = st.runtime_services();
+            set_os_indications_setupmenu(rt);
+            return Ok(Some(uefi::table::runtime::ResetType::Cold));
         }
 
         let need_redraw = state.need_redraw(&input_deck, &expansion_bay, &hw_diag, &power_info);
