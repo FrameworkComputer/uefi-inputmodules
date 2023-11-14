@@ -12,7 +12,7 @@ use embedded_graphics::primitives::{
 use embedded_graphics::text::Text;
 use embedded_graphics::Drawable;
 use framework_lib::chromium_ec::input_deck::{InputModuleType, TopRowPositions};
-use framework_lib::power::PowerInfo;
+use framework_lib::power::ReducedPowerInfo;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::proto::console::gop::GraphicsOutput;
@@ -803,8 +803,8 @@ fn top_row_string(top_row: &TopRowPositions) -> String {
     )
 }
 
-pub fn draw_battery_info(buffer: &mut Buffer, power_info: &Option<PowerInfo>) {
-    if let Some(PowerInfo {
+pub fn draw_battery_info(buffer: &mut Buffer, power_info: &Option<ReducedPowerInfo>) {
+    if let Some(ReducedPowerInfo {
         battery: Some(ref battery),
         ac_present,
     }) = power_info

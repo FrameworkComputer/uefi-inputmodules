@@ -11,9 +11,10 @@ use framework_lib::chromium_ec::commands::{
 use framework_lib::chromium_ec::input_deck::InputDeckStatus;
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
-use framework_lib::power::{self, PowerInfo};
+use framework_lib::power::{self, ReducedPowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
+use log::{log_enabled, Level};
 use uefi::prelude::{BootServices, RuntimeServices};
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::console::text::{Input, Key, ScanCode};
@@ -49,7 +50,7 @@ pub struct DebugInfo {
     pub hatch_closed: bool,
     pub hw_diag: EcResponseGetHwDiag,
     pub deck: InputDeckStatus,
-    pub power_info: Option<PowerInfo>,
+    pub power_info: Option<ReducedPowerInfo>,
 }
 
 pub struct State {
@@ -61,7 +62,7 @@ pub struct State {
     prev_input_deck: Option<InputDeckStatus>,
     prev_expansion_bay: Option<EcResponseExpansionBayStatus>,
     prev_hw_diag: Option<EcResponseGetHwDiag>,
-    prev_power_info: Option<Option<PowerInfo>>,
+    prev_power_info: Option<Option<ReducedPowerInfo>>,
     prev_pressed: bool,
     verbose: bool,
     keypress: Option<Key>,
@@ -487,12 +488,35 @@ impl State {
         input_deck: &InputDeckStatus,
         expansion_bay: &EcResponseExpansionBayStatus,
         hw_diag: &EcResponseGetHwDiag,
-        power_info: &Option<PowerInfo>,
+        power_info: &Option<ReducedPowerInfo>,
     ) -> bool {
-        Some(input_deck) != self.prev_input_deck.as_ref()
-            || Some(expansion_bay) != self.prev_expansion_bay.as_ref()
-            || Some(hw_diag) != self.prev_hw_diag.as_ref()
-            || Some(power_info) != self.prev_power_info.as_ref()
+        let new_deck = Some(input_deck) != self.prev_input_deck.as_ref();
+        let new_bay = Some(expansion_bay) != self.prev_expansion_bay.as_ref();
+        let new_diag = Some(hw_diag) != self.prev_hw_diag.as_ref();
+        let new_power = Some(power_info) != self.prev_power_info.as_ref();
+
+        if new_deck {
+            debug!("Deck Changed");
+            debug!("Old: {:?}", self.prev_input_deck.as_ref());
+            debug!("New: {:?}", input_deck);
+        }
+        if new_bay {
+            debug!("Bay Changed");
+            debug!("Old: {:?}", self.prev_expansion_bay.as_ref());
+            debug!("New: {:?}", expansion_bay);
+        }
+        if new_diag {
+            debug!("Diag Changed");
+            debug!("Old: {:?}", self.prev_hw_diag.as_ref());
+            debug!("New: {:?}", hw_diag);
+        }
+        if new_power {
+            debug!("Power Changed");
+            debug!("Old: {:?}", self.prev_power_info.as_ref());
+            debug!("New: {:?}", power_info);
+        }
+
+        new_deck || new_bay || new_diag || new_power
     }
 }
 
@@ -635,7 +659,10 @@ pub fn start(
     let mut input_deck = ec_comm::get_input_deck(ec);
     let mut expansion_bay = ec_comm::get_expansion_bay(ec);
     let mut hw_diag = ec_comm::get_hw_diag(ec);
-    let mut power_info = ec.as_ref().and_then(power::power_info);
+    let mut power_info: Option<ReducedPowerInfo> = ec
+        .as_ref()
+        .and_then(power::power_info)
+        .map(Into::<ReducedPowerInfo>::into);
 
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
@@ -677,7 +704,10 @@ pub fn start(
             input_deck = ec_comm::get_input_deck(ec);
             expansion_bay = ec_comm::get_expansion_bay(ec);
             hw_diag = ec_comm::get_hw_diag(ec);
-            power_info = ec.as_ref().and_then(power::power_info);
+            power_info = ec
+                .as_ref()
+                .and_then(power::power_info)
+                .map(Into::<ReducedPowerInfo>::into);
         } else {
             ec_comm::keypress_mock_data(
                 state.keypress,
@@ -711,6 +741,10 @@ pub fn start(
         }
 
         let need_redraw = state.need_redraw(&input_deck, &expansion_bay, &hw_diag, &power_info);
+        if need_redraw && log_enabled!(Level::Debug) {
+            // Sleep after state.need_redraw prints debug information
+            bs.stall(1_000_000);
+        }
 
         let q_key = Char16::try_from('?').unwrap();
         let need_redraw = match state.keypress {
@@ -722,7 +756,7 @@ pub fn start(
         };
 
         // Detect long press of power button
-        if button_pressed && state.prev_pressed && !need_redraw {
+        let need_redraw = if button_pressed && state.prev_pressed && !need_redraw {
             if long_press > 4 {
                 // Exit and signal that we need to poweroff
                 return Ok(Some(uefi::table::runtime::ResetType::Shutdown));
@@ -732,9 +766,11 @@ pub fn start(
                 Some(input.wait_for_key_event().unsafe_clone())
             });
             long_press += 1;
+            true
         } else {
             long_press = 0;
-        }
+            need_redraw
+        };
 
         if need_redraw {
             state.frame = state.next_state(&input_deck, &expansion_bay, &hw_diag);

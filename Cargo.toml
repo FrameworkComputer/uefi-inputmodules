@@ -34,6 +34,7 @@ default-features = false
 [dependencies.framework_lib]
 #path = "/home/zoid/clone/framework-system/framework_lib"
 git = "https://github.com/FrameworkComputer/framework-system"
+rev = "31bb560f6db91c8dbbc8eee105c0892521cbaec8"
 #branch = "main"
 features = ["uefi"]
 default-features = false
