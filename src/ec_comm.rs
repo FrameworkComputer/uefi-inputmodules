@@ -8,7 +8,7 @@ use framework_lib::chromium_ec::commands::{
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
 use framework_lib::chromium_ec::{CrosEc, EcError, EcRequestRaw, EcResponseStatus, EcResult};
-use framework_lib::power::{BatteryInformation, PowerInfo};
+use framework_lib::power::{BatteryInformation, PowerInfo, ReducedPowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::proto::console::text::Key;
@@ -190,7 +190,7 @@ pub fn keypress_mock_data(
     expansion_bay: &mut EcResponseExpansionBayStatus,
     // TODO: Also do something with this
     hw_diag: &mut EcResponseGetHwDiag,
-    power_info: &mut Option<PowerInfo>,
+    power_info: &mut Option<ReducedPowerInfo>,
 ) {
     // TODO: Can this be created from a macro?
     let one_key = Char16::try_from('1').unwrap();
@@ -376,106 +376,121 @@ pub fn keypress_mock_data(
             };
         }
         Some(Key::Printable(key)) if key == a_key => {
-            *power_info = Some(PowerInfo {
-                ac_present: true,
-                battery: None,
-            })
+            *power_info = Some(
+                PowerInfo {
+                    ac_present: true,
+                    battery: None,
+                }
+                .into(),
+            )
         }
         Some(Key::Printable(key)) if key == s_key => {
-            *power_info = Some(PowerInfo {
-                ac_present: false,
-                battery: Some(BatteryInformation {
-                    present_voltage: 16280,  // 16.280
-                    present_rate: 674,       // 674mA
-                    remaining_capacity: 293, // 293mAh, 4.339Wh
-                    battery_count: 0,
-                    current_battery_index: 0,
-                    design_capacity: 55800,          // 3572mAh, 55.8Wh
-                    design_voltage: 15400,           // 15.400V
-                    last_full_charge_capacity: 3154, // 3154mAh
-                    cycle_count: 320,
-                    charge_percentage: 5,
-                    manufacturer: "NVT".to_string(),
-                    model_number: "Framewo".to_string(),
-                    serial_number: "027B".to_string(),
-                    battery_type: "LION".to_string(),
-                    discharging: true,
-                    charging: false,
-                    level_critical: false,
-                }),
-            })
+            *power_info = Some(
+                PowerInfo {
+                    ac_present: false,
+                    battery: Some(BatteryInformation {
+                        present_voltage: 16280,  // 16.280
+                        present_rate: 674,       // 674mA
+                        remaining_capacity: 293, // 293mAh, 4.339Wh
+                        battery_count: 0,
+                        current_battery_index: 0,
+                        design_capacity: 55800,          // 3572mAh, 55.8Wh
+                        design_voltage: 15400,           // 15.400V
+                        last_full_charge_capacity: 3154, // 3154mAh
+                        cycle_count: 320,
+                        charge_percentage: 5,
+                        manufacturer: "NVT".to_string(),
+                        model_number: "Framewo".to_string(),
+                        serial_number: "027B".to_string(),
+                        battery_type: "LION".to_string(),
+                        discharging: true,
+                        charging: false,
+                        level_critical: false,
+                    }),
+                }
+                .into(),
+            )
         }
         Some(Key::Printable(key)) if key == d_key => {
-            *power_info = Some(PowerInfo {
-                ac_present: true,
-                battery: Some(BatteryInformation {
-                    present_voltage: 16280,  // 16.280
-                    present_rate: 2348,      // 2348mA
-                    remaining_capacity: 180, // 180mAh, 2.930Wh
-                    battery_count: 0,
-                    current_battery_index: 0,
-                    design_capacity: 55800,          // 3572mAh, 55.8Wh
-                    design_voltage: 15400,           // 15.400V
-                    last_full_charge_capacity: 3154, // 3154mAh
-                    cycle_count: 320,
-                    charge_percentage: 5,
-                    manufacturer: "NVT".to_string(),
-                    model_number: "Framewo".to_string(),
-                    serial_number: "027B".to_string(),
-                    battery_type: "LION".to_string(),
-                    discharging: false,
-                    charging: true,
-                    level_critical: false,
-                }),
-            })
+            *power_info = Some(
+                PowerInfo {
+                    ac_present: true,
+                    battery: Some(BatteryInformation {
+                        present_voltage: 16280,  // 16.280
+                        present_rate: 2348,      // 2348mA
+                        remaining_capacity: 180, // 180mAh, 2.930Wh
+                        battery_count: 0,
+                        current_battery_index: 0,
+                        design_capacity: 55800,          // 3572mAh, 55.8Wh
+                        design_voltage: 15400,           // 15.400V
+                        last_full_charge_capacity: 3154, // 3154mAh
+                        cycle_count: 320,
+                        charge_percentage: 5,
+                        manufacturer: "NVT".to_string(),
+                        model_number: "Framewo".to_string(),
+                        serial_number: "027B".to_string(),
+                        battery_type: "LION".to_string(),
+                        discharging: false,
+                        charging: true,
+                        level_critical: false,
+                    }),
+                }
+                .into(),
+            )
         }
         Some(Key::Printable(key)) if key == f_key => {
-            *power_info = Some(PowerInfo {
-                ac_present: false,
-                battery: Some(BatteryInformation {
-                    present_voltage: 15412,   // 15.412
-                    present_rate: 552,        // 552mA
-                    remaining_capacity: 1939, // 1939mAh, 29.883Wh
-                    battery_count: 0,
-                    current_battery_index: 0,
-                    design_capacity: 55800,          // 3572mAh, 55.8Wh
-                    design_voltage: 15400,           // 15.400V
-                    last_full_charge_capacity: 3154, // 3154mAh
-                    cycle_count: 320,
-                    charge_percentage: 61,
-                    manufacturer: "NVT".to_string(),
-                    model_number: "Framewo".to_string(),
-                    serial_number: "027B".to_string(),
-                    battery_type: "LION".to_string(),
-                    discharging: true,
-                    charging: false,
-                    level_critical: false,
-                }),
-            })
+            *power_info = Some(
+                PowerInfo {
+                    ac_present: false,
+                    battery: Some(BatteryInformation {
+                        present_voltage: 15412,   // 15.412
+                        present_rate: 552,        // 552mA
+                        remaining_capacity: 1939, // 1939mAh, 29.883Wh
+                        battery_count: 0,
+                        current_battery_index: 0,
+                        design_capacity: 55800,          // 3572mAh, 55.8Wh
+                        design_voltage: 15400,           // 15.400V
+                        last_full_charge_capacity: 3154, // 3154mAh
+                        cycle_count: 320,
+                        charge_percentage: 61,
+                        manufacturer: "NVT".to_string(),
+                        model_number: "Framewo".to_string(),
+                        serial_number: "027B".to_string(),
+                        battery_type: "LION".to_string(),
+                        discharging: true,
+                        charging: false,
+                        level_critical: false,
+                    }),
+                }
+                .into(),
+            )
         }
         Some(Key::Printable(key)) if key == g_key => {
-            *power_info = Some(PowerInfo {
-                ac_present: true,
-                battery: Some(BatteryInformation {
-                    present_voltage: 17135,   // 17.135V
-                    present_rate: 2460,       // 2460mA
-                    remaining_capacity: 1939, // 1939mAh, 29.883Wh
-                    battery_count: 0,
-                    current_battery_index: 0,
-                    design_capacity: 55800,          // 3572mAh, 55.8Wh
-                    design_voltage: 15400,           // 15.400V
-                    last_full_charge_capacity: 3154, // 3154mAh
-                    cycle_count: 320,
-                    charge_percentage: 61,
-                    manufacturer: "NVT".to_string(),
-                    model_number: "Framewo".to_string(),
-                    serial_number: "027B".to_string(),
-                    battery_type: "LION".to_string(),
-                    discharging: false,
-                    charging: true,
-                    level_critical: false,
-                }),
-            })
+            *power_info = Some(
+                PowerInfo {
+                    ac_present: true,
+                    battery: Some(BatteryInformation {
+                        present_voltage: 17135,   // 17.135V
+                        present_rate: 2460,       // 2460mA
+                        remaining_capacity: 1939, // 1939mAh, 29.883Wh
+                        battery_count: 0,
+                        current_battery_index: 0,
+                        design_capacity: 55800,          // 3572mAh, 55.8Wh
+                        design_voltage: 15400,           // 15.400V
+                        last_full_charge_capacity: 3154, // 3154mAh
+                        cycle_count: 320,
+                        charge_percentage: 61,
+                        manufacturer: "NVT".to_string(),
+                        model_number: "Framewo".to_string(),
+                        serial_number: "027B".to_string(),
+                        battery_type: "LION".to_string(),
+                        discharging: false,
+                        charging: true,
+                        level_critical: false,
+                    }),
+                }
+                .into(),
+            )
         }
         _ => {}
     }

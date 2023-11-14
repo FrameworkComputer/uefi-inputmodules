@@ -248,7 +248,7 @@ dependencies = [
 [[package]]
 name = "framework_lib"
 version = "0.1.0"
-source = "git+https://github.com/FrameworkComputer/framework-system#999b27106fb44f1f6aa0882bd049302803c86c28"
+source = "git+https://github.com/FrameworkComputer/framework-system?rev=31bb560f6db91c8dbbc8eee105c0892521cbaec8#31bb560f6db91c8dbbc8eee105c0892521cbaec8"
 dependencies = [
  "built",
  "guid_macros",
@@ -288,7 +288,7 @@ dependencies = [
 [[package]]
 name = "guid_macros"
 version = "0.11.0"
-source = "git+https://github.com/FrameworkComputer/framework-system#999b27106fb44f1f6aa0882bd049302803c86c28"
+source = "git+https://github.com/FrameworkComputer/framework-system?rev=31bb560f6db91c8dbbc8eee105c0892521cbaec8#31bb560f6db91c8dbbc8eee105c0892521cbaec8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -331,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "inputmodules"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "built",
  "cfg-if",
