@@ -38,7 +38,11 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     #[cfg(not(debug_assertions))]
     log::set_max_level(log::LevelFilter::Error);
 
-    if let Ok(true) = has_shell_args(boot_services) {
+    let arg = get_shell_action(boot_services);
+    if let Ok(ShellAction::Info) = arg {
+        println!("Provide Parameter: 'gui' to launch UI and show issues");
+        println!("Provide Parameter: 'force' to launch UI even if everything is ok");
+        println!();
         print_module_status();
     } else {
         info!("No shell arg, launching GUI");
@@ -49,7 +53,8 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         let ec = None;
 
         ec_comm::set_uefi_app_mode(&ec, true);
-        let gui_res = state_machine::start(boot_services, &system_table, &ec);
+        let quick_boot = !matches!(arg, Ok(ShellAction::Force));
+        let gui_res = state_machine::start(boot_services, &system_table, &ec, quick_boot);
         ec_comm::set_uefi_app_mode(&ec, false);
 
         let reset = gui_res.unwrap();
@@ -73,7 +78,14 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     Status::SUCCESS
 }
 
-fn has_shell_args(boot_services: &BootServices) -> uefi::Result<bool> {
+#[derive(Debug)]
+enum ShellAction {
+    Gui,
+    Force,
+    Info,
+}
+
+fn get_shell_action(boot_services: &BootServices) -> uefi::Result<ShellAction> {
     // TODO: I think I should open this from the ImageHandle?
     let shell_params_h =
         boot_services.locate_handle_buffer(SearchType::ByProtocol(&ShellParameters::GUID))?;
@@ -97,9 +109,18 @@ fn has_shell_args(boot_services: &BootServices) -> uefi::Result<bool> {
         }
 
         let args = params_handle.get_args();
-        return Ok(args.len() > 1);
+        // First arg is the executable path
+        return Ok(if args.len() == 2 && args[1] == "gui" {
+            ShellAction::Gui
+        } else if args.len() == 2 && args[1] == "force" {
+            ShellAction::Force
+        } else if args.len() == 1 {
+            ShellAction::Gui
+        } else {
+            ShellAction::Info
+        });
     }
-    Ok(false)
+    Ok(ShellAction::Gui)
 }
 
 fn print_module_status() {

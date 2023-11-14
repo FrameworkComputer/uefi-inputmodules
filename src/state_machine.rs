@@ -655,6 +655,7 @@ pub fn start(
     bs: &BootServices,
     st: &SystemTable<Boot>,
     ec: &Option<CrosEc>,
+    quick_boot: bool,
 ) -> uefi::Result<Option<uefi::table::runtime::ResetType>> {
     let mut input_deck = ec_comm::get_input_deck(ec);
     let mut expansion_bay = ec_comm::get_expansion_bay(ec);
@@ -664,10 +665,11 @@ pub fn start(
         .and_then(power::power_info)
         .map(Into::<ReducedPowerInfo>::into);
 
+    let state = State::new();
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
-    let state = State::new();
-    if state.next_state(&input_deck, &expansion_bay, &hw_diag) == StateFrame::Finished {
+    if quick_boot && state.next_state(&input_deck, &expansion_bay, &hw_diag) == StateFrame::Finished
+    {
         info!("Started out as fully populated, booting immediately");
         return Ok(None);
     }
