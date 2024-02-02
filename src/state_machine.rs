@@ -424,17 +424,7 @@ impl State {
 
     fn draw_inputmodules(&mut self, buffer: &mut Buffer, input_deck: &InputDeckStatus) {
         if input_deck.top_row.pos0 == InputModuleType::FullWidth {
-            // Draw a keyboard in the middle and two generic C left/right
-            // TODO: Draw proper full-width inputmodule
-            self.bitmaps.c1_module().draw(buffer);
-            self.bitmaps.keyboard().draw(buffer);
-            self.bitmaps.c1_module().draw_pos(
-                buffer,
-                Point {
-                    x: 829 + 84 + 736,
-                    y: 583,
-                },
-            );
+            self.bitmaps.full_width().draw(buffer);
         }
         if input_deck.top_row.pos0 == InputModuleType::GenericC {
             self.bitmaps.c1_module().draw(buffer);
