@@ -1,0 +1,164 @@
+# Sunflower
+
+# Framework Laptop 12 - UEFI Debug App
+
+This UEFI app shows the current status of inputmodules of the Framework Laptop 16.
+
+It's launched automatically by UEFI during boot when it is detected that
+the input deck is not fully populated. In this case some pins are exposed and
+it is not fully safe to power the deck on.
+
+This app helps the user see which modules are detected because even though they
+might be physically installed, they might not be properly electrically
+connected. The app updates whenver a module is installed or removed.
+Once all modules are installed, the input deck is supplied with power and booting can continue.
+
+In some cases, for example standalone operation of the mainboard, it is
+desirable to skip this safety check. Because a keyboard might not be connected
+there is no key shortcut to press.
+Implementation of a mechanism to skip is pending implementation.
+
+Conditions to boot - until one of the following conditions is met, the app runs
+in a loop and keeps checking the current status:
+
+- Press ESC
+- Inputmodules fully populated, so that the whole surface is covered
+- Input deck state overridden from EC console
+- (NOT IMPLEMENTED YET: Short-Press power button)
+
+## Running
+
+Framework Laptop 16 BIOS will ship with this app embedded.
+
+To run a modified version, build it, as below, or download a release binary.
+
+It can be started on the shell, just by starting the executable.
+For debugging, providing any commandline arguments displays the inputmodule
+status on the commandline:
+
+```
+# Launch GUI
+Shell> fs0:inputmodules.efi
+
+# Show debug
+Shell> fs0:inputmodules.efi debug
+Input Deck State: On
+Touchpad present: true
+Positions:
+  Pos 0: KeyboardA
+  Pos 1: Disconnected
+  Pos 2: Disconnected
+  Pos 3: KeyboardB
+  Pos 4: Disconnected
+```
+
+Once in the GUI you can use ESC to quit.
+
+## Building
+
+Pre-requisites:
+
+- [Rustup](https://rustup.rs/) (MSRV: 1.61)
+
+Build:
+
+```
+# Build debug version
+> make
+-rwxrwxr-x 2 zoid zoid 695K May  2 11:48 target/x86_64-unknown-uefi/debug/inputmodules.efi
+
+# Build release version
+> make release
+-rwxrwxr-x 2 zoid zoid 426K May  2 11:49 target/x86_64-unknown-uefi/release/inputmodules.efi
+
+# Copy executable to UEFI System Partition (ESP)
+cp target/x86_64-unknown-uefi/debug/inputmodules.efi /boot/efi
+
+# Make sure to also put a UEFI shell at /boot/efi/EFI/BOOT/BOOTX64.efi
+# Or put it somewhere else on the ESP and add a bootloader entry for it
+```
+
+## Debugging
+To test in QEMU build the QEMU version and run it.
+
+Pre-reqs:
+
+- QEMU
+- Need to put `OVMF_CODE.fd` and `OVMF_VARS.fd` in the root folder (if it doesn't work automatically).
+
+```sh
+# Debug version
+make qemu && make run
+
+# Release version
+make qemu-release && make run TARGET=release
+```
+
+You can cycle through different amounts of population by pressing the numbers 0
+through 5. ESC quits the app.
+
+###### Running in native Framework Laptop 12 resolution
+
+QEMU/OVMF has the capability to display different resolutions.
+During early startup, press ESC repeatedly until you enter the setup menu.
+There navigate to "Device Manager" -> "OVMF Platform Configuration" and change
+the preferred resolution to 1920x1200.
+
+Upon saving and rebooting, QEMU should launch in that resolution. Most likely
+it will not fit on your screen, so you'll have to make it smaller from the
+window menu: "View" -> "Zoom Out".
+
+## Behavior and Design Guidelines
+
+- Basics
+  - MUST not panic
+  - SHOULD not do any logging (except maybe errors) in release build
+  - SHOULD save as much space as possible in binary
+  - MUST exit immediately if everything is okay on application start
+  - SHOULD avoid a tight busyloop to avoid running the CPU too hot
+  - SHOULD show input modules in their correct position
+- UEFI Interaction
+  - MUST clear screen to black on exit otherwise it might only be partially redrawn by the bootloader
+  - MUST disable UEFI App mode on exit so that regular power button behavior is restored
+- Framework Laptop 12 User Guide
+  - TODO
+- Framework Laptop 12 Limitations
+  - TODO
+
+## Debug prints
+
+- Presence detection, see qemu special keys
+- G-Sensor
+    - Lid G-Sensor xyz Data
+    - Base G-Sensor xyz Data
+    - Calculated Lid Angle
+    - Tablet Mode
+- ALS Data
+
+## QEMU Special Keys
+
+Controls:
+
+- A, S, D, F, G: AC/Battery states (No Battery, 5%, 5% charging, 20%, 20% charging)
+- C: Toggle fan (Cooler)
+- J: Toggle Audio Jack board
+- P: Toggle Power button board
+- 1, 2, 3, 4, 5: Input Deck (See below)
+
+Presence/Status detection
+
+- Input deck (1-5)
+  - Chassis switch
+  - BOARD_ID connected
+  - Can talk to touch controller over I2C
+  - Can talk to KB controller over I2C
+  - Cases
+    - 1: Chassis switch open (don't care about the rest)
+    - 2: Chassis closed, board ID not present
+    - 3: Chassis closed, board ID present, touch I2C ok,     KB I2C not ok
+    - 4: Chassis closed, board ID present, touch I2C not ok, KB I2C ok
+    - 5: Chassis closed, board ID present,(touch I2C ok,     KB I2C ok) - All good
+- Audio Board (present, not present)
+- Power Button (Unable to tell, no board ID)
+- Camera (No board ID, can tell via G-Sensor I2C)
+  - I2C G-Sensor

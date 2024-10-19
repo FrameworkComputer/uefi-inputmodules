@@ -3,12 +3,14 @@ use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestGetHwDiag, EcRequestUefiAppBtnStatus,
     EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionByStates,
     BOARD_VERSION_12, BOARD_VERSION_13, BOARD_VERSION_15, DIAGNOSTICS_NO_LEFT_FAN,
-    DIAGNOSTICS_NO_RIGHT_FAN,
+    DIAGNOSTICS_NO_RIGHT_FAN, DIAGNOSTICS_NOFAN
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
+#[cfg(feature = "12in")]
+use crate::state_machine_12in::InputDeckStatus12In;
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
 use framework_lib::chromium_ec::{CrosEc, EcError, EcRequestRaw, EcResponseStatus, EcResult};
-use framework_lib::power::{BatteryInformation, PowerInfo, ReducedPowerInfo};
+use framework_lib::power::{get_accel_data, get_als_reading, AccelData, BatteryInformation, PowerInfo, ReducedPowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::proto::console::text::Key;
@@ -58,6 +60,7 @@ pub fn get_expansion_bay(ec: &Option<CrosEc>) -> EcResponseExpansionBayStatus {
 /// If any error => populated
 /// This will make sure the system can always boot,
 /// but on testing systems (QEMU, 13inch) it will show an issue to help debug.
+#[cfg(not(feature = "12in"))]
 pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
     let populated = InputDeckStatus {
         state: InputDeckState::On,
@@ -103,6 +106,36 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
         // Other error or no EC
         _ => populated,
     }
+}
+
+/// Get current state of hubboard and input deck
+///
+/// If no EC => unpopulated
+/// If any error => populated
+/// This will make sure the system can always boot,
+/// but on testing systems (QEMU, 13inch) it will show an issue to help debug.
+/// TODO: Implement this
+#[cfg(feature = "12in")]
+pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus12In {
+    let unpopulated = InputDeckStatus12In {
+        touchpad_present: false,
+    };
+
+    // Pretend there's no EC because the EC is guaranteed not to have this command
+    #[cfg(feature = "azalea")]
+    let ec = None;
+
+    if let Some(ref ec) = ec {
+        let input_deck: core::result::Result<InputDeckStatus12In, ()> = {
+            let intrusion = ec.get_intrusion_status().unwrap();
+            return InputDeckStatus12In {
+                touchpad_present: !intrusion.currently_open
+                //touchpad_present: hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0
+            }
+        };
+    }
+
+    unpopulated
 }
 
 /// Ask EC if the power button is pressed right now
@@ -184,6 +217,8 @@ pub fn set_uefi_app_mode(ec: &Option<CrosEc>, mode: bool) {
     }
 }
 
+
+#[cfg(not(feature = "12in"))]
 pub fn keypress_mock_data(
     keypress: Option<Key>,
     input_deck: &mut InputDeckStatus,
@@ -493,5 +528,211 @@ pub fn keypress_mock_data(
             )
         }
         _ => {}
+    }
+}
+
+// TODO
+#[cfg(feature = "12in")]
+pub fn keypress_mock_data(
+    keypress: Option<Key>,
+    input_deck: &mut InputDeckStatus12In,
+    // TODO: Also do something with this
+    hw_diag: &mut EcResponseGetHwDiag,
+    power_info: &mut Option<ReducedPowerInfo>,
+) {
+    // TODO: Can this be created from a macro?
+
+    let one_key = Char16::try_from('1').unwrap();
+    let two_key = Char16::try_from('2').unwrap();
+    let three_key = Char16::try_from('3').unwrap();
+    let four_key = Char16::try_from('4').unwrap();
+    let five_key = Char16::try_from('5').unwrap();
+    let a_key = Char16::try_from('a').unwrap();
+    let s_key = Char16::try_from('s').unwrap();
+    let d_key = Char16::try_from('d').unwrap();
+    let f_key = Char16::try_from('f').unwrap();
+    let g_key = Char16::try_from('g').unwrap();
+    let c_key = Char16::try_from('c').unwrap();
+    let j_key = Char16::try_from('j').unwrap();
+    let p_key = Char16::try_from('p').unwrap();
+
+    match keypress {
+        Some(Key::Printable(key)) if key == a_key => {
+            *power_info = if let Some(mut info) = (*power_info).take() {
+                info.ac_present = !info.ac_present;
+                Some(info)
+            } else {
+                power_info.clone()
+            };
+        }
+        Some(Key::Printable(key)) if key == c_key => {
+            if hw_diag.hw_diag & (1 << DIAGNOSTICS_NOFAN) != 0 {
+                // Toggle fan to present
+                hw_diag.hw_diag ^= !(1 << DIAGNOSTICS_NOFAN);
+            } else {
+                // Toggle fan to not present
+                hw_diag.hw_diag |= 1 << DIAGNOSTICS_NOFAN;
+            }
+        }
+        _ => {}
+    }
+    match keypress {
+        // State: NoTouchpad
+        Some(Key::Printable(key)) if key == one_key => {
+            *input_deck = InputDeckStatus12In {
+                touchpad_present: false,
+            };
+        }
+        // State: Finished
+        Some(Key::Printable(key)) if key == five_key => {
+            *input_deck = InputDeckStatus12In {
+                touchpad_present: true,
+            };
+        }
+        Some(Key::Printable(key)) if key == a_key => {
+            *power_info = Some(
+                PowerInfo {
+                    ac_present: true,
+                    battery: None,
+                }
+                .into(),
+            )
+        }
+        Some(Key::Printable(key)) if key == s_key => {
+            *power_info = Some(
+                PowerInfo {
+                    ac_present: false,
+                    // TODO: Adjust battery information for 51Wh battery
+                    battery: Some(BatteryInformation {
+                        present_voltage: 16280,  // 16.280
+                        present_rate: 674,       // 674mA
+                        remaining_capacity: 293, // 293mAh, 4.339Wh
+                        battery_count: 0,
+                        current_battery_index: 0,
+                        design_capacity: 55800,          // 3572mAh, 55.8Wh
+                        design_voltage: 15400,           // 15.400V
+                        last_full_charge_capacity: 3154, // 3154mAh
+                        cycle_count: 320,
+                        charge_percentage: 5,
+                        manufacturer: "NVT".to_string(),
+                        model_number: "Framewo".to_string(),
+                        serial_number: "027B".to_string(),
+                        battery_type: "LION".to_string(),
+                        discharging: true,
+                        charging: false,
+                        level_critical: false,
+                    }),
+                }
+                .into(),
+            )
+        }
+        Some(Key::Printable(key)) if key == d_key => {
+            *power_info = Some(
+                PowerInfo {
+                    ac_present: true,
+                    battery: Some(BatteryInformation {
+                        present_voltage: 16280,  // 16.280
+                        present_rate: 2348,      // 2348mA
+                        remaining_capacity: 180, // 180mAh, 2.930Wh
+                        battery_count: 0,
+                        current_battery_index: 0,
+                        design_capacity: 55800,          // 3572mAh, 55.8Wh
+                        design_voltage: 15400,           // 15.400V
+                        last_full_charge_capacity: 3154, // 3154mAh
+                        cycle_count: 320,
+                        charge_percentage: 5,
+                        manufacturer: "NVT".to_string(),
+                        model_number: "Framewo".to_string(),
+                        serial_number: "027B".to_string(),
+                        battery_type: "LION".to_string(),
+                        discharging: false,
+                        charging: true,
+                        level_critical: false,
+                    }),
+                }
+                .into(),
+            )
+        }
+        Some(Key::Printable(key)) if key == f_key => {
+            *power_info = Some(
+                PowerInfo {
+                    ac_present: false,
+                    battery: Some(BatteryInformation {
+                        present_voltage: 15412,   // 15.412
+                        present_rate: 552,        // 552mA
+                        remaining_capacity: 1939, // 1939mAh, 29.883Wh
+                        battery_count: 0,
+                        current_battery_index: 0,
+                        design_capacity: 55800,          // 3572mAh, 55.8Wh
+                        design_voltage: 15400,           // 15.400V
+                        last_full_charge_capacity: 3154, // 3154mAh
+                        cycle_count: 320,
+                        charge_percentage: 61,
+                        manufacturer: "NVT".to_string(),
+                        model_number: "Framewo".to_string(),
+                        serial_number: "027B".to_string(),
+                        battery_type: "LION".to_string(),
+                        discharging: true,
+                        charging: false,
+                        level_critical: false,
+                    }),
+                }
+                .into(),
+            )
+        }
+        Some(Key::Printable(key)) if key == g_key => {
+            *power_info = Some(
+                PowerInfo {
+                    ac_present: true,
+                    battery: Some(BatteryInformation {
+                        present_voltage: 17135,   // 17.135V
+                        present_rate: 2460,       // 2460mA
+                        remaining_capacity: 1939, // 1939mAh, 29.883Wh
+                        battery_count: 0,
+                        current_battery_index: 0,
+                        design_capacity: 55800,          // 3572mAh, 55.8Wh
+                        design_voltage: 15400,           // 15.400V
+                        last_full_charge_capacity: 3154, // 3154mAh
+                        cycle_count: 320,
+                        charge_percentage: 61,
+                        manufacturer: "NVT".to_string(),
+                        model_number: "Framewo".to_string(),
+                        serial_number: "027B".to_string(),
+                        battery_type: "LION".to_string(),
+                        discharging: false,
+                        charging: true,
+                        level_critical: false,
+                    }),
+                }
+                .into(),
+            )
+        }
+        _ => {}
+    }
+}
+
+pub fn get_als_data(ec: &Option<CrosEc>) -> u32 {
+    let ec = if let Some(ref ec) = ec {
+        ec
+    } else {
+        return 0;
+    };
+
+    if let Some(reading) = get_als_reading(ec) {
+        reading
+    } else {
+        0
+    }
+}
+
+pub fn get_accel_reading(ec: &Option<CrosEc>) -> (AccelData, AccelData, u16) {
+    if let Some(ref ec) = ec {
+        get_accel_data(ec)
+    } else {
+        (
+            AccelData { x: 0, y: 0, z: 0 },
+            AccelData { x: 0, y: 0, z: 0 },
+            framework_lib::power::LID_ANGLE_UNRELIABLE
+        )
     }
 }

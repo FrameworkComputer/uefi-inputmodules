@@ -63,14 +63,14 @@ Build:
 ```
 # Build debug version
 > make
--rwxrwxr-x 2 zoid zoid 695K May  2 11:48 target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi
+-rwxrwxr-x 2 zoid zoid 695K May  2 11:48 target/x86_64-unknown-uefi/debug/inputmodules.efi
 
 # Build release version
 > make release
--rwxrwxr-x 2 zoid zoid 426K May  2 11:49 target/x86_64-unknown-uefi/release/uefi-qmk-hid.efi
+-rwxrwxr-x 2 zoid zoid 426K May  2 11:49 target/x86_64-unknown-uefi/release/inputmodules.efi
 
 # Copy executable to UEFI System Partition (ESP)
-cp target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi /boot/efi
+cp target/x86_64-unknown-uefi/debug/inputmodules.efi /boot/efi
 
 # Make sure to also put a UEFI shell at /boot/efi/EFI/BOOT/BOOTX64.efi
 # Or put it somewhere else on the ESP and add a bootloader entry for it
@@ -118,11 +118,11 @@ window menu: "View" -> "Zoom Out".
 - UEFI Interaction
   - MUST clear screen to black on exit otherwise it might only be partially redrawn by the bootloader
   - MUST disable UEFI App mode on exit so that regular power button behavior is restored
-- User Guide
+- Framework Laptop 16 User Guide
   - When touchpad is installed but any top-row module isn't, show how to remove touchpad
   - We don't want to allow booting without Expansion Bay Module (because no fan)
     - But we at least need to allow user to get into setup menu to enable standalone mode
-- Limitations
+- Framework Laptop 16 Limitations
   - Can't detect exactly which input module is present because they're not powered on until all are installed
     - But different sizes have different resistors, so we can at least detect the size (and KB vs no KB)
   - Can't detect touchpad position, all locations are wired together

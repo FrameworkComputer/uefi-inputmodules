@@ -5,6 +5,7 @@
 extern crate alloc;
 
 use alloc::string::ToString;
+use framework_lib::chromium_ec::commands::*;
 use framework_lib::chromium_ec::input_deck::InputDeckState;
 use framework_lib::chromium_ec::{print_err, CrosEc};
 #[allow(unused_imports)]
@@ -17,13 +18,22 @@ use uefi::Identify;
 use uefi_services::{print, println};
 
 mod buffer;
+#[cfg(not(feature = "12in"))]
 mod drawing;
+#[cfg(feature = "12in")]
+mod drawing_12in;
 mod ec_comm;
 // Allow dead code because it's the old implementation that we will remove
 #[allow(dead_code)]
+#[cfg(not(feature = "12in"))]
 mod gui;
+#[cfg(feature = "12in")]
+mod gui_12in;
 mod sleep;
+#[cfg(not(feature = "12in"))]
 mod state_machine;
+#[cfg(feature = "12in")]
+mod state_machine_12in;
 mod util;
 mod built_info {
     // The file has been placed there by the build script.
@@ -38,13 +48,19 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     // Only error prints in release build
     #[cfg(not(debug_assertions))]
     log::set_max_level(log::LevelFilter::Error);
+    log::set_max_level(log::LevelFilter::Error);
+    //#[cfg(debug_assertions)]
+    //log::set_max_level(log::LevelFilter::Trace);
 
     let arg = get_shell_action(boot_services);
     if let Ok(ShellAction::Info) = arg {
         println!("Provide Parameter: 'gui' to launch UI and show issues");
         println!("Provide Parameter: 'force' to launch UI even if everything is ok");
         println!();
+        #[cfg(not(feature = "12in"))]
         print_module_status();
+        #[cfg(feature = "12in")]
+        print_12in_status();
     } else {
         info!("No shell arg, launching GUI");
 
@@ -55,7 +71,10 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
 
         ec_comm::set_uefi_app_mode(&ec, true);
         let quick_boot = !matches!(arg, Ok(ShellAction::Force));
+        #[cfg(not(feature = "12in"))]
         let gui_res = state_machine::start(boot_services, &system_table, &ec, quick_boot);
+        #[cfg(feature = "12in")]
+        let gui_res = state_machine_12in::start(boot_services, &system_table, &ec, quick_boot);
         ec_comm::set_uefi_app_mode(&ec, false);
 
         let reset = gui_res.unwrap();
@@ -128,7 +147,7 @@ fn print_module_status() {
     print_tool_version();
     println!("");
 
-    let ec = CrosEc::new();
+    let ec  = CrosEc::new();
 
     println!("Input Module Status:");
     if let Some(status) = print_err(ec.get_input_deck_status()) {
@@ -153,6 +172,46 @@ fn print_module_status() {
     } else {
         println!("  Unable to tell");
     }
+}
+
+fn print_12in_status() {
+    print_tool_version();
+    println!("");
+
+    framework_lib::commandline::smbios_info();
+
+    println!("Connecting to Sunflower EC");
+    #[cfg(not(feature = "qemu"))]
+    let ec = CrosEc::new();
+    #[cfg(feature = "qemu")]
+    let ec  = CrosEc::new();
+
+    // TODO: Don't unwrap
+    println!("Trying to get intrusion status");
+    let intrusion = ec.get_intrusion_status().unwrap();
+    let hw_diag = ec_comm::get_hw_diag(&Some(ec)).hw_diag;
+    let no_audio = hw_diag & (1 << DIAGNOSTICS_AUDIO_DAUGHTERBOARD) != 0;
+    let no_fan = hw_diag & (1 << DIAGNOSTICS_NOFAN) != 0;
+    let no_touchpad = hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) != 0;
+    let input_deck_ok = !intrusion.currently_open && !no_touchpad;
+
+    println!("Input Deck Status:");
+    println!("  Chassis Closed:    {}", !intrusion.currently_open);
+    println!("  Touchpad Present:  {:?}", !no_touchpad);
+    // TODO: I2C checks
+    println!("  Touchpad I2C OK:   {:?}", true);
+    println!("  Keyboard I2C OK:   {:?}", true);
+    println!("  Overall OK:        {:?}", input_deck_ok);
+
+    println!("Audio Board");
+    println!("  Present:           {:?}", !no_audio);
+
+    println!("Camera");
+    // TODO: G-Sensor BOARD_ID
+    println!("  Present:           {:?}", true);
+
+    println!("CPU Fan");
+    println!("  Present:           {:?}", !no_fan);
 }
 
 fn print_tool_version() {

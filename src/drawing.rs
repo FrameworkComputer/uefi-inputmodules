@@ -22,7 +22,10 @@ use zune_png::PngDecoder;
 
 use crate::buffer::Buffer;
 use crate::built_info;
+#[cfg(not(feature = "12in"))]
 use crate::state_machine::DebugInfo;
+#[cfg(feature = "12in")]
+use crate::state_machine_12in::DebugInfo;
 
 pub const WIDTH: usize = 2560;
 pub const WIDTH_I32: i32 = 2560;
