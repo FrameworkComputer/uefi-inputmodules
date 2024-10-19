@@ -15,13 +15,10 @@ use framework_lib::power::{self, ReducedPowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use log::{log_enabled, Level};
-use uefi::prelude::{BootServices, RuntimeServices};
-use uefi::proto::console::gop::GraphicsOutput;
-use uefi::proto::console::text::{Input, Key, ScanCode};
-use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
-use uefi::table::runtime::{VariableAttributes, VariableVendor};
+use uefi::prelude::BootServices;
+use uefi::proto::console::text::{Key, ScanCode};
 use uefi::table::{Boot, SystemTable};
-use uefi::{cstr16, guid, Char16, Identify};
+use uefi::Char16;
 #[allow(unused_imports)]
 use uefi_services::{print, println, system_table};
 
@@ -30,11 +27,9 @@ use crate::built_info;
 use crate::drawing::*;
 use crate::ec_comm;
 use crate::sleep::sleep_or;
+use crate::util;
 
 const FAILED_INPUT: &str = "Failed to get keypress";
-
-const EFI_OS_INDICATIONS_BOOT_TO_FW_UI: u64 = 0x0000000000000001;
-const EFI_GLOBAL_VARIABLE_GUID: uefi::Guid = guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
 
 #[allow(dead_code)]
 pub struct DebugInfo {
@@ -520,76 +515,6 @@ impl State {
     }
 }
 
-fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutput>, Buffer)> {
-    let gop_handles = if let Ok(gop_handles) =
-        bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
-    {
-        gop_handles
-    } else {
-        info!("GraphicsOutput protocol is missing");
-        return None;
-    };
-
-    let gop = if let Some(handle) = gop_handles.iter().next() {
-        unsafe {
-            bs.open_protocol::<GraphicsOutput>(
-                OpenProtocolParams {
-                    handle: *handle,
-                    agent: bs.image_handle(),
-                    controller: None,
-                },
-                OpenProtocolAttributes::GetProtocol,
-            )
-            .expect("Failed to open GraphicsOutput handle")
-        }
-    } else {
-        info!("No GOP handles found");
-        return None;
-    };
-
-    let mode = gop.current_mode_info();
-    let (width, height) = mode.resolution();
-    let _size = Point::new(width as i32, height as i32);
-    info!("Current Resolution {}x{}", width, height);
-
-    // Create a buffer to draw into.
-    let (width, height) = gop.current_mode_info().resolution();
-    Some((gop, Buffer::new(width, height)))
-}
-
-fn get_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
-    let input_handles =
-        if let Ok(input_handles) = bs.locate_handle_buffer(SearchType::ByProtocol(&Input::GUID)) {
-            input_handles
-        } else {
-            info!("Input protocol is missing");
-            return None;
-        };
-
-    if let Some(handle) = input_handles.iter().next() {
-        unsafe {
-            bs.open_protocol::<Input>(
-                OpenProtocolParams {
-                    handle: *handle,
-                    agent: bs.image_handle(),
-                    controller: None,
-                },
-                OpenProtocolAttributes::GetProtocol,
-            )
-            .ok()
-        }
-    } else {
-        info!("No Input handles found");
-        None
-    }
-}
-
-// Avoid using because it might cause trouble with later boot process
-fn _get_exclusive_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
-    let input_handle = bs.get_handle_for_protocol::<Input>().ok()?;
-    bs.open_protocol_exclusive::<Input>(input_handle).ok()
-}
-
 fn has_bay_issue(
     expansion_bay: &EcResponseExpansionBayStatus,
     hw_diag: &EcResponseGetHwDiag,
@@ -618,37 +543,6 @@ fn has_bay_issue(
     }
 
     None
-}
-
-/// Set OS indications so that a reboot will boot into setup menu
-fn set_os_indications_setupmenu(rt: &RuntimeServices) {
-    let vendor = VariableVendor(EFI_GLOBAL_VARIABLE_GUID);
-    let mut buf = [0; 8];
-    rt.get_variable(cstr16!("OsIndicationsSupported"), &vendor, &mut buf)
-        .expect("failed to get variable");
-    let os_indications: u64 = u64::from_ne_bytes(buf);
-    debug!("OS Indications: {:?}", os_indications);
-
-    let os_indications = if rt
-        .get_variable(cstr16!("OsIndications"), &vendor, &mut buf)
-        .is_ok()
-    {
-        u64::from_ne_bytes(buf) | EFI_OS_INDICATIONS_BOOT_TO_FW_UI
-    } else {
-        EFI_OS_INDICATIONS_BOOT_TO_FW_UI
-    };
-    debug!("OS Indications: {:?}", os_indications);
-
-    let attrs = VariableAttributes::NON_VOLATILE
-        | VariableAttributes::BOOTSERVICE_ACCESS
-        | VariableAttributes::RUNTIME_ACCESS;
-    rt.set_variable(
-        cstr16!("OsIndications"),
-        &vendor,
-        attrs,
-        &u64::to_ne_bytes(os_indications),
-    )
-    .expect("failed to set variable");
 }
 
 pub fn start(
@@ -684,7 +578,7 @@ pub fn start(
     }
 
     // Get GOP protocol to draw on the screen
-    let (mut gop, mut buffer) = if let Some((gop, buf)) = get_gop_buffer(bs) {
+    let (mut gop, mut buffer) = if let Some((gop, buf)) = util::get_gop_buffer(bs) {
         (gop, buf)
     } else {
         // Something went wrong with GOP initialization, keep booting
@@ -693,7 +587,7 @@ pub fn start(
     };
 
     // Get Input protocol to detect keypresses
-    let mut input = get_input_protocol(bs).expect("Should always have input protocol");
+    let mut input = util::get_input_protocol(bs).expect("Should always have input protocol");
 
     let mut state = State::new();
     let mut long_press = 0;
@@ -738,7 +632,7 @@ pub fn start(
 
         if state.keypress == Some(Key::Special(ScanCode::FUNCTION_12)) {
             let rt = st.runtime_services();
-            set_os_indications_setupmenu(rt);
+            util::set_os_indications_setupmenu(rt);
             return Ok(Some(uefi::table::runtime::ResetType::Cold));
         }
 

@@ -24,6 +24,7 @@ mod ec_comm;
 mod gui;
 mod sleep;
 mod state_machine;
+mod util;
 mod built_info {
     // The file has been placed there by the build script.
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
