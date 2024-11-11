@@ -10,7 +10,7 @@ use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 use crate::state_machine_12in::InputDeckStatus12In;
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
 use framework_lib::chromium_ec::{CrosEc, EcError, EcRequestRaw, EcResponseStatus, EcResult};
-use framework_lib::power::{get_accel_data, get_als_reading, AccelData, BatteryInformation, PowerInfo, ReducedPowerInfo};
+use framework_lib::power::{get_accel_data, get_als_reading, AccelData, BatteryInformation, LidAngle, PowerInfo, ReducedPowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::proto::console::text::Key;
@@ -725,14 +725,14 @@ pub fn get_als_data(ec: &Option<CrosEc>) -> u32 {
     }
 }
 
-pub fn get_accel_reading(ec: &Option<CrosEc>) -> (AccelData, AccelData, u16) {
+pub fn get_accel_reading(ec: &Option<CrosEc>) -> (AccelData, AccelData, LidAngle) {
     if let Some(ref ec) = ec {
         get_accel_data(ec)
     } else {
         (
             AccelData { x: 0, y: 0, z: 0 },
             AccelData { x: 0, y: 0, z: 0 },
-            framework_lib::power::LID_ANGLE_UNRELIABLE
+            LidAngle::Unreliable
         )
     }
 }

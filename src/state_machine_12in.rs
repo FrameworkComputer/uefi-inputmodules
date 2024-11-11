@@ -8,7 +8,7 @@ use embedded_graphics::prelude::Point;
 use framework_lib::chromium_ec::commands::EcResponseGetHwDiag;
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
-use framework_lib::power::{self, get_accel_data, AccelData, ReducedPowerInfo};
+use framework_lib::power::{self, get_accel_data, AccelData, LidAngle, ReducedPowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use log::{log_enabled, Level};
@@ -47,7 +47,7 @@ pub struct DebugInfo {
     pub hw_diag: EcResponseGetHwDiag,
     pub deck: InputDeckStatus12In,
     pub power_info: Option<ReducedPowerInfo>,
-    pub accel_reading: (AccelData, AccelData, u16)
+    pub accel_reading: (AccelData, AccelData, LidAngle)
 }
 
 pub struct State {
@@ -59,7 +59,7 @@ pub struct State {
     prev_input_deck: Option<InputDeckStatus12In>,
     prev_hw_diag: Option<EcResponseGetHwDiag>,
     prev_power_info: Option<Option<ReducedPowerInfo>>,
-    prev_accel_reading: Option<(AccelData, AccelData, u16)>,
+    prev_accel_reading: Option<(AccelData, AccelData, LidAngle)>,
     prev_pressed: bool,
     verbose: bool,
     keypress: Option<Key>,
@@ -173,7 +173,7 @@ impl State {
         input_deck: &InputDeckStatus12In,
         hw_diag: &EcResponseGetHwDiag,
         power_info: &Option<ReducedPowerInfo>,
-        accel_reading: &(AccelData, AccelData, u16),
+        accel_reading: &(AccelData, AccelData, LidAngle),
     ) -> bool {
         let new_deck = Some(input_deck) != self.prev_input_deck.as_ref();
         let new_diag = Some(hw_diag) != self.prev_hw_diag.as_ref();
@@ -326,9 +326,13 @@ pub fn start(
 
         if need_redraw {
             state.frame = state.next_state(&input_deck, &hw_diag);
+
             state.draw_state(&mut buffer, &input_deck);
 
             draw_battery_info(&mut buffer, &power_info);
+            draw_accel_bubble(&mut buffer, &accel_reading.0, Point::new(400, 400));
+            draw_accel_bubble(&mut buffer, &accel_reading.1, Point::new(400, 650));
+            draw_lid_angle(&mut buffer, accel_reading.2, Point::new(600, 400));
             draw_version(
                 &mut buffer,
                 Some(DebugInfo {

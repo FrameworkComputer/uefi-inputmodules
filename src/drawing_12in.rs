@@ -5,14 +5,14 @@ use embedded_graphics::geometry::{AnchorPoint, Dimensions, Size};
 use embedded_graphics::image::{Image, ImageRaw};
 use embedded_graphics::mono_font::{ascii, MonoTextStyle};
 use embedded_graphics::pixelcolor::Rgb888;
-use embedded_graphics::prelude::{Point, Primitive, RgbColor};
+use embedded_graphics::prelude::{Point, Primitive, RgbColor, Transform};
 use embedded_graphics::primitives::{
-    PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle,
+    Circle, Line, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle
 };
 use embedded_graphics::text::Text;
 use embedded_graphics::Drawable;
 use framework_lib::chromium_ec::commands::*;
-use framework_lib::power::{ReducedPowerInfo, LID_ANGLE_UNRELIABLE};
+use framework_lib::power::{AccelData, LidAngle, ReducedPowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::proto::console::gop::GraphicsOutput;
@@ -170,6 +170,88 @@ pub fn draw_battery_info(buffer: &mut Buffer, power_info: &Option<ReducedPowerIn
     };
 }
 
+pub fn draw_lid_angle(buffer: &mut Buffer, angle: LidAngle, pos: Point) {
+    // Base
+    Line::new(Point::new(0, 0), Point::new(100, 0))
+    .translate(pos)
+    .into_styled(PrimitiveStyle::with_stroke(BLACK_BAR, 15))
+    .draw(buffer).unwrap();
+
+    let angle = if let LidAngle::Angle(deg) = angle {
+        deg
+    } else {
+        // Can't draw lid
+        return;
+    };
+
+    use micromath::F32Ext;
+    let angle = angle as f32;
+    let angle = angle.to_radians();
+
+    // Lid
+    let rotated = Point::new(
+        (100_f32 - 100_f32*f32::cos(angle)) as i32,
+        (-100_f32*f32::sin(angle)) as i32
+    );
+    Line::new(rotated, Point::new(100, 0))
+    .translate(pos)
+    .into_styled(PrimitiveStyle::with_stroke(BLACK_BAR, 10))
+    .draw(buffer).unwrap();
+
+    // Draw circles at the end of each line to make it look prettier
+    Circle::with_center(pos, 15)
+        .into_styled(PrimitiveStyle::with_fill(BLACK_BAR))
+        .draw(buffer)
+        .unwrap();
+    Circle::with_center(pos + Point::new(100, 0), 15)
+        .into_styled(PrimitiveStyle::with_fill(BLACK_BAR))
+        .draw(buffer)
+        .unwrap();
+    Circle::with_center(pos + rotated, 10)
+        .into_styled(PrimitiveStyle::with_fill(BLACK_BAR))
+        .draw(buffer)
+        .unwrap();
+}
+
+
+pub fn draw_accel_bubble(buffer: &mut Buffer, accel_reading: &AccelData, pos: Point) {
+    let outer_diameter = 200 ;
+    // Maximum value is 2.pow(16) / 4
+    // Outer diameter is 200
+    // Outer radius is 200 / 2
+    let reading_scale = 2_i32.pow(16) / 4 / 200 * 2;
+    // Reverse y direction because G-sensor's origin is in bottom left corrner
+    // But screen drawing origin is on top left corner
+    let reading_x = accel_reading.x as i32;
+    let reading_y = -accel_reading.y as i32;
+    let bubble_pos = pos + Point::new(
+        reading_x / reading_scale,
+        reading_y / reading_scale
+    );
+
+    // Inner circle
+    Circle::with_center(pos, 100)
+        .into_styled(PrimitiveStyle::with_stroke(BLACK_BAR, 2))
+        .draw(buffer)
+        .unwrap();
+    // Outer circle
+    Circle::with_center(pos, 200)
+        .into_styled(PrimitiveStyle::with_stroke(BLACK_BAR, 2))
+        .draw(buffer)
+        .unwrap();
+
+    // Indicator
+    let style = if accel_reading.z >= 0 {
+        PrimitiveStyle::with_fill(BLACK_BAR)
+    } else {
+        PrimitiveStyle::with_stroke(BLACK_BAR,2)
+    };
+    Circle::with_center(bubble_pos, 50)
+        .into_styled(style)
+        .draw(buffer)
+        .unwrap();
+}
+
 // TODO: Update
 pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose: bool) {
     // Place version information in the lower right corner
@@ -195,14 +277,9 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                 } else {
                     String::from("AC/DC:      ???")
                 };
-                let lid_angle = if debug_info.accel_reading.2 == LID_ANGLE_UNRELIABLE {
-                    "Unreliable".to_string()
-                } else {
-                    format!("{} deg", debug_info.accel_reading.2)
-                };
                 format!(
                     // TODO: Pad dirty to the end
-                    "Version:    {} \nRef:        {}, Dirty:{}\nCommit:     {}\nHas EC:     {}, PwrBtn pressed:  {}, PwrBtn Long press count:{}\nHW Diag:    {:#032b}\nCPU Fan:    {:?}\nAudioBoard: {:?}\nDeck State: {:?}\nLid Accel:  ({:05}, {:05}, {:05})\nBase Accel: ({:05}, {:05}, {:05})\nLid Angle:  {}\n{}",
+                    "Version:    {} \nRef:        {}, Dirty:{}\nCommit:     {}\nHas EC:     {}, PwrBtn pressed:  {}, PwrBtn Long press count:{}\nHW Diag:    {:#032b}\nCPU Fan:    {:?}\nAudioBoard: {:?}\nDeck State: {:?}\nLid Accel:  ({:>6}, {:>6}, {:>6})\nBase Accel: ({:>6}, {:>6}, {:>6})\nLid Angle:  {}\n{}",
                     built_info::PKG_VERSION,
                     built_info::GIT_HEAD_REF.unwrap_or("?"),
                     built_info::GIT_DIRTY.unwrap_or(false),
@@ -223,10 +300,10 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                     debug_info.accel_reading.0.y,
                     debug_info.accel_reading.0.z,
                     debug_info.accel_reading.1.x,
-                    debug_info.accel_reading.1.z,
+                    debug_info.accel_reading.1.y,
                     debug_info.accel_reading.1.z,
                     // TODO: Add temps
-                    lid_angle,
+                    debug_info.accel_reading.2,
                     power_str
                 )
             } else {

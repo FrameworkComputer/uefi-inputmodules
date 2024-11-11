@@ -22,6 +22,7 @@ log = "0.4"
 uefi = { version = "0.20", features = ["alloc"] }
 uefi-services = "0.17"
 zune-core = "0.2.14"
+micromath = "2.1.0"
 
 # Temporarily override because we need pending PRs for
 # for the Shell and ShellParameters protocols
