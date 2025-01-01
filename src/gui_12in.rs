@@ -111,8 +111,7 @@ pub fn get_input_deck(emulated_deck: &InputDeckStatus12In, _ec: &Option<CrosEc>)
         let _hw_diag = ec_comm::get_hw_diag(_ec).hw_diag;
         let intrusion = _ec.as_ref().unwrap().get_intrusion_status().unwrap();
         Ok(InputDeckStatus12In {
-            touchpad_present: !intrusion.currently_open
-            //touchpad_present: hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0
+            chassis_open: !intrusion.currently_open
         })
     };
     #[cfg(feature = "qemu")]
@@ -128,7 +127,7 @@ pub fn get_input_deck(emulated_deck: &InputDeckStatus12In, _ec: &Option<CrosEc>)
 
 pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> Result {
     let mut emulated_deck = InputDeckStatus12In {
-        touchpad_present: false,
+        chassis_closed: false,
     };
     let input_deck = get_input_deck(&emulated_deck, ec);
     let mut pressed: u8 = 255;
@@ -379,7 +378,7 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
             );
 
             show_touchpad(
-                input_deck.touchpad_present,
+                input_deck.chassis_closed,
                 &mut buffer,
                 &trackpad_image,
                 &csize_bmp,
@@ -427,16 +426,6 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
         //});
 
         match input.read_key().unwrap() {
-            Some(Key::Printable(key)) if key == zero_key => {
-                emulated_deck = InputDeckStatus12In {
-                    touchpad_present: false,
-                };
-            }
-            Some(Key::Printable(key)) if key == five_key => {
-                emulated_deck = InputDeckStatus12In {
-                    touchpad_present: true,
-                };
-            }
             Some(Key::Printable(key)) if key == q_key => {
                 show_instructions = !show_instructions;
                 if show_instructions {

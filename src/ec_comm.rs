@@ -3,7 +3,8 @@ use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestGetHwDiag, EcRequestUefiAppBtnStatus,
     EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionByStates,
     BOARD_VERSION_12, BOARD_VERSION_13, BOARD_VERSION_15, DIAGNOSTICS_NO_LEFT_FAN,
-    DIAGNOSTICS_NO_RIGHT_FAN, DIAGNOSTICS_NOFAN
+    DIAGNOSTICS_NO_RIGHT_FAN, DIAGNOSTICS_NOFAN, DIAGNOSTICS_AUDIO_DAUGHTERBOARD,
+    DIAGNOSTICS_TOUCHPAD,
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 #[cfg(feature = "12in")]
@@ -118,7 +119,7 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
 #[cfg(feature = "12in")]
 pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus12In {
     let unpopulated = InputDeckStatus12In {
-        touchpad_present: false,
+        chassis_closed: false,
     };
 
     // Pretend there's no EC because the EC is guaranteed not to have this command
@@ -129,8 +130,7 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus12In {
         let input_deck: core::result::Result<InputDeckStatus12In, ()> = {
             let intrusion = ec.get_intrusion_status().unwrap();
             return InputDeckStatus12In {
-                touchpad_present: !intrusion.currently_open
-                //touchpad_present: hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0
+                chassis_closed: !intrusion.currently_open
             }
         };
     }
@@ -542,19 +542,22 @@ pub fn keypress_mock_data(
 ) {
     // TODO: Can this be created from a macro?
 
+    // Input deck control
     let one_key = Char16::try_from('1').unwrap();
     let two_key = Char16::try_from('2').unwrap();
     let three_key = Char16::try_from('3').unwrap();
     let four_key = Char16::try_from('4').unwrap();
     let five_key = Char16::try_from('5').unwrap();
+    // AC/Battery power control
     let a_key = Char16::try_from('a').unwrap();
     let s_key = Char16::try_from('s').unwrap();
     let d_key = Char16::try_from('d').unwrap();
     let f_key = Char16::try_from('f').unwrap();
     let g_key = Char16::try_from('g').unwrap();
+    // Fan (Cooler)
     let c_key = Char16::try_from('c').unwrap();
+    // Audio board (Jack)
     let j_key = Char16::try_from('j').unwrap();
-    let p_key = Char16::try_from('p').unwrap();
 
     match keypress {
         Some(Key::Printable(key)) if key == a_key => {
@@ -566,27 +569,33 @@ pub fn keypress_mock_data(
             };
         }
         Some(Key::Printable(key)) if key == c_key => {
-            if hw_diag.hw_diag & (1 << DIAGNOSTICS_NOFAN) != 0 {
-                // Toggle fan to present
-                hw_diag.hw_diag ^= !(1 << DIAGNOSTICS_NOFAN);
-            } else {
-                // Toggle fan to not present
-                hw_diag.hw_diag |= 1 << DIAGNOSTICS_NOFAN;
-            }
+            hw_diag.hw_diag ^= 1 << DIAGNOSTICS_NOFAN;
+        }
+        Some(Key::Printable(key)) if key == j_key => {
+            hw_diag.hw_diag ^= 1 << DIAGNOSTICS_AUDIO_DAUGHTERBOARD;
         }
         _ => {}
     }
     match keypress {
         // State: NoTouchpad
         Some(Key::Printable(key)) if key == one_key => {
+            hw_diag.hw_diag |= 1 << DIAGNOSTICS_TOUCHPAD;
             *input_deck = InputDeckStatus12In {
-                touchpad_present: false,
+                chassis_closed: false,
+            };
+        }
+        Some(Key::Printable(key)) if key == two_key => {
+            // Chassis closed, but no touchpad
+            hw_diag.hw_diag |= 1 << DIAGNOSTICS_TOUCHPAD;
+            *input_deck = InputDeckStatus12In {
+                chassis_closed: true,
             };
         }
         // State: Finished
         Some(Key::Printable(key)) if key == five_key => {
+            hw_diag.hw_diag &= !(1 << DIAGNOSTICS_TOUCHPAD);
             *input_deck = InputDeckStatus12In {
-                touchpad_present: true,
+                chassis_closed: true,
             };
         }
         Some(Key::Printable(key)) if key == a_key => {

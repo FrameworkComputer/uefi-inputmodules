@@ -1,11 +1,12 @@
 // TODO: For when I ported the font
 // use alloc::string::ToString;
+use alloc::format;
 use core::fmt;
 
 use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::Point;
 
-use framework_lib::chromium_ec::commands::EcResponseGetHwDiag;
+use framework_lib::chromium_ec::commands::{EcResponseGetHwDiag,DIAGNOSTICS_TOUCHPAD};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
 use framework_lib::power::{self, get_accel_data, AccelData, LidAngle, ReducedPowerInfo};
@@ -30,12 +31,12 @@ const FAILED_INPUT: &str = "Failed to get keypress";
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct InputDeckStatus12In {
-    pub touchpad_present: bool,
+    pub chassis_closed: bool,
 }
 
 impl InputDeckStatus12In {
     pub fn fully_populated(&self) -> bool {
-        self.touchpad_present
+        self.chassis_closed
     }
 }
 
@@ -98,7 +99,9 @@ impl State {
         input_deck: &InputDeckStatus12In,
         hw_diag: &EcResponseGetHwDiag,
     ) -> StateFrame {
-        if input_deck.touchpad_present {
+        // TODO: Sunflower evaluate more error conditions
+        let touchpad_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0;
+        if input_deck.fully_populated() && touchpad_present {
             StateFrame::Finished
         } else {
             StateFrame::NoTouchpad
@@ -107,7 +110,7 @@ impl State {
 
     // Display graphics for the current frame
     // Need to call blit after the function call to show it
-    pub fn draw_state(&mut self, buffer: &mut Buffer, input_deck: &InputDeckStatus12In) {
+    pub fn draw_state(&mut self, buffer: &mut Buffer, input_deck: &InputDeckStatus12In, hw_diag: &EcResponseGetHwDiag) {
         // Draw solid background color #F3F2F2
         for y in 0..self.screen_size.height {
             for x in 0..self.screen_size.width {
@@ -146,24 +149,30 @@ impl State {
             StateFrame::NoTouchpad => {
                 // TODO: No bitmaps yet
                 // self.bitmaps.touchpad_not_detected_text().draw(buffer);
+                let touchpad_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0;
+                let warn = format!(
+                    "Issue with Input Deck installation found: {}{}",
+                    if input_deck.chassis_closed { "" } else { "\n - Chassis not closed" },
+                    if touchpad_present { "" } else { "\n - Touchpad not present" },
+                );
 
-                // draw_textbox(
-                //     buffer,
-                //     Point::new(WARN_X, WARN_Y),
-                //     TextColor::Warn,
-                //     "Touchpad not detected",
-                // );
+                draw_textbox(
+                    buffer,
+                    Point::new(WARN_X, WARN_Y),
+                    TextColor::Warn,
+                    &warn
+                );
             }
             StateFrame::Finished => {
                 // TODO: No bitmaps yet
                 // self.bitmaps.inputmodules_touchpad_ok_text().draw(buffer);
 
-                // draw_textbox(
-                //     buffer,
-                //     Point::new(WARN_X, WARN_Y),
-                //     TextColor::Ok,
-                //     "Input Modules and Touchpad detected",
-                // );
+                draw_textbox(
+                    buffer,
+                    Point::new(WARN_X, WARN_Y),
+                    TextColor::Ok,
+                    "Input Deck correctly installed",
+                );
             }
         }
     }
@@ -327,7 +336,7 @@ pub fn start(
         if need_redraw {
             state.frame = state.next_state(&input_deck, &hw_diag);
 
-            state.draw_state(&mut buffer, &input_deck);
+            state.draw_state(&mut buffer, &input_deck, &hw_diag);
 
             draw_battery_info(&mut buffer, &power_info);
             draw_accel_bubble(&mut buffer, &accel_reading.0, Point::new(400, 400));

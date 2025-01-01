@@ -84,7 +84,7 @@ const GREEN_BORDER: Rgb888 = Rgb888::new(0x00, 0x8a, 0x4e);
 pub enum TextColor {
     Error,
     Warn,
-    _Ok,
+    Ok,
     _Info,
 }
 impl TextColor {
@@ -92,7 +92,7 @@ impl TextColor {
         match self {
             TextColor::Error => (BG_COLOR, RED_WARN, RED_BORDER),
             TextColor::Warn => (BG_COLOR, YELLOW_WARN, YELLOW_BORDER),
-            TextColor::_Ok => (BG_COLOR, GREEN_OK, GREEN_BORDER),
+            TextColor::Ok => (BG_COLOR, GREEN_OK, GREEN_BORDER),
             TextColor::_Info => (BG_COLOR, Rgb888::WHITE, Rgb888::BLACK),
         }
     }
@@ -279,7 +279,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                 };
                 format!(
                     // TODO: Pad dirty to the end
-                    "Version:    {} \nRef:        {}, Dirty:{}\nCommit:     {}\nHas EC:     {}, PwrBtn pressed:  {}, PwrBtn Long press count:{}\nHW Diag:    {:#032b}\nCPU Fan:    {:?}\nAudioBoard: {:?}\nDeck State: {:?}\nLid Accel:  ({:>6}, {:>6}, {:>6})\nBase Accel: ({:>6}, {:>6}, {:>6})\nLid Angle:  {}\n{}",
+                    "Version:    {} \nRef:        {}, Dirty:{}\nCommit:     {}\nHas EC:     {}, PwrBtn pressed:  {}, PwrBtn Long press count:{}\nHW Diag:    {:#032b}\nCPU Fan:    {:?}\nAudioBoard: {:?}\nTouchpad:   {:?}\nChassisClsd:{:?}\nLid Accel:  ({:>6}, {:>6}, {:>6})\nBase Accel: ({:>6}, {:>6}, {:>6})\nLid Angle:  {}\n{}",
                     built_info::PKG_VERSION,
                     built_info::GIT_HEAD_REF.unwrap_or("?"),
                     built_info::GIT_DIRTY.unwrap_or(false),
@@ -295,7 +295,8 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                     // Input Deck
                     debug_info.hw_diag.hw_diag & (1 << DIAGNOSTICS_NOFAN) == 0,
                     debug_info.hw_diag.hw_diag & (1 << DIAGNOSTICS_AUDIO_DAUGHTERBOARD) == 0,
-                    debug_info.deck.touchpad_present,
+                    debug_info.hw_diag.hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0,
+                    debug_info.deck.chassis_closed,
                     debug_info.accel_reading.0.x,
                     debug_info.accel_reading.0.y,
                     debug_info.accel_reading.0.z,
