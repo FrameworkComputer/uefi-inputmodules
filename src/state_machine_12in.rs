@@ -6,7 +6,7 @@ use core::fmt;
 use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::Point;
 
-use framework_lib::chromium_ec::commands::{EcResponseGetHwDiag,DIAGNOSTICS_TOUCHPAD};
+use framework_lib::chromium_ec::commands::{EcResponseGetHwDiag, DIAGNOSTICS_AUDIO_DAUGHTERBOARD, DIAGNOSTICS_NOFAN, DIAGNOSTICS_TOUCHPAD, DIAGNOSTICS_HW_NO_BATTERY};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
 use framework_lib::power::{self, get_accel_data, AccelData, LidAngle, ReducedPowerInfo};
@@ -99,9 +99,12 @@ impl State {
         input_deck: &InputDeckStatus12In,
         hw_diag: &EcResponseGetHwDiag,
     ) -> StateFrame {
+        // TODO: Should audio daughterboard block boot?
+
         // TODO: Sunflower evaluate more error conditions
         let touchpad_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0;
-        if input_deck.fully_populated() && touchpad_present {
+        let fan_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_NOFAN) == 0;
+        if input_deck.fully_populated() && touchpad_present && fan_present {
             StateFrame::Finished
         } else {
             StateFrame::NoTouchpad
@@ -149,11 +152,20 @@ impl State {
             StateFrame::NoTouchpad => {
                 // TODO: No bitmaps yet
                 // self.bitmaps.touchpad_not_detected_text().draw(buffer);
+                // TODO: Add camera module detection
+                // EC will check touchpad board ID as well as KB I2C communication.
+                // The distinction is not useful to the user, they can't do anything differently to debug it.
                 let touchpad_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0;
+                let audioboard_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_AUDIO_DAUGHTERBOARD) == 0;
+                let fan_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_NOFAN) == 0;
+                let battery_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_HW_NO_BATTERY) == 0;
                 let warn = format!(
-                    "Issue with Input Deck installation found: {}{}",
+                    "Issue with system installation found: {}{}{}{}{}",
                     if input_deck.chassis_closed { "" } else { "\n - Chassis not closed" },
-                    if touchpad_present { "" } else { "\n - Touchpad not present" },
+                    if touchpad_present { "" } else { "\n - Touchpad/Keyboard not properly connected" },
+                    if audioboard_present { "" } else { "\n - Audio Daughterboard not present" },
+                    if fan_present { "" } else { "\n - CPU Fan not present" },
+                    if battery_present { "" } else { "\n - Battery not present" },
                 );
 
                 draw_textbox(

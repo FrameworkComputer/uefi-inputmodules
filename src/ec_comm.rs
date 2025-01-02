@@ -4,7 +4,7 @@ use framework_lib::chromium_ec::commands::{
     EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionByStates,
     BOARD_VERSION_12, BOARD_VERSION_13, BOARD_VERSION_15, DIAGNOSTICS_NO_LEFT_FAN,
     DIAGNOSTICS_NO_RIGHT_FAN, DIAGNOSTICS_NOFAN, DIAGNOSTICS_AUDIO_DAUGHTERBOARD,
-    DIAGNOSTICS_TOUCHPAD,
+    DIAGNOSTICS_TOUCHPAD, DIAGNOSTICS_HW_NO_BATTERY
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 #[cfg(feature = "12in")]
@@ -599,6 +599,7 @@ pub fn keypress_mock_data(
             };
         }
         Some(Key::Printable(key)) if key == a_key => {
+            hw_diag.hw_diag |= 1 << DIAGNOSTICS_HW_NO_BATTERY;
             *power_info = Some(
                 PowerInfo {
                     ac_present: true,
@@ -608,6 +609,7 @@ pub fn keypress_mock_data(
             )
         }
         Some(Key::Printable(key)) if key == s_key => {
+            hw_diag.hw_diag &= !(1 << DIAGNOSTICS_HW_NO_BATTERY);
             *power_info = Some(
                 PowerInfo {
                     ac_present: false,
@@ -636,6 +638,7 @@ pub fn keypress_mock_data(
             )
         }
         Some(Key::Printable(key)) if key == d_key => {
+            hw_diag.hw_diag &= !(1 << DIAGNOSTICS_HW_NO_BATTERY);
             *power_info = Some(
                 PowerInfo {
                     ac_present: true,
@@ -663,6 +666,7 @@ pub fn keypress_mock_data(
             )
         }
         Some(Key::Printable(key)) if key == f_key => {
+            hw_diag.hw_diag &= !(1 << DIAGNOSTICS_HW_NO_BATTERY);
             *power_info = Some(
                 PowerInfo {
                     ac_present: false,
@@ -690,6 +694,7 @@ pub fn keypress_mock_data(
             )
         }
         Some(Key::Printable(key)) if key == g_key => {
+            hw_diag.hw_diag &= !(1 << DIAGNOSTICS_HW_NO_BATTERY);
             *power_info = Some(
                 PowerInfo {
                     ac_present: true,
