@@ -329,7 +329,9 @@ pub fn start(
         };
 
         // Detect long press of power button
-        let need_redraw = if button_pressed && state.prev_pressed && !need_redraw {
+        // TODO: Why did we skip this if no need_redraw?
+        // Right now on sunflower always redrawing due to g-sensor animation
+        let need_redraw = if button_pressed && state.prev_pressed {// && !need_redraw {
             if long_press > 4 {
                 // Exit and signal that we need to poweroff
                 return Ok(Some(uefi::table::runtime::ResetType::Shutdown));
