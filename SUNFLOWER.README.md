@@ -142,7 +142,8 @@ Controls:
 - A, S, D, F, G: AC/Battery states (No Battery, 5%, 5% charging, 20%, 20% charging)
 - C: Toggle fan (Cooler)
 - J: Toggle Audio Jack board
-- P: Toggle Power button board
+- P: Toggle Power button board (Not implemented yet)
+- M: Toggle Cam/GSensor/Mic board (Not implemented yet)
 - 1, 2, 3, 4, 5: Input Deck (See below)
 
 Presence/Status detection
