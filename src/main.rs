@@ -178,8 +178,6 @@ fn print_12in_status() {
     print_tool_version();
     println!("");
 
-    framework_lib::commandline::smbios_info();
-
     println!("Connecting to Sunflower EC");
     #[cfg(not(feature = "qemu"))]
     let ec = CrosEc::new();
