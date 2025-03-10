@@ -171,12 +171,14 @@ pub fn get_hw_diag(ec: &Option<CrosEc>) -> EcResponseGetHwDiag {
         hw_diag: 0xFFFFFFFF,
         // BIOS not complete, since it's a UEFI app
         bios_complete: 0,
+        device_complete: 0,
     };
     let all_ok = EcResponseGetHwDiag {
         // No HW diag issue
         hw_diag: 0,
         // BIOS not complete, since it's a UEFI app
         bios_complete: 0,
+        device_complete: 1,
     };
 
     // Pretend there's no EC because the EC is guaranteed not to have this command
