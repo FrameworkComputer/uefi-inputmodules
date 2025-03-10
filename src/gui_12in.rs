@@ -111,7 +111,7 @@ pub fn get_input_deck(emulated_deck: &InputDeckStatus12In, _ec: &Option<CrosEc>)
         let _hw_diag = ec_comm::get_hw_diag(_ec).hw_diag;
         let intrusion = _ec.as_ref().unwrap().get_intrusion_status().unwrap();
         Ok(InputDeckStatus12In {
-            chassis_open: !intrusion.currently_open
+            chassis_closed: !intrusion.currently_open
         })
     };
     #[cfg(feature = "qemu")]
