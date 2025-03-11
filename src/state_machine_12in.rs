@@ -160,7 +160,7 @@ impl State {
                 let fan_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_NOFAN) == 0;
                 let battery_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_HW_NO_BATTERY) == 0;
                 let warn = format!(
-                    "Issue with system installation found: {}{}{}{}{}",
+                    "Issues with system installation found:{}{}{}{}{}\n\nPress power button quickly to skip checks.\nPress power button for 5 seconds to shut off.",
                     if input_deck.chassis_closed { "" } else { "\n - Chassis not closed" },
                     if touchpad_present { "" } else { "\n - Touchpad/Keyboard not properly connected" },
                     if audioboard_present { "" } else { "\n - Audio Daughterboard not present" },
