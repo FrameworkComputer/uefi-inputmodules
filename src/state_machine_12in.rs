@@ -119,12 +119,14 @@ impl State {
             for x in 0..self.screen_size.width {
                 // TODO: Can actually unwrap because the screen size should be correct.
                 if let Some(pixel) = buffer.pixel(x as usize, y as usize) {
-                    pixel.red = 0xF3;
-                    pixel.green = 0xF2;
-                    pixel.blue = 0xF2;
+                    pixel.red = 0xFF;
+                    pixel.green = 0xFF;
+                    pixel.blue = 0xFF;
                 }
             }
         }
+
+        self.bitmaps.keyboard().draw(buffer);
 
         // Hints on lower left and right
         match self.frame {
@@ -355,7 +357,7 @@ pub fn start(
             draw_battery_info(&mut buffer, &power_info);
             draw_accel_bubble(&mut buffer, &accel_reading.0, Point::new(400, 400));
             draw_accel_bubble(&mut buffer, &accel_reading.1, Point::new(400, 650));
-            draw_lid_angle(&mut buffer, accel_reading.2, Point::new(600, 400));
+            draw_lid_angle(&mut buffer, accel_reading.2, Point::new(950, 200));
             draw_version(
                 &mut buffer,
                 Some(DebugInfo {

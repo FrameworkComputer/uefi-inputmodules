@@ -31,7 +31,7 @@ pub const WIDTH: usize = 1920;
 pub const WIDTH_I32: i32 = 1920;
 pub const HEIGHT: usize = 1200;
 pub const HEIGHT_I32: i32 = 1200;
-pub const BACKGROUND_COLOR: Rgb888 = Rgb888::new(0xF3, 0xF2, 0xF2);
+pub const BACKGROUND_COLOR: Rgb888 = Rgb888::new(0xFF, 0xFF, 0xFF);//0xF3, 0xF2, 0xF2);
 pub const BLACK_BAR: Rgb888 = Rgb888::new(0x33, 0x33, 0x33);
 
 pub const WARN_X: i32 = WIDTH_I32 / 2;
@@ -39,7 +39,7 @@ pub const WARN_Y: i32 = HEIGHT_I32 - 250;
 
 #[derive(Default)]
 pub struct StateBitmaps {
-    // TODO: Add bitmaps
+    keyboard: Option<Vec<u8>>,
 }
 
 pub struct ImagePlusMeta<'a> {
@@ -64,7 +64,26 @@ impl<'a> ImagePlusMeta<'a> {
 }
 
 impl StateBitmaps {
-    // TODO: Add bitmap drawing functions
+    pub fn keyboard(&mut self) -> ImagePlusMeta {
+        if self.keyboard.is_none() {
+            let png = include_bytes!("../resources/sunflower-keyboard.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.keyboard = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.keyboard.as_ref().unwrap(),
+            width: 1200,
+            pos: Point {
+                x: 500,
+                y: 200,
+            },
+        }
+    }
 }
 
 // Text bubble colors
