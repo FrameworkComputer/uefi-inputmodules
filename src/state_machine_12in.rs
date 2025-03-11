@@ -99,12 +99,12 @@ impl State {
         input_deck: &InputDeckStatus12In,
         hw_diag: &EcResponseGetHwDiag,
     ) -> StateFrame {
-        // TODO: Should audio daughterboard block boot?
-
+        // TODO: Power button daughterboard
         // TODO: Sunflower evaluate more error conditions
+        let audioboard_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_AUDIO_DAUGHTERBOARD) == 0;
         let touchpad_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0;
         let fan_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_NOFAN) == 0;
-        if input_deck.fully_populated() && touchpad_present && fan_present {
+        if input_deck.fully_populated() && touchpad_present && fan_present && audioboard_present {
             StateFrame::Finished
         } else {
             StateFrame::NoTouchpad
