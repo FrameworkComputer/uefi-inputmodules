@@ -170,6 +170,42 @@ impl State {
                     if battery_present { "" } else { "\n - Battery not present" },
                 );
 
+                if !input_deck.chassis_closed {
+                    draw_warning_box(
+                        buffer,
+                        Point::new(1340, 560),
+                        Size::new(30, 40),
+                    );
+                }
+                if !touchpad_present {
+                    draw_warning_box(
+                        buffer,
+                        Point::new(965, 620),
+                        Size::new(210, 30),
+                    );
+                }
+                if !audioboard_present {
+                    draw_warning_box(
+                        buffer,
+                        Point::new(540, 570),
+                        Size::new(170, 110),
+                    );
+                }
+                if !fan_present {
+                    draw_warning_box(
+                        buffer,
+                        Point::new(740, 350),
+                        Size::new(230, 230),
+                    );
+                }
+                if !battery_present {
+                    draw_warning_box(
+                        buffer,
+                        Point::new(850, 620),
+                        Size::new(95, 60),
+                    );
+                }
+
                 draw_textbox(
                     buffer,
                     Point::new(WARN_X, WARN_Y),

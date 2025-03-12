@@ -367,6 +367,16 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
     text.draw(buffer).unwrap();
 }
 
+pub fn draw_warning_box(buffer: &mut Buffer, pos: Point, size: Size) {
+    let rect = Rectangle::new(pos, size);
+    let style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
+        //.fill_color(RED_WARN)
+        .stroke_width(10)
+        .stroke_color(RED_BORDER)
+        .build();
+    rect.into_styled(style).draw(buffer).unwrap();
+}
+
 pub fn draw_black_bar(buffer: &mut Buffer) {
     let tl = Point::new(0, (HEIGHT as i32) - 300);
     let br = Point::new(WIDTH as i32, HEIGHT as i32);
