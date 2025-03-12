@@ -391,9 +391,11 @@ pub fn start(
             state.draw_state(&mut buffer, &input_deck, &hw_diag);
 
             draw_battery_info(&mut buffer, &power_info);
-            draw_accel_bubble(&mut buffer, &accel_reading.0, Point::new(400, 400));
-            draw_accel_bubble(&mut buffer, &accel_reading.1, Point::new(400, 650));
-            draw_lid_angle(&mut buffer, accel_reading.2, Point::new(950, 200));
+            if state.verbose {
+                draw_accel_bubble(&mut buffer, &accel_reading.0, Point::new(400, 400));
+                draw_accel_bubble(&mut buffer, &accel_reading.1, Point::new(400, 650));
+                draw_lid_angle(&mut buffer, accel_reading.2, Point::new(950, 200));
+            }
             draw_version(
                 &mut buffer,
                 Some(DebugInfo {
