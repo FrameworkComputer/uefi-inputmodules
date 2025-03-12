@@ -66,7 +66,7 @@ impl<'a> ImagePlusMeta<'a> {
 impl StateBitmaps {
     pub fn keyboard(&mut self) -> ImagePlusMeta {
         if self.keyboard.is_none() {
-            let png = include_bytes!("../resources/sunflower-keyboard.png");
+            let png = include_bytes!("../resources/sunflower-open-traces.png");
             let mut decoder = PngDecoder::new(png);
             let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
                 panic!("Failed to decode PNG")
@@ -77,7 +77,7 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.keyboard.as_ref().unwrap(),
-            width: 1200,
+            width: 1068,
             pos: Point {
                 x: 500,
                 y: 200,
