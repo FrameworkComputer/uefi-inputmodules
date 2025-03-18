@@ -166,6 +166,22 @@ Presence/Status detection
 
 ## Release Notes
 
+### Version 0.4.1
+
+- Update graphic design
+  - Hide G-Sensor debug bubbles and lid angle in release build
+  - Show open system
+  - Highlight problem areas with red boxes
+- Known issues - urgent
+  - Graphic Design not final
+  - Does not update touchpad/keyboard status live
+  - Add note to tell user to shut down if non-hotpluggable components are missing
+- Known issues - lower priority
+  - Does not detect audio daughterboard (Fixed with EC PR #1440 2.04)
+  - Does not distinguish between keyboard and touchpad status (To fix with EC 2.05 and newer inputmodule app)
+  - Does not detect powerbutton daughterboard (To fix with EC 2.05 and newer inputmodule app)
+  - Does not detect G-Sensor/Camera board (Fixed with EC PR #1440 2.04 and newer inputmodule app)
+
 ### Version 0.4.0
 
 First version of sunflower UEFI input module app.
@@ -190,4 +206,3 @@ First version of sunflower UEFI input module app.
   - Does not detect G-Sensor/Camera board (Fixed with EC PR #1440 2.04 and newer inputmodule app)
 - Notes
   - Does not update battery connection status live (will never work, battery is not hotplug!)
-- To test
