@@ -298,7 +298,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                 };
                 format!(
                     // TODO: Pad dirty to the end
-                    "Version:    {} \nRef:        {}, Dirty:{}\nCommit:     {}\nHas EC:     {}, PwrBtn pressed:  {}, PwrBtn Long press count:{}\nHW Diag:    {:#032b}\nCPU Fan:    {:?}\nAudioBoard: {:?}\nTouchpad:   {:?}\nChassisClsd:{:?}\nLid Accel:  ({:>6}, {:>6}, {:>6})\nBase Accel: ({:>6}, {:>6}, {:>6})\nLid Angle:  {}\n{}",
+                    "Version:    {} \nRef:        {}, Dirty:{}\nCommit:     {}\nHas EC:     {}, PwrBtn pressed:  {}, PwrBtn Long press count:{}\nHW Diag:    {:#032b}\nCPU Fan:    {:?}\nAudioBoard: {:?} (Board ID: {:?})\nTouchpad:   {:?} (Board ID: {:?})\nChassisClsd:{:?}\nPwrBtnBoard:{:?}\nLid Accel:  ({:>6}, {:>6}, {:>6})\nBase Accel: ({:>6}, {:>6}, {:>6})\nLid Angle:  {}\n{}",
                     built_info::PKG_VERSION,
                     built_info::GIT_HEAD_REF.unwrap_or("?"),
                     built_info::GIT_DIRTY.unwrap_or(false),
@@ -308,14 +308,15 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                     debug_info.power_button,
                     debug_info.long_press,
                     // HW Diag
-                    // TODO: Need to decode for non-lotus
-                    // debug_info.hw_diag,
                     { debug_info.hw_diag.hw_diag },
                     // Input Deck
                     debug_info.hw_diag.hw_diag & (1 << DIAGNOSTICS_NOFAN) == 0,
                     debug_info.hw_diag.hw_diag & (1 << DIAGNOSTICS_AUDIO_DAUGHTERBOARD) == 0,
+                    debug_info.deck.audioboard_present,
                     debug_info.hw_diag.hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0,
+                    debug_info.deck.touchpad_present,
                     debug_info.deck.chassis_closed,
+                    debug_info.deck.pwrbtn_present,
                     debug_info.accel_reading.0.x,
                     debug_info.accel_reading.0.y,
                     debug_info.accel_reading.0.z,

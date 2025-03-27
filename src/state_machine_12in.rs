@@ -32,11 +32,14 @@ const FAILED_INPUT: &str = "Failed to get keypress";
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct InputDeckStatus12In {
     pub chassis_closed: bool,
+    pub pwrbtn_present: bool,
+    pub audioboard_present: bool,
+    pub touchpad_present: bool,
 }
 
 impl InputDeckStatus12In {
     pub fn fully_populated(&self) -> bool {
-        self.chassis_closed
+        self.chassis_closed && self.pwrbtn_present && self.audioboard_present && self.touchpad_present
     }
 }
 
@@ -101,10 +104,14 @@ impl State {
     ) -> StateFrame {
         // TODO: Power button daughterboard
         // TODO: Sunflower evaluate more error conditions
-        let audioboard_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_AUDIO_DAUGHTERBOARD) == 0;
-        let touchpad_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0;
+
+        // TODO: Do we need to care about audio and TP diags, when we have board ID HC?
+        // I think no, because they're both safely hotpluggable
+        // let audioboard_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_AUDIO_DAUGHTERBOARD) == 0;
+        // let touchpad_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0;
+
         let fan_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_NOFAN) == 0;
-        if input_deck.fully_populated() && touchpad_present && fan_present && audioboard_present {
+        if input_deck.fully_populated() && fan_present {
             StateFrame::Finished
         } else {
             StateFrame::NoTouchpad
@@ -157,15 +164,14 @@ impl State {
                 // TODO: Add camera module detection
                 // EC will check touchpad board ID as well as KB I2C communication.
                 // The distinction is not useful to the user, they can't do anything differently to debug it.
-                let touchpad_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_TOUCHPAD) == 0;
-                let audioboard_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_AUDIO_DAUGHTERBOARD) == 0;
                 let fan_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_NOFAN) == 0;
                 let battery_present = hw_diag.hw_diag & (1 << DIAGNOSTICS_HW_NO_BATTERY) == 0;
                 let warn = format!(
-                    "Issues with system installation found:{}{}{}{}{}\n\nPress power button quickly to skip checks.\nPress power button for 5 seconds to shut off.",
+                    "Issues with system installation found:{}{}{}{}{}{}\n\nPress power button to skip checks.\nHold power button for 5 seconds to shut off.",
                     if input_deck.chassis_closed { "" } else { "\n - Chassis not closed" },
-                    if touchpad_present { "" } else { "\n - Touchpad/Keyboard not properly connected" },
-                    if audioboard_present { "" } else { "\n - Audio Daughterboard not present" },
+                    if input_deck.touchpad_present { "" } else { "\n - Touchpad/Keyboard not properly connected" },
+                    if input_deck.audioboard_present { "" } else { "\n - Audio Daughterboard not present" },
+                    if input_deck.pwrbtn_present { "" } else { "\n - Power Button Daughterboard not present" },
                     if fan_present { "" } else { "\n - CPU Fan not present" },
                     if battery_present { "" } else { "\n - Battery not present" },
                 );
@@ -177,18 +183,25 @@ impl State {
                         Size::new(30, 40),
                     );
                 }
-                if !touchpad_present {
+                if !input_deck.touchpad_present {
                     draw_warning_box(
                         buffer,
                         Point::new(965, 620),
                         Size::new(210, 30),
                     );
                 }
-                if !audioboard_present {
+                if !input_deck.audioboard_present {
                     draw_warning_box(
                         buffer,
                         Point::new(540, 570),
                         Size::new(170, 110),
+                    );
+                }
+                if !input_deck.pwrbtn_present {
+                    draw_warning_box(
+                        buffer,
+                        Point::new(1380, 570),
+                        Size::new(130, 110),
                     );
                 }
                 if !fan_present {
@@ -221,7 +234,7 @@ impl State {
                     buffer,
                     Point::new(WARN_X, WARN_Y),
                     TextColor::Ok,
-                    "Input Deck correctly installed",
+                    "Input Deck correctly installed\nPress power button to boot",
                 );
             }
         }

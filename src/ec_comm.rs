@@ -109,6 +109,16 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
     }
 }
 
+#[repr(u8)]
+enum Framework12Adc {
+  MainboardBoard,
+  PowerButtonBoard,
+  Psys,
+  AdapterCurrent,
+  Touchpad,
+  AudioBoard,
+}
+
 /// Get current state of hubboard and input deck
 ///
 /// If no EC => unpopulated
@@ -120,6 +130,9 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
 pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus12In {
     let unpopulated = InputDeckStatus12In {
         chassis_closed: false,
+        pwrbtn_present: false,
+        audioboard_present: false,
+        touchpad_present: false,
     };
 
     // Pretend there's no EC because the EC is guaranteed not to have this command
@@ -129,8 +142,15 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus12In {
     if let Some(ref ec) = ec {
         let input_deck: core::result::Result<InputDeckStatus12In, ()> = {
             let intrusion = ec.get_intrusion_status().unwrap();
+            let pwrbtn = ec.read_board_id(Framework12Adc::PowerButtonBoard as u8).unwrap();
+            let audio = ec.read_board_id(Framework12Adc::AudioBoard as u8).unwrap();
+            let tp = ec.read_board_id(Framework12Adc::Touchpad as u8).unwrap();
+
             return InputDeckStatus12In {
-                chassis_closed: !intrusion.currently_open
+                chassis_closed: !intrusion.currently_open,
+                pwrbtn_present: pwrbtn.is_some(),
+                audioboard_present: audio.is_some(),
+                touchpad_present: tp.is_some(),
             }
         };
     }
@@ -560,6 +580,8 @@ pub fn keypress_mock_data(
     let c_key = Char16::try_from('c').unwrap();
     // Audio board (Jack)
     let j_key = Char16::try_from('j').unwrap();
+    // Power Button board
+    let p_key = Char16::try_from('p').unwrap();
 
     match keypress {
         Some(Key::Printable(key)) if key == a_key => {
@@ -579,25 +601,48 @@ pub fn keypress_mock_data(
         _ => {}
     }
     match keypress {
-        // State: NoTouchpad
+        // Chassis not closed, touchpad board ID not present
         Some(Key::Printable(key)) if key == one_key => {
             hw_diag.hw_diag |= 1 << DIAGNOSTICS_TOUCHPAD;
             *input_deck = InputDeckStatus12In {
                 chassis_closed: false,
+                pwrbtn_present: input_deck.pwrbtn_present,
+                audioboard_present: input_deck.audioboard_present,
+                touchpad_present: false,
             };
         }
+        // Chassis closed, touchpad board ID not present
         Some(Key::Printable(key)) if key == two_key => {
-            // Chassis closed, but no touchpad
-            hw_diag.hw_diag |= 1 << DIAGNOSTICS_TOUCHPAD;
             *input_deck = InputDeckStatus12In {
                 chassis_closed: true,
+                pwrbtn_present: input_deck.pwrbtn_present,
+                audioboard_present: input_deck.audioboard_present,
+                touchpad_present: false,
             };
         }
-        // State: Finished
+        // Chassis closed, touchpad board ID present
         Some(Key::Printable(key)) if key == five_key => {
-            hw_diag.hw_diag &= !(1 << DIAGNOSTICS_TOUCHPAD);
             *input_deck = InputDeckStatus12In {
                 chassis_closed: true,
+                pwrbtn_present: input_deck.pwrbtn_present,
+                audioboard_present: input_deck.audioboard_present,
+                touchpad_present: true,
+            };
+        }
+        Some(Key::Printable(key)) if key == p_key => {
+            *input_deck = InputDeckStatus12In {
+                chassis_closed: input_deck.chassis_closed,
+                pwrbtn_present: !input_deck.pwrbtn_present,
+                audioboard_present: input_deck.audioboard_present,
+                touchpad_present: input_deck.touchpad_present,
+            };
+        }
+        Some(Key::Printable(key)) if key == j_key => {
+            *input_deck = InputDeckStatus12In {
+                chassis_closed: input_deck.chassis_closed,
+                pwrbtn_present: input_deck.pwrbtn_present,
+                audioboard_present: !input_deck.audioboard_present,
+                touchpad_present: input_deck.touchpad_present,
             };
         }
         Some(Key::Printable(key)) if key == a_key => {

@@ -105,15 +105,9 @@ fn show_touchpad(
 }
 
 // TODO: Why is this duplicated in ec_comm?
-pub fn get_input_deck(emulated_deck: &InputDeckStatus12In, _ec: &Option<CrosEc>) -> InputDeckStatus12In {
+pub fn get_input_deck(emulated_deck: &InputDeckStatus12In, ec: &Option<CrosEc>) -> InputDeckStatus12In {
     #[cfg(not(feature = "qemu"))]
-    let input_deck: core::result::Result<InputDeckStatus12In, ()> = {
-        let _hw_diag = ec_comm::get_hw_diag(_ec).hw_diag;
-        let intrusion = _ec.as_ref().unwrap().get_intrusion_status().unwrap();
-        Ok(InputDeckStatus12In {
-            chassis_closed: !intrusion.currently_open
-        })
-    };
+    let input_deck: core::result::Result<InputDeckStatus12In, ()> = Ok(ec_comm::get_input_deck(ec));
     #[cfg(feature = "qemu")]
     let input_deck: core::result::Result<InputDeckStatus12In, ()> = core::result::Result::Err(());
     if let Ok(input_deck) = input_deck {
@@ -128,6 +122,9 @@ pub fn get_input_deck(emulated_deck: &InputDeckStatus12In, _ec: &Option<CrosEc>)
 pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> Result {
     let mut emulated_deck = InputDeckStatus12In {
         chassis_closed: false,
+        pwrbtn_present: false,
+        audioboard_present: false,
+        touchpad_present: false,
     };
     let input_deck = get_input_deck(&emulated_deck, ec);
     let mut pressed: u8 = 255;
