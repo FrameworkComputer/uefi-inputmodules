@@ -133,7 +133,7 @@ impl State {
             }
         }
 
-        self.bitmaps.keyboard().draw(buffer);
+        self.bitmaps.bare().draw(buffer);
 
         // Hints on lower left and right
         match self.frame {
@@ -177,46 +177,23 @@ impl State {
                 );
 
                 if !input_deck.chassis_closed {
-                    draw_warning_box(
-                        buffer,
-                        Point::new(1340, 560),
-                        Size::new(30, 40),
-                    );
+                    self.bitmaps.switch_highlight().draw(buffer);
                 }
                 if !input_deck.touchpad_present {
-                    draw_warning_box(
-                        buffer,
-                        Point::new(965, 620),
-                        Size::new(210, 30),
-                    );
+                    self.bitmaps.pogo_highlight().draw(buffer);
                 }
                 if !input_deck.audioboard_present {
-                    draw_warning_box(
-                        buffer,
-                        Point::new(540, 570),
-                        Size::new(170, 110),
-                    );
+                    self.bitmaps.audio_highlight().draw(buffer);
                 }
                 if !input_deck.pwrbtn_present {
-                    draw_warning_box(
-                        buffer,
-                        Point::new(1380, 570),
-                        Size::new(130, 110),
-                    );
+                    self.bitmaps.pwrbtn_highlight().draw(buffer);
                 }
                 if !fan_present {
-                    draw_warning_box(
-                        buffer,
-                        Point::new(740, 350),
-                        Size::new(230, 230),
-                    );
+                    self.bitmaps.fan_highlight().draw(buffer);
                 }
                 if !battery_present {
-                    draw_warning_box(
-                        buffer,
-                        Point::new(850, 620),
-                        Size::new(95, 60),
-                    );
+                    self.bitmaps.battery_top_highlight().draw(buffer);
+                    self.bitmaps.battery_bottom_highlight().draw(buffer);
                 }
 
                 draw_textbox(

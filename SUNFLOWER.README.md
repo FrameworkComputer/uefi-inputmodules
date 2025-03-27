@@ -170,7 +170,7 @@ Presence/Status detection
 
 - Working
   - Does update chassis switch live
-  - Does update battery level andAC live
+  - Does update battery level and AC live
   - Does detect if fan is present (hotplug detection not needed)
   - Does immediately exit, if everything is okay
   - Can show g-sensor data live
@@ -179,17 +179,14 @@ Presence/Status detection
   - Long power button press will reboot
 - Fixed in this release
   - Audio board status is updated live on hot plug
-  - Power button board status is updated live on hot plug
+  - Power button board status is updated live on hot plug (previously not at all)
   - Touchpad status is updated live on hot plug
 - Update graphic design
-  - Highlight power button board if it's missing
-- Known issues - urgent
-  - Graphic Design not final
-  - Add note to tell user to shut down if non-hotpluggable components are missing
-- Known issues - lower priority
-  - Does not distinguish between keyboard and touchpad status (To fix with EC 2.05 and newer inputmodule app)
-  - Does not detect powerbutton daughterboard (To fix with EC 2.05 and newer inputmodule app)
-  - Does not detect G-Sensor/Camera board (Fixed with EC PR #1440 2.04 and newer inputmodule app)
+  - Change to cleaner design
+  - Highlight bad components instead of border
+- Known issues
+  - Does not distinguish between keyboard and touchpad status
+  - Does not detect G-Sensor/Camera board
 
 ### Version 0.4.1
 
@@ -213,7 +210,7 @@ First version of sunflower UEFI input module app.
 
 - Working
   - Does update chassis switch live
-  - Does update battery level andAC live
+  - Does update battery level and AC live
   - Does detect if fan is present (hotplug detection not needed)
   - Does immediately exit, if everything is okay
   - Can show g-sensor data live

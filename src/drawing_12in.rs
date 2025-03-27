@@ -39,7 +39,14 @@ pub const WARN_Y: i32 = HEIGHT_I32 - 250;
 
 #[derive(Default)]
 pub struct StateBitmaps {
-    keyboard: Option<Vec<u8>>,
+    bare: Option<Vec<u8>>,
+    audio_highlight: Option<Vec<u8>>,
+    battery_top_highlight: Option<Vec<u8>>,
+    battery_bottom_highlight: Option<Vec<u8>>,
+    fan_highlight: Option<Vec<u8>>,
+    pogo_highlight: Option<Vec<u8>>,
+    pwrbtn_highlight: Option<Vec<u8>>,
+    switch_highlight: Option<Vec<u8>>,
 }
 
 pub struct ImagePlusMeta<'a> {
@@ -64,23 +71,164 @@ impl<'a> ImagePlusMeta<'a> {
 }
 
 impl StateBitmaps {
-    pub fn keyboard(&mut self) -> ImagePlusMeta {
-        if self.keyboard.is_none() {
-            let png = include_bytes!("../resources/sunflower-open-traces.png");
+    pub fn bare(&mut self) -> ImagePlusMeta {
+        if self.bare.is_none() {
+            //let png = include_bytes!("../resources/framework12/bare-mainboard.png");
+            let png = include_bytes!("../resources/framework12/assembled-open.png");
             let mut decoder = PngDecoder::new(png);
             let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
                 panic!("Failed to decode PNG")
             };
-            self.keyboard = Some(image_bytes);
+            self.bare = Some(image_bytes);
         }
 
         ImagePlusMeta {
             // Guaranteed to be set above
-            data: self.keyboard.as_ref().unwrap(),
-            width: 1068,
+            data: self.bare.as_ref().unwrap(),
+            width: 1000,
             pos: Point {
                 x: 500,
-                y: 200,
+                y: 50,
+            },
+        }
+    }
+    pub fn audio_highlight(&mut self) -> ImagePlusMeta {
+        if self.audio_highlight.is_none() {
+            let png = include_bytes!("../resources/framework12/audio-highlight.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.audio_highlight = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.audio_highlight.as_ref().unwrap(),
+            width: 152,
+            pos: Point {
+                x: 509,
+                y: 557,
+            },
+        }
+    }
+    pub fn battery_top_highlight(&mut self) -> ImagePlusMeta {
+        if self.battery_top_highlight.is_none() {
+            let png = include_bytes!("../resources/framework12/battery-top-highlight.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.battery_top_highlight = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.battery_top_highlight.as_ref().unwrap(),
+            width: 182,
+            pos: Point {
+                x: 765,
+                y: 570,
+            },
+        }
+    }
+    pub fn battery_bottom_highlight(&mut self) -> ImagePlusMeta {
+        if self.battery_bottom_highlight.is_none() {
+            let png = include_bytes!("../resources/framework12/battery-bottom-highlight.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.battery_bottom_highlight = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.battery_bottom_highlight.as_ref().unwrap(),
+            width: 774,
+            pos: Point {
+                x: 613,
+                y: 633,
+            },
+        }
+    }
+    pub fn fan_highlight(&mut self) -> ImagePlusMeta {
+        if self.fan_highlight.is_none() {
+            let png = include_bytes!("../resources/framework12/fan-highlight.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.fan_highlight = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.fan_highlight.as_ref().unwrap(),
+            width: 261,
+            pos: Point {
+                x: 686,
+                y: 292,
+            },
+        }
+    }
+    pub fn pogo_highlight(&mut self) -> ImagePlusMeta {
+        if self.pogo_highlight.is_none() {
+            let png = include_bytes!("../resources/framework12/pogo-highlight.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.pogo_highlight = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.pogo_highlight.as_ref().unwrap(),
+            width: 199,
+            pos: Point {
+                x: 944,
+                y: 595,
+            },
+        }
+    }
+    pub fn pwrbtn_highlight(&mut self) -> ImagePlusMeta {
+        if self.pwrbtn_highlight.is_none() {
+            let png = include_bytes!("../resources/framework12/powerbutton-highlight.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.pwrbtn_highlight = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.pwrbtn_highlight.as_ref().unwrap(),
+            width: 138,
+            pos: Point {
+                x: 1341,
+                y: 556,
+            },
+        }
+    }
+    pub fn switch_highlight(&mut self) -> ImagePlusMeta {
+        if self.switch_highlight.is_none() {
+            let png = include_bytes!("../resources/framework12/switch-highlight.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.switch_highlight = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.switch_highlight.as_ref().unwrap(),
+            width: 24,
+            pos: Point {
+                x: 1319,
+                y: 539,
             },
         }
     }
@@ -148,7 +296,7 @@ pub fn draw_textbox(buffer: &mut Buffer, pos: Point, color: TextColor, text_str:
         AnchorPoint::Center,
     );
     let rect =
-        RoundedRectangle::with_equal_corners(rect, Size::new(rect.size.height, rect.size.height));
+        RoundedRectangle::with_equal_corners(rect, Size::new(rect.size.height / 5, rect.size.height / 5));
     let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
         .fill_color(bg_color)
         .stroke_width(TEXT_BORDER)
