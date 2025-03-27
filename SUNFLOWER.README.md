@@ -187,6 +187,7 @@ Presence/Status detection
 - Known issues
   - Does not distinguish between keyboard and touchpad status
   - Does not detect G-Sensor/Camera board
+  - Exits after a few minutes (both QEMU or hardware)
 
 ### Version 0.4.1
 
