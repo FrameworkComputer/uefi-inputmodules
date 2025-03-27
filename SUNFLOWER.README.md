@@ -166,6 +166,31 @@ Presence/Status detection
 
 ## Release Notes
 
+### Version 0.4.2
+
+- Working
+  - Does update chassis switch live
+  - Does update battery level andAC live
+  - Does detect if fan is present (hotplug detection not needed)
+  - Does immediately exit, if everything is okay
+  - Can show g-sensor data live
+  - Can exit and skip with ESC
+  - Short power button press will exit app and continue boot
+  - Long power button press will reboot
+- Fixed in this release
+  - Audio board status is updated live on hot plug
+  - Power button board status is updated live on hot plug
+  - Touchpad status is updated live on hot plug
+- Update graphic design
+  - Highlight power button board if it's missing
+- Known issues - urgent
+  - Graphic Design not final
+  - Add note to tell user to shut down if non-hotpluggable components are missing
+- Known issues - lower priority
+  - Does not distinguish between keyboard and touchpad status (To fix with EC 2.05 and newer inputmodule app)
+  - Does not detect powerbutton daughterboard (To fix with EC 2.05 and newer inputmodule app)
+  - Does not detect G-Sensor/Camera board (Fixed with EC PR #1440 2.04 and newer inputmodule app)
+
 ### Version 0.4.1
 
 - Update graphic design
