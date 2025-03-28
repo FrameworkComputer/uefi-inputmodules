@@ -166,6 +166,27 @@ Presence/Status detection
 
 ## Release Notes
 
+### Version 0.4.3
+
+- Working
+  - Does update chassis switch live
+  - Does update battery level and AC live
+  - Does detect if fan is present (hotplug detection not needed)
+  - Does immediately exit, if everything is okay
+  - Can show g-sensor data live
+  - Can exit and skip with ESC
+  - Short power button press will exit app and continue boot
+  - Long power button press will reboot
+  - Audio board status is updated live on hot plug
+  - Power button board status is updated live on hot plug (previously not at all)
+  - Touchpad status is updated live on hot plug
+- Changes in this release
+  - Don't depend on new host command, can already work with 2.04 EC
+- Known issues
+  - Does not distinguish between keyboard and touchpad status
+  - Does not detect G-Sensor/Camera board
+  - Exits after a few minutes (both QEMU or hardware)
+
 ### Version 0.4.2
 
 - Working
