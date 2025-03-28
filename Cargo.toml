@@ -35,10 +35,10 @@ version = "0.2.1"
 default-features = false
 
 [dependencies.framework_lib]
-path = "/home/zoid/clone/framework-system/framework_lib"
-#git = "https://github.com/FrameworkComputer/framework-system"
+#path = "/home/zoid/clone/framework-system/framework_lib"
+git = "https://github.com/FrameworkComputer/framework-system"
 #rev = "6590d5b65ca50364c95b05269afc0be5408b26de"
-#branch = "main"
+branch = "adc"
 features = ["uefi"]
 default-features = false
 

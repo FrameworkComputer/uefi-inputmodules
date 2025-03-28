@@ -1,3 +1,4 @@
+use alloc::format;
 use alloc::string::ToString;
 use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestGetHwDiag, EcRequestUefiAppBtnStatus,
@@ -110,13 +111,69 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
 }
 
 #[repr(u8)]
+#[derive(Copy, Clone, Debug)]
 enum Framework12Adc {
-  MainboardBoard,
-  PowerButtonBoard,
-  Psys,
-  AdapterCurrent,
-  Touchpad,
-  AudioBoard,
+    MainboardBoard,
+    PowerButtonBoard,
+    Psys,
+    AdapterCurrent,
+    Touchpad,
+    AudioBoard,
+}
+
+/*
+ * PLATFORM_EC_ADC_RESOLUTION default 10 bit
+ *
+ * +------------------+-----------+--------------+---------+----------------------+
+ * |  BOARD VERSION   |  voltage  |  main board  |   GPU   |     Input module     |
+ * +------------------+-----------+--------------+---------+----------------------+
+ * | BOARD_VERSION_0  |  0    mv  |    Unused    |         |       Reserved       |
+ * | BOARD_VERSION_1  |  173  mv  |    Unused    |         |       Reserved       |
+ * | BOARD_VERSION_2  |  300  mv  |    Unused    |         |       Reserved       |
+ * | BOARD_VERSION_3  |  430  mv  |    Unused    |         |       Reserved       |
+ * | BOARD_VERSION_4  |  588  mv  |    EVT1      |         |       Reserved       |
+ * | BOARD_VERSION_5  |  783  mv  |    Unused    |         |       Reserved       |
+ * | BOARD_VERSION_6  |  905  mv  |    Unused    |         |       Reserved       |
+ * | BOARD_VERSION_7  |  1033 mv  |    DVT1      |         |       Reserved       |
+ * | BOARD_VERSION_8  |  1320 mv  |    DVT2      |         |    Generic A size    |
+ * | BOARD_VERSION_9  |  1500 mv  |    PVT       |         |    Generic B size    |
+ * | BOARD_VERSION_10 |  1650 mv  |    MP        |         |    Generic C size    |
+ * | BOARD_VERSION_11 |  1980 mv  |    Unused    | RID_0   |    10 Key B size     |
+ * | BOARD_VERSION_12 |  2135 mv  |    Unused    | RID_0,1 |       Keyboard       |
+ * | BOARD_VERSION_13 |  2500 mv  |    Unused    | RID_0   |       Touchpad       |
+ * | BOARD_VERSION_14 |  2706 mv  |    Unused    |         |       Reserved       |
+ * | BOARD_VERSION_15 |  2813 mv  |    Unused    |         |    Not installed     |
+ * +------------------+-----------+--------------+---------+----------------------+
+ */
+
+const BOARD_VERSION_COUNT: usize = 16;
+const BOARD_VERSION: [i32; BOARD_VERSION_COUNT] = [
+    85, 233, 360, 492, 649, 844, 965, 1094, 1380, 1562, 1710, 2040, 2197, 2557, 2766, 2814,
+];
+
+fn read_board_id(ec: &CrosEc, channel: Framework12Adc) -> EcResult<Option<u8>> {
+    let mv = ec.adc_read(channel as u8)?;
+    if mv < 0 {
+        return Err(EcError::DeviceError(format!(
+            "Failed to read ADC channel {}",
+            channel as u8
+        )));
+    }
+
+    for board_id in 0..BOARD_VERSION_COUNT {
+        if mv < BOARD_VERSION[board_id] {
+            return Ok(if board_id == 15 {
+                None
+            } else {
+                Some(board_id as u8)
+            });
+        }
+    }
+
+    Err(EcError::DeviceError(format!(
+        "Unknown board id. ADC mv: {}",
+        mv
+    )))
 }
 
 /// Get current state of hubboard and input deck
@@ -142,16 +199,16 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus12In {
     if let Some(ref ec) = ec {
         let input_deck: core::result::Result<InputDeckStatus12In, ()> = {
             let intrusion = ec.get_intrusion_status().unwrap();
-            let pwrbtn = ec.read_board_id(Framework12Adc::PowerButtonBoard as u8).unwrap();
-            let audio = ec.read_board_id(Framework12Adc::AudioBoard as u8).unwrap();
-            let tp = ec.read_board_id(Framework12Adc::Touchpad as u8).unwrap();
+            let pwrbtn = read_board_id(ec, Framework12Adc::PowerButtonBoard).unwrap();
+            let audio = read_board_id(ec, Framework12Adc::AudioBoard).unwrap();
+            let tp = read_board_id(ec, Framework12Adc::Touchpad).unwrap();
 
             return InputDeckStatus12In {
                 chassis_closed: !intrusion.currently_open,
                 pwrbtn_present: pwrbtn.is_some(),
                 audioboard_present: audio.is_some(),
                 touchpad_present: tp.is_some(),
-            }
+            };
         };
     }
 
