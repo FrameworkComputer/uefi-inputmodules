@@ -74,7 +74,6 @@ impl<'a> ImagePlusMeta<'a> {
 impl StateBitmaps {
     pub fn bare(&mut self) -> ImagePlusMeta {
         if self.bare.is_none() {
-            //let png = include_bytes!("../resources/framework12/bare-mainboard.png");
             let png = include_bytes!("../resources/framework12/assembled-open.png");
             let mut decoder = PngDecoder::new(png);
             let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
