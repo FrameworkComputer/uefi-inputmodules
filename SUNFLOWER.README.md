@@ -168,11 +168,14 @@ Presence/Status detection
 
 ### Version 0.4.4
 
-- Highlight RAM flap in orange if any issues with pogo pins
-- If external screen resolution larger than sunflower built-in, clear extra pixels to white
+- File size: 419K
+- Changes
+    - Highlight RAM flap in orange if any issues with pogo pins
+    - If external screen resolution larger than sunflower built-in, clear extra pixels to white
 
 ### Version 0.4.3
 
+- File size: 421K
 - Working
   - Does update chassis switch live
   - Does update battery level and AC live
@@ -194,6 +197,7 @@ Presence/Status detection
 
 ### Version 0.4.2
 
+- File size: 535K
 - Working
   - Does update chassis switch live
   - Does update battery level and AC live
@@ -235,6 +239,7 @@ Presence/Status detection
 
 First version of sunflower UEFI input module app.
 
+- File size: 280K
 - Working
   - Does update chassis switch live
   - Does update battery level and AC live
