@@ -166,6 +166,11 @@ Presence/Status detection
 
 ## Release Notes
 
+### Version 0.4.4
+
+- Highlight RAM flap in orange if any issues with pogo pins
+- If external screen resolution larger than sunflower built-in, clear extra pixels to white
+
 ### Version 0.4.3
 
 - Working
