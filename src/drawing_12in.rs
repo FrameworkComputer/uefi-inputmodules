@@ -47,6 +47,7 @@ pub struct StateBitmaps {
     pogo_highlight: Option<Vec<u8>>,
     pwrbtn_highlight: Option<Vec<u8>>,
     switch_highlight: Option<Vec<u8>>,
+    flap_highlight: Option<Vec<u8>>,
 }
 
 pub struct ImagePlusMeta<'a> {
@@ -229,6 +230,26 @@ impl StateBitmaps {
             pos: Point {
                 x: 1319,
                 y: 539,
+            },
+        }
+    }
+    pub fn flap_highlight(&mut self) -> ImagePlusMeta {
+        if self.flap_highlight.is_none() {
+            let png = include_bytes!("../resources/framework12/flap-highlight.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.flap_highlight = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.flap_highlight.as_ref().unwrap(),
+            width: 263,
+            pos: Point {
+                x: 962,
+                y: 472,
             },
         }
     }

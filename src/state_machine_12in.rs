@@ -181,6 +181,7 @@ impl State {
                 }
                 if !input_deck.touchpad_present {
                     self.bitmaps.pogo_highlight().draw(buffer);
+                    self.bitmaps.flap_highlight().draw(buffer);
                 }
                 if !input_deck.audioboard_present {
                     self.bitmaps.audio_highlight().draw(buffer);
