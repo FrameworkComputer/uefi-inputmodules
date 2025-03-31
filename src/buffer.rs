@@ -60,6 +60,21 @@ impl Buffer {
         self.pixels.get_mut(y * self.width + x)
     }
 
+    // Clear the whole screen in a single color
+    pub fn clear(&mut self, r: u8, g: u8, b: u8) -> Option<()> {
+        for y in 0..self.width {
+            for x in 0..self.width {
+                // TODO: Can actually unwrap because the screen size should be correct.
+                if let Some(pixel) = self.pixel(x as usize, y as usize) {
+                    pixel.red = r;
+                    pixel.green = g;
+                    pixel.blue = b;
+                }
+            }
+        }
+        Some(())
+    }
+
     /// Blit the buffer to the framebuffer.
     pub fn blit(&self, gop: &mut GraphicsOutput) -> uefi::Result {
         gop.blt(BltOp::BufferToVideo {

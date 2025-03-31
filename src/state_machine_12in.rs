@@ -121,17 +121,7 @@ impl State {
     // Display graphics for the current frame
     // Need to call blit after the function call to show it
     pub fn draw_state(&mut self, buffer: &mut Buffer, input_deck: &InputDeckStatus12In, hw_diag: &EcResponseGetHwDiag) {
-        // Draw solid background color #F3F2F2
-        for y in 0..self.screen_size.height {
-            for x in 0..self.screen_size.width {
-                // TODO: Can actually unwrap because the screen size should be correct.
-                if let Some(pixel) = buffer.pixel(x as usize, y as usize) {
-                    pixel.red = 0xFF;
-                    pixel.green = 0xFF;
-                    pixel.blue = 0xFF;
-                }
-            }
-        }
+        buffer.clear(0xFF, 0xFF, 0xFF);
 
         self.bitmaps.bare().draw(buffer);
 

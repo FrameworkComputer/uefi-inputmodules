@@ -557,13 +557,6 @@ pub fn draw_black_bar(buffer: &mut Buffer) {
 pub fn clear_screen(buffer: &mut Buffer, gop: &mut ScopedProtocol<GraphicsOutput>) -> uefi::Result {
     // Clear screen to black. Otherwise the next app is responsible for clearing.
     // If the app was launched from the UEFI shell, the user would have to manually clear
-    let whole_screen: Rectangle =
-        Rectangle::with_corners(Point::new(0, 0), Point::new(WIDTH_I32, HEIGHT_I32));
-    let blank_style = PrimitiveStyleBuilder::new()
-        .fill_color(Rgb888::BLACK)
-        .build();
-    whole_screen.into_styled(blank_style).draw(buffer).unwrap();
-    buffer.blit(gop)?;
-
-    Ok(())
+    let _ = buffer.clear(0x00, 0x00, 0x00);
+    buffer.blit(gop)
 }
