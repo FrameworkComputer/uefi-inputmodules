@@ -163,8 +163,8 @@ fn read_board_id(ec: &CrosEc, channel: Framework12Adc) -> EcResult<Option<u8>> {
         )));
     }
 
-    for board_id in 0..BOARD_VERSION_COUNT {
-        if mv < BOARD_VERSION[board_id] {
+    for (board_id, board_id_res) in BOARD_VERSION.iter().enumerate() {
+        if mv < *board_id_res {
             return Ok(if board_id == 15 {
                 None
             } else {
@@ -838,11 +838,7 @@ pub fn get_als_data(ec: &Option<CrosEc>) -> u32 {
         return 0;
     };
 
-    if let Some(reading) = get_als_reading(ec) {
-        reading
-    } else {
-        0
-    }
+    get_als_reading(ec).unwrap_or(0)
 }
 
 pub fn get_accel_reading(ec: &Option<CrosEc>) -> (AccelData, AccelData, LidAngle) {

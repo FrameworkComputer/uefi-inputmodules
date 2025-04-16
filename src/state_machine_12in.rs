@@ -325,10 +325,9 @@ pub fn start(
         // Short press (or ESC) will exit and boot (skip all further checks)
         let short_press = (!button_pressed && state.prev_pressed && long_press == 1)
             || state.keypress == Some(Key::Special(ScanCode::ESCAPE));
-        match (short_press, state.frame) {
+        if let (true, _) = (short_press, state.frame) {
             // Just exit and continue
-            (true, _) => break,
-            _ => {}
+            break;
         }
 
         if state.keypress == Some(Key::Special(ScanCode::FUNCTION_12)) {

@@ -78,7 +78,7 @@ pub struct ImagePlusMeta<'a> {
     pub pos: Point,
 }
 
-impl<'a> ImagePlusMeta<'a> {
+impl ImagePlusMeta<'_> {
     pub fn draw(&self, buffer: &mut Buffer) {
         let image_raw = ImageRaw::<Rgb888>::new(self.data, self.width);
         let image = Image::new(&image_raw, self.pos);

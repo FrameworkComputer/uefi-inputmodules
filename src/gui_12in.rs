@@ -125,7 +125,7 @@ pub fn get_input_deck(
 }
 
 pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> Result {
-    let mut emulated_deck = InputDeckStatus12In {
+    let emulated_deck = InputDeckStatus12In {
         chassis_closed: false,
         pwrbtn_present: false,
         audioboard_present: false,

@@ -65,7 +65,7 @@ impl Buffer {
         for y in 0..self.width {
             for x in 0..self.width {
                 // TODO: Can actually unwrap because the screen size should be correct.
-                if let Some(pixel) = self.pixel(x as usize, y as usize) {
+                if let Some(pixel) = self.pixel(x, y) {
                     pixel.red = r;
                     pixel.green = g;
                     pixel.blue = b;
