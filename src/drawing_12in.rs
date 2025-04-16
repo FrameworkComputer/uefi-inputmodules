@@ -7,7 +7,7 @@ use embedded_graphics::mono_font::{ascii, MonoTextStyle};
 use embedded_graphics::pixelcolor::Rgb888;
 use embedded_graphics::prelude::{Point, Primitive, RgbColor, Transform};
 use embedded_graphics::primitives::{
-    Circle, Line, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle
+    Circle, Line, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle,
 };
 use embedded_graphics::text::Text;
 use embedded_graphics::Drawable;
@@ -31,7 +31,7 @@ pub const WIDTH: usize = 1920;
 pub const WIDTH_I32: i32 = 1920;
 pub const HEIGHT: usize = 1200;
 pub const HEIGHT_I32: i32 = 1200;
-pub const BACKGROUND_COLOR: Rgb888 = Rgb888::new(0xFF, 0xFF, 0xFF);//0xF3, 0xF2, 0xF2);
+pub const BACKGROUND_COLOR: Rgb888 = Rgb888::new(0xFF, 0xFF, 0xFF); //0xF3, 0xF2, 0xF2);
 pub const BLACK_BAR: Rgb888 = Rgb888::new(0x33, 0x33, 0x33);
 
 pub const WARN_X: i32 = 50 + WIDTH_I32 / 2;
@@ -86,10 +86,7 @@ impl StateBitmaps {
             // Guaranteed to be set above
             data: self.bare.as_ref().unwrap(),
             width: 1000,
-            pos: Point {
-                x: 500,
-                y: 50,
-            },
+            pos: Point { x: 500, y: 50 },
         }
     }
     pub fn audio_highlight(&mut self) -> ImagePlusMeta {
@@ -106,10 +103,7 @@ impl StateBitmaps {
             // Guaranteed to be set above
             data: self.audio_highlight.as_ref().unwrap(),
             width: 152,
-            pos: Point {
-                x: 509,
-                y: 557,
-            },
+            pos: Point { x: 509, y: 557 },
         }
     }
     pub fn battery_top_highlight(&mut self) -> ImagePlusMeta {
@@ -126,10 +120,7 @@ impl StateBitmaps {
             // Guaranteed to be set above
             data: self.battery_top_highlight.as_ref().unwrap(),
             width: 182,
-            pos: Point {
-                x: 765,
-                y: 570,
-            },
+            pos: Point { x: 765, y: 570 },
         }
     }
     pub fn battery_bottom_highlight(&mut self) -> ImagePlusMeta {
@@ -146,10 +137,7 @@ impl StateBitmaps {
             // Guaranteed to be set above
             data: self.battery_bottom_highlight.as_ref().unwrap(),
             width: 774,
-            pos: Point {
-                x: 613,
-                y: 633,
-            },
+            pos: Point { x: 613, y: 633 },
         }
     }
     pub fn fan_highlight(&mut self) -> ImagePlusMeta {
@@ -166,10 +154,7 @@ impl StateBitmaps {
             // Guaranteed to be set above
             data: self.fan_highlight.as_ref().unwrap(),
             width: 261,
-            pos: Point {
-                x: 686,
-                y: 292,
-            },
+            pos: Point { x: 686, y: 292 },
         }
     }
     pub fn pogo_highlight(&mut self) -> ImagePlusMeta {
@@ -186,10 +171,7 @@ impl StateBitmaps {
             // Guaranteed to be set above
             data: self.pogo_highlight.as_ref().unwrap(),
             width: 199,
-            pos: Point {
-                x: 944,
-                y: 595,
-            },
+            pos: Point { x: 944, y: 595 },
         }
     }
     pub fn pwrbtn_highlight(&mut self) -> ImagePlusMeta {
@@ -206,10 +188,7 @@ impl StateBitmaps {
             // Guaranteed to be set above
             data: self.pwrbtn_highlight.as_ref().unwrap(),
             width: 138,
-            pos: Point {
-                x: 1341,
-                y: 556,
-            },
+            pos: Point { x: 1341, y: 556 },
         }
     }
     pub fn switch_highlight(&mut self) -> ImagePlusMeta {
@@ -226,10 +205,7 @@ impl StateBitmaps {
             // Guaranteed to be set above
             data: self.switch_highlight.as_ref().unwrap(),
             width: 24,
-            pos: Point {
-                x: 1319,
-                y: 539,
-            },
+            pos: Point { x: 1319, y: 539 },
         }
     }
     pub fn flap_highlight(&mut self) -> ImagePlusMeta {
@@ -246,10 +222,7 @@ impl StateBitmaps {
             // Guaranteed to be set above
             data: self.flap_highlight.as_ref().unwrap(),
             width: 263,
-            pos: Point {
-                x: 962,
-                y: 472,
-            },
+            pos: Point { x: 962, y: 472 },
         }
     }
 }
@@ -315,8 +288,10 @@ pub fn draw_textbox(buffer: &mut Buffer, pos: Point, color: TextColor, text_str:
         rect.size + Size::new(TEXT_PAD * 2, TEXT_YPAD),
         AnchorPoint::Center,
     );
-    let rect =
-        RoundedRectangle::with_equal_corners(rect, Size::new(rect.size.height / 5, rect.size.height / 5));
+    let rect = RoundedRectangle::with_equal_corners(
+        rect,
+        Size::new(rect.size.height / 5, rect.size.height / 5),
+    );
     let blank_style: PrimitiveStyle<Rgb888> = PrimitiveStyleBuilder::new()
         .fill_color(bg_color)
         .stroke_width(TEXT_BORDER)
@@ -360,9 +335,10 @@ pub fn draw_battery_info(buffer: &mut Buffer, power_info: &Option<ReducedPowerIn
 pub fn draw_lid_angle(buffer: &mut Buffer, angle: LidAngle, pos: Point) {
     // Base
     Line::new(Point::new(0, 0), Point::new(100, 0))
-    .translate(pos)
-    .into_styled(PrimitiveStyle::with_stroke(BLACK_BAR, 15))
-    .draw(buffer).unwrap();
+        .translate(pos)
+        .into_styled(PrimitiveStyle::with_stroke(BLACK_BAR, 15))
+        .draw(buffer)
+        .unwrap();
 
     let angle = if let LidAngle::Angle(deg) = angle {
         deg
@@ -377,13 +353,14 @@ pub fn draw_lid_angle(buffer: &mut Buffer, angle: LidAngle, pos: Point) {
 
     // Lid
     let rotated = Point::new(
-        (100_f32 - 100_f32*f32::cos(angle)) as i32,
-        (-100_f32*f32::sin(angle)) as i32
+        (100_f32 - 100_f32 * f32::cos(angle)) as i32,
+        (-100_f32 * f32::sin(angle)) as i32,
     );
     Line::new(rotated, Point::new(100, 0))
-    .translate(pos)
-    .into_styled(PrimitiveStyle::with_stroke(BLACK_BAR, 10))
-    .draw(buffer).unwrap();
+        .translate(pos)
+        .into_styled(PrimitiveStyle::with_stroke(BLACK_BAR, 10))
+        .draw(buffer)
+        .unwrap();
 
     // Draw circles at the end of each line to make it look prettier
     Circle::with_center(pos, 15)
@@ -400,9 +377,8 @@ pub fn draw_lid_angle(buffer: &mut Buffer, angle: LidAngle, pos: Point) {
         .unwrap();
 }
 
-
 pub fn draw_accel_bubble(buffer: &mut Buffer, accel_reading: &AccelData, pos: Point) {
-    let outer_diameter = 200 ;
+    let outer_diameter = 200;
     // Maximum value is 2.pow(16) / 4
     // Outer diameter is 200
     // Outer radius is 200 / 2
@@ -411,10 +387,7 @@ pub fn draw_accel_bubble(buffer: &mut Buffer, accel_reading: &AccelData, pos: Po
     // But screen drawing origin is on top left corner
     let reading_x = accel_reading.x as i32;
     let reading_y = -accel_reading.y as i32;
-    let bubble_pos = pos + Point::new(
-        reading_x / reading_scale,
-        reading_y / reading_scale
-    );
+    let bubble_pos = pos + Point::new(reading_x / reading_scale, reading_y / reading_scale);
 
     // Inner circle
     Circle::with_center(pos, 100)
@@ -431,7 +404,7 @@ pub fn draw_accel_bubble(buffer: &mut Buffer, accel_reading: &AccelData, pos: Po
     let style = if accel_reading.z >= 0 {
         PrimitiveStyle::with_fill(BLACK_BAR)
     } else {
-        PrimitiveStyle::with_stroke(BLACK_BAR,2)
+        PrimitiveStyle::with_stroke(BLACK_BAR, 2)
     };
     Circle::with_center(bubble_pos, 50)
         .into_styled(style)
@@ -520,11 +493,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
     // TODO: It gets overridden by background if I put it at bottom right, need to adjust that
     let bottom_right = top_left;
     let pos = if verbose { bottom_right } else { top_left };
-    let text = Text::new(
-        &ver_text,
-        pos,
-        MonoTextStyle::new(&font, BLACK_BAR),
-    );
+    let text = Text::new(&ver_text, pos, MonoTextStyle::new(&font, BLACK_BAR));
 
     // Make sure the background is cleared if we only update the version
     let background = text.bounding_box();

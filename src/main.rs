@@ -147,7 +147,7 @@ fn print_module_status() {
     print_tool_version();
     println!("");
 
-    let ec  = CrosEc::new();
+    let ec = CrosEc::new();
 
     println!("Input Module Status:");
     if let Some(status) = print_err(ec.get_input_deck_status()) {
@@ -182,7 +182,7 @@ fn print_12in_status() {
     #[cfg(not(feature = "qemu"))]
     let ec = CrosEc::new();
     #[cfg(feature = "qemu")]
-    let ec  = CrosEc::new();
+    let ec = CrosEc::new();
 
     // TODO: Don't unwrap
     println!("Trying to get intrusion status");

@@ -1,18 +1,21 @@
+#[cfg(feature = "12in")]
+use crate::state_machine_12in::InputDeckStatus12In;
 use alloc::format;
 use alloc::string::ToString;
 use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestGetHwDiag, EcRequestUefiAppBtnStatus,
     EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionByStates,
-    BOARD_VERSION_12, BOARD_VERSION_13, BOARD_VERSION_15, DIAGNOSTICS_NO_LEFT_FAN,
-    DIAGNOSTICS_NO_RIGHT_FAN, DIAGNOSTICS_NOFAN, DIAGNOSTICS_AUDIO_DAUGHTERBOARD,
-    DIAGNOSTICS_TOUCHPAD, DIAGNOSTICS_HW_NO_BATTERY
+    BOARD_VERSION_12, BOARD_VERSION_13, BOARD_VERSION_15, DIAGNOSTICS_AUDIO_DAUGHTERBOARD,
+    DIAGNOSTICS_HW_NO_BATTERY, DIAGNOSTICS_NOFAN, DIAGNOSTICS_NO_LEFT_FAN,
+    DIAGNOSTICS_NO_RIGHT_FAN, DIAGNOSTICS_TOUCHPAD,
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
-#[cfg(feature = "12in")]
-use crate::state_machine_12in::InputDeckStatus12In;
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
 use framework_lib::chromium_ec::{CrosEc, EcError, EcRequestRaw, EcResponseStatus, EcResult};
-use framework_lib::power::{get_accel_data, get_als_reading, AccelData, BatteryInformation, LidAngle, PowerInfo, ReducedPowerInfo};
+use framework_lib::power::{
+    get_accel_data, get_als_reading, AccelData, BatteryInformation, LidAngle, PowerInfo,
+    ReducedPowerInfo,
+};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::proto::console::text::Key;
@@ -295,7 +298,6 @@ pub fn set_uefi_app_mode(ec: &Option<CrosEc>, mode: bool) {
         let _res = EcRequestUefiAppMode { enable }.send_command(ec);
     }
 }
-
 
 #[cfg(not(feature = "12in"))]
 pub fn keypress_mock_data(
@@ -850,7 +852,7 @@ pub fn get_accel_reading(ec: &Option<CrosEc>) -> (AccelData, AccelData, LidAngle
         (
             AccelData { x: 0, y: 0, z: 0 },
             AccelData { x: 0, y: 0, z: 0 },
-            LidAngle::Unreliable
+            LidAngle::Unreliable,
         )
     }
 }

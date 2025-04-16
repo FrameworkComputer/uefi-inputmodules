@@ -3,7 +3,9 @@ use embedded_graphics::image::ImageRaw;
 use embedded_graphics::primitives::{
     PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle,
 };
-use framework_lib::chromium_ec::commands::{EcRequestUefiAppBtnStatus, EcRequestUefiAppMode, DIAGNOSTICS_TOUCHPAD};
+use framework_lib::chromium_ec::commands::{
+    EcRequestUefiAppBtnStatus, EcRequestUefiAppMode, DIAGNOSTICS_TOUCHPAD,
+};
 use framework_lib::chromium_ec::input_deck::InputDeckState;
 use framework_lib::chromium_ec::{CrosEc, EcRequestRaw};
 #[allow(unused_imports)]
@@ -28,8 +30,8 @@ use embedded_graphics::{
 };
 
 use crate::buffer::Buffer;
-use crate::{built_info, ec_comm};
 use crate::state_machine_12in::InputDeckStatus12In;
+use crate::{built_info, ec_comm};
 
 const BG_COLOR: Rgb888 = Rgb888::new(0x28, 0x25, 0x24);
 const RED_WARN: Rgb888 = Rgb888::new(0xff, 0xe1, 0xe0);
@@ -105,7 +107,10 @@ fn show_touchpad(
 }
 
 // TODO: Why is this duplicated in ec_comm?
-pub fn get_input_deck(emulated_deck: &InputDeckStatus12In, ec: &Option<CrosEc>) -> InputDeckStatus12In {
+pub fn get_input_deck(
+    emulated_deck: &InputDeckStatus12In,
+    ec: &Option<CrosEc>,
+) -> InputDeckStatus12In {
     #[cfg(not(feature = "qemu"))]
     let input_deck: core::result::Result<InputDeckStatus12In, ()> = Ok(ec_comm::get_input_deck(ec));
     #[cfg(feature = "qemu")]

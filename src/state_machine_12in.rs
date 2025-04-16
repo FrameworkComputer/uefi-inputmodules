@@ -6,7 +6,10 @@ use core::fmt;
 use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::Point;
 
-use framework_lib::chromium_ec::commands::{EcResponseGetHwDiag, DIAGNOSTICS_AUDIO_DAUGHTERBOARD, DIAGNOSTICS_NOFAN, DIAGNOSTICS_TOUCHPAD, DIAGNOSTICS_HW_NO_BATTERY};
+use framework_lib::chromium_ec::commands::{
+    EcResponseGetHwDiag, DIAGNOSTICS_AUDIO_DAUGHTERBOARD, DIAGNOSTICS_HW_NO_BATTERY,
+    DIAGNOSTICS_NOFAN, DIAGNOSTICS_TOUCHPAD,
+};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
 use framework_lib::power::{self, get_accel_data, AccelData, LidAngle, ReducedPowerInfo};
@@ -39,7 +42,10 @@ pub struct InputDeckStatus12In {
 
 impl InputDeckStatus12In {
     pub fn fully_populated(&self) -> bool {
-        self.chassis_closed && self.pwrbtn_present && self.audioboard_present && self.touchpad_present
+        self.chassis_closed
+            && self.pwrbtn_present
+            && self.audioboard_present
+            && self.touchpad_present
     }
 }
 
@@ -51,7 +57,7 @@ pub struct DebugInfo {
     pub hw_diag: EcResponseGetHwDiag,
     pub deck: InputDeckStatus12In,
     pub power_info: Option<ReducedPowerInfo>,
-    pub accel_reading: (AccelData, AccelData, LidAngle)
+    pub accel_reading: (AccelData, AccelData, LidAngle),
 }
 
 pub struct State {
@@ -120,7 +126,12 @@ impl State {
 
     // Display graphics for the current frame
     // Need to call blit after the function call to show it
-    pub fn draw_state(&mut self, buffer: &mut Buffer, input_deck: &InputDeckStatus12In, hw_diag: &EcResponseGetHwDiag) {
+    pub fn draw_state(
+        &mut self,
+        buffer: &mut Buffer,
+        input_deck: &InputDeckStatus12In,
+        hw_diag: &EcResponseGetHwDiag,
+    ) {
         buffer.clear(0xFF, 0xFF, 0xFF);
 
         self.bitmaps.bare().draw(buffer);
@@ -187,12 +198,7 @@ impl State {
                     self.bitmaps.battery_bottom_highlight().draw(buffer);
                 }
 
-                draw_textbox(
-                    buffer,
-                    Point::new(WARN_X, WARN_Y),
-                    TextColor::Warn,
-                    &warn
-                );
+                draw_textbox(buffer, Point::new(WARN_X, WARN_Y), TextColor::Warn, &warn);
             }
             StateFrame::Finished => {
                 // TODO: No bitmaps yet
@@ -262,8 +268,7 @@ pub fn start(
     let state = State::new();
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
-    if quick_boot && state.next_state(&input_deck, &hw_diag) == StateFrame::Finished
-    {
+    if quick_boot && state.next_state(&input_deck, &hw_diag) == StateFrame::Finished {
         info!("Started out as fully populated, booting immediately");
         return Ok(None);
     }
@@ -350,7 +355,8 @@ pub fn start(
         // Detect long press of power button
         // TODO: Why did we skip this if no need_redraw?
         // Right now on sunflower always redrawing due to g-sensor animation
-        let need_redraw = if button_pressed && state.prev_pressed {// && !need_redraw {
+        let need_redraw = if button_pressed && state.prev_pressed {
+            // && !need_redraw {
             if long_press > 4 {
                 // Exit and signal that we need to poweroff
                 return Ok(Some(uefi::table::runtime::ResetType::Shutdown));
