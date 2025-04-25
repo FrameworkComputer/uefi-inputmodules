@@ -482,6 +482,8 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
                 "      Fully Populated",
                 5,
             );
+            // TODO: Do we need a FullWidth condition here?
+            //       if input_deck.top_row.pos0 == InputModuleType::FullWidth
             if input_deck.top_row.pos0 == InputModuleType::GenericC {
                 Image::new(&csize_bmp, left_c1_rect.top_left)
                     .draw(&mut buffer)

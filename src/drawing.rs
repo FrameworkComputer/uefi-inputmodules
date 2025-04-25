@@ -781,6 +781,7 @@ pub fn draw_textbox(buffer: &mut Buffer, pos: Point, color: TextColor, text_str:
 
 fn mod_name(module: &InputModuleType) -> &str {
     match module {
+        InputModuleType::FullWidth => "FW",
         InputModuleType::GenericA => "A1",
         InputModuleType::GenericB => "B1",
         InputModuleType::GenericC => "C1",
