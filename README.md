@@ -137,3 +137,5 @@ Controls:
 - L: Latch toggle
 - H: Hubboard toggle
 - 1, 2, 3, 4, 5, 6, 7: Inputmodules (None, Only Touchpad, 1, 2, 3, 3+Touchpad)
+
+Finish everything: L, V, E, H, 7
