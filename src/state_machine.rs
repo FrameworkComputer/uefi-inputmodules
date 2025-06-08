@@ -7,7 +7,7 @@ use core::fmt;
 use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::Point;
 
-use framework_lib::ccgx::MainPdVersions;
+use framework_lib::ccgx::{AppVersion, Application, MainPdVersions};
 use framework_lib::chromium_ec::commands::{
     EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionBayBoard, ExpansionBayIssue,
 };
@@ -39,6 +39,13 @@ const FAILED_INPUT: &str = "Failed to get keypress";
 const EFI_OS_INDICATIONS_BOOT_TO_FW_UI: u64 = 0x0000000000000001;
 const EFI_GLOBAL_VARIABLE_GUID: uefi::Guid = guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
 
+pub const PD3_VER: AppVersion = AppVersion {
+    application: Application::Notebook,
+    major: 0,
+    minor: 0,
+    circuit: 0x11,
+};
+
 #[allow(dead_code)]
 pub struct DebugInfo {
     pub power_button: bool,
@@ -54,6 +61,7 @@ pub struct DebugInfo {
     pub hw_diag: EcResponseGetHwDiag,
     pub deck: InputDeckStatus,
     pub power_info: Option<ReducedPowerInfo>,
+    pub pd3_ver: Option<AppVersion>,
 }
 
 pub struct State {
@@ -69,6 +77,7 @@ pub struct State {
     prev_pressed: bool,
     verbose: bool,
     keypress: Option<Key>,
+    pd3_ver: Option<AppVersion>,
     fw_outdated_msg: Option<String>,
 }
 
@@ -111,16 +120,25 @@ enum StateFrame {
 impl State {
     pub fn new(ec: &Option<CrosEc>) -> Self {
         let mut fw_outdated_msg = None;
+        let mut pd3_ver = None;
         let versions = ec.as_ref().and_then(|x| power::read_pd_version(x).ok());
         if let Some(MainPdVersions::Many(versions)) = versions {
             if let Some(ver) = versions.get(2) {
-                if ver.app.minor != 0 && ver.app.circuit != 0xD {
+                pd3_ver = Some(ver.app);
+                if ver.app != PD3_VER {
                     fw_outdated_msg = Some(format!(
-                        "Please update the dGPU PD firmware. {} is outdated.",
-                        ver.app
+                        "Please update the dGPU PD firmware. {} is older than {}.",
+                        ver.app, PD3_VER
                     ));
                 }
             }
+        }
+        #[cfg(feature = "qemu")]
+        {
+            fw_outdated_msg = Some(format!(
+                "Please update the dGPU PD firmware. ??? is older than {}.",
+                PD3_VER
+            ));
         }
 
         Self {
@@ -138,6 +156,7 @@ impl State {
             prev_pressed: false,
             verbose: built_info::DEBUG,
             keypress: None,
+            pd3_ver,
             fw_outdated_msg,
         }
     }
@@ -837,6 +856,7 @@ pub fn start(
                     hw_diag,
                     deck: input_deck.clone(),
                     power_info: power_info.clone(),
+                    pd3_ver: state.pd3_ver,
                 }),
                 state.verbose,
             );
