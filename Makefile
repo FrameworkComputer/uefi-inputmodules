@@ -31,12 +31,16 @@ clippy:
 	cargo clippy --target x86_64-unknown-uefi
 
 # Automatically get OVMF from system path
-OVMF_CODE.fd:
-	cp /usr/share/OVMF/OVMF_CODE.fd .
-OVMF_VARS.fd:
-	cp /usr/share/OVMF/OVMF_VARS.fd .
+ovmf/OVMF_CODE.fd:
+	cp `nix-build '<nixpkgs>' -A OVMF.fd`/FV/OVMF_CODE.fd ovmf/ || \
+		cp /usr/share/OVMF/OVMF_CODE.fd ovmf/
+	chmod 755 ovmf/*
+ovmf/OVMF_VARS.fd:
+	cp `nix-build '<nixpkgs>' -A OVMF.fd`/FV/OVMF_VARS.fd ovmf/ || \
+		cp /usr/share/OVMF/OVMF_VARS.fd ovmf/
+	chmod 755 ovmf/*
 
-run: OVMF_CODE.fd OVMF_VARS.fd target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi
+run: ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi
 	mkdir -p esp/efi/boot
 	cp target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi esp/efi/boot/bootx64.efi
 	qemu-system-x86_64 \

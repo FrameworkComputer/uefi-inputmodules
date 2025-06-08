@@ -4,3 +4,7 @@
 /OVMF_VARS.fd
 debug.log
 /ovmf
+
+# Nix, devenv
+result*
+.devenv*
