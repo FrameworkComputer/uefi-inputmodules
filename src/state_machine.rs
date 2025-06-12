@@ -1,10 +1,13 @@
 // TODO: For when I ported the font
 // use alloc::string::ToString;
+use alloc::format;
+use alloc::string::String;
 use core::fmt;
 
 use embedded_graphics::geometry::Size;
 use embedded_graphics::prelude::Point;
 
+use framework_lib::ccgx::{AppVersion, Application, MainPdVersions};
 use framework_lib::chromium_ec::commands::{
     EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionBayBoard, ExpansionBayIssue,
 };
@@ -36,6 +39,13 @@ const FAILED_INPUT: &str = "Failed to get keypress";
 const EFI_OS_INDICATIONS_BOOT_TO_FW_UI: u64 = 0x0000000000000001;
 const EFI_GLOBAL_VARIABLE_GUID: uefi::Guid = guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
 
+pub const PD3_VER: AppVersion = AppVersion {
+    application: Application::Notebook,
+    major: 0,
+    minor: 0,
+    circuit: 0x11,
+};
+
 #[allow(dead_code)]
 pub struct DebugInfo {
     pub power_button: bool,
@@ -51,6 +61,7 @@ pub struct DebugInfo {
     pub hw_diag: EcResponseGetHwDiag,
     pub deck: InputDeckStatus,
     pub power_info: Option<ReducedPowerInfo>,
+    pub pd3_ver: Option<AppVersion>,
 }
 
 pub struct State {
@@ -66,6 +77,8 @@ pub struct State {
     prev_pressed: bool,
     verbose: bool,
     keypress: Option<Key>,
+    pd3_ver: Option<AppVersion>,
+    fw_outdated_msg: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -90,7 +103,7 @@ impl fmt::Display for BayIssue {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum StateFrame {
     NoExpansionBay(BayIssue),
     /// The interposer door was closed
@@ -100,11 +113,34 @@ enum StateFrame {
     TouchpadButNoInputmodules,
     InputModulesMissing,
     NoTouchpad,
+    OutdatedFirmware(String),
     Finished,
 }
 
 impl State {
-    pub fn new() -> Self {
+    pub fn new(ec: &Option<CrosEc>) -> Self {
+        let mut fw_outdated_msg = None;
+        let mut pd3_ver = None;
+        let versions = ec.as_ref().and_then(|x| power::read_pd_version(x).ok());
+        if let Some(MainPdVersions::Many(versions)) = versions {
+            if let Some(ver) = versions.get(2) {
+                pd3_ver = Some(ver.app);
+                if ver.app != PD3_VER {
+                    fw_outdated_msg = Some(format!(
+                        "Please update the dGPU PD firmware. {} is older than {}.",
+                        ver.app, PD3_VER
+                    ));
+                }
+            }
+        }
+        #[cfg(feature = "qemu")]
+        {
+            fw_outdated_msg = Some(format!(
+                "Please update the dGPU PD firmware. ??? is older than {}.",
+                PD3_VER
+            ));
+        }
+
         Self {
             bitmaps: StateBitmaps::default(),
             screen_size: Size {
@@ -120,6 +156,8 @@ impl State {
             prev_pressed: false,
             verbose: built_info::DEBUG,
             keypress: None,
+            pd3_ver,
+            fw_outdated_msg,
         }
     }
 
@@ -133,7 +171,7 @@ impl State {
     ) -> StateFrame {
         // Can't get out of this, need to reboot
         if self.frame == StateFrame::InterposerClosed {
-            return self.frame;
+            return self.frame.clone();
         }
 
         let prev_bay_issue = if let (Some(ref prev_expansion_bay), Some(ref pre_hw_diag)) =
@@ -174,7 +212,13 @@ impl State {
             (false, false) => StateFrame::InputModulesMissing,
             (false, true) => StateFrame::NoTouchpad,
             (true, false) => StateFrame::TouchpadButNoInputmodules,
-            (true, true) => StateFrame::Finished,
+            (true, true) => {
+                if let Some(msg) = &self.fw_outdated_msg {
+                    StateFrame::OutdatedFirmware(msg.clone())
+                } else {
+                    StateFrame::Finished
+                }
+            }
         }
     }
 
@@ -211,7 +255,7 @@ impl State {
 
         // Hints on lower left and right
         match self.frame {
-            StateFrame::Finished => {
+            StateFrame::Finished | StateFrame::OutdatedFirmware(_) => {
                 // Boot Button indicator right
                 self.bitmaps.button_boot().draw(buffer);
 
@@ -238,7 +282,7 @@ impl State {
             StateFrame::NoHubboard => {
                 self.bitmaps.qr_code_2().draw(buffer);
             }
-            StateFrame::Finished => {}
+            StateFrame::Finished | StateFrame::OutdatedFirmware(_) => {}
             _ => {
                 self.bitmaps.qr_code_3().draw(buffer);
             }
@@ -250,13 +294,14 @@ impl State {
             StateFrame::TouchpadButNoInputmodules
                 | StateFrame::InputModulesMissing
                 | StateFrame::NoTouchpad
+                | StateFrame::OutdatedFirmware(_)
                 | StateFrame::Finished
         ) {
             self.draw_inputmodules(buffer, input_deck)
         }
 
         // Help text on the bottom
-        match self.frame {
+        match &self.frame {
             StateFrame::NoExpansionBay(BayIssue::BadConnection) => {
                 self.bitmaps.bay_bad_connection_text().draw(buffer);
             }
@@ -328,6 +373,9 @@ impl State {
                 //     "Touchpad not detected",
                 // );
             }
+            StateFrame::OutdatedFirmware(msg) => {
+                draw_textbox(buffer, Point::new(WARN_X, WARN_Y), TextColor::Warn, msg);
+            }
             StateFrame::Finished => {
                 self.bitmaps.inputmodules_touchpad_ok_text().draw(buffer);
                 // draw_textbox(
@@ -341,6 +389,19 @@ impl State {
     }
 
     fn draw_inputmodules(&mut self, buffer: &mut Buffer, input_deck: &InputDeckStatus) {
+        if input_deck.top_row.pos0 == InputModuleType::FullWidth {
+            // Draw a keyboard in the middle and two generic C left/right
+            // TODO: Draw proper full-width inputmodule
+            self.bitmaps.c1_module().draw(buffer);
+            self.bitmaps.keyboard().draw(buffer);
+            self.bitmaps.c1_module().draw_pos(
+                buffer,
+                Point {
+                    x: 829 + 84 + 736,
+                    y: 583,
+                },
+            );
+        }
         if input_deck.top_row.pos0 == InputModuleType::GenericC {
             self.bitmaps.c1_module().draw(buffer);
         }
@@ -665,7 +726,7 @@ pub fn start(
         .and_then(power::power_info)
         .map(Into::<ReducedPowerInfo>::into);
 
-    let state = State::new();
+    let state = State::new(ec);
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
     if quick_boot && state.next_state(&input_deck, &expansion_bay, &hw_diag) == StateFrame::Finished
@@ -695,7 +756,7 @@ pub fn start(
     // Get Input protocol to detect keypresses
     let mut input = get_input_protocol(bs).expect("Should always have input protocol");
 
-    let mut state = State::new();
+    let mut state = State::new(ec);
     let mut long_press = 0;
     loop {
         #[cfg(feature = "azalea")]
@@ -726,7 +787,7 @@ pub fn start(
         // Short press (or ESC) will exit and boot (skip all further checks)
         let short_press = (!button_pressed && state.prev_pressed && long_press == 1)
             || state.keypress == Some(Key::Special(ScanCode::ESCAPE));
-        match (short_press, state.frame) {
+        match (short_press, state.frame.clone()) {
             // Reboot
             (true, StateFrame::InterposerClosed) => {
                 return Ok(Some(uefi::table::runtime::ResetType::Cold))
@@ -795,6 +856,7 @@ pub fn start(
                     hw_diag,
                     deck: input_deck.clone(),
                     power_info: power_info.clone(),
+                    pd3_ver: state.pd3_ver,
                 }),
                 state.verbose,
             );

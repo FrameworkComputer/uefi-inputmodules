@@ -138,12 +138,14 @@ pub fn get_hw_diag(ec: &Option<CrosEc>) -> EcResponseGetHwDiag {
         hw_diag: 0xFFFFFFFF,
         // BIOS not complete, since it's a UEFI app
         bios_complete: 0,
+        device_complete: 0,
     };
     let all_ok = EcResponseGetHwDiag {
         // No HW diag issue
         hw_diag: 0,
         // BIOS not complete, since it's a UEFI app
         bios_complete: 0,
+        device_complete: 1,
     };
 
     // Pretend there's no EC because the EC is guaranteed not to have this command
@@ -199,7 +201,7 @@ pub fn keypress_mock_data(
     let four_key = Char16::try_from('4').unwrap();
     let five_key = Char16::try_from('5').unwrap();
     let six_key = Char16::try_from('6').unwrap();
-    let _seven_key = Char16::try_from('7').unwrap();
+    let seven_key = Char16::try_from('7').unwrap();
     let q_key = Char16::try_from('q').unwrap();
     let w_key = Char16::try_from('w').unwrap();
     let e_key = Char16::try_from('e').unwrap();
@@ -370,6 +372,21 @@ pub fn keypress_mock_data(
                     pos0: input_deck::InputModuleType::GenericC,
                     pos1: input_deck::InputModuleType::GenericC,
                     pos2: input_deck::InputModuleType::KeyboardA,
+                    pos3: input_deck::InputModuleType::Disconnected,
+                    pos4: input_deck::InputModuleType::Disconnected,
+                },
+            };
+        }
+        // State: Finished
+        Some(Key::Printable(key)) if key == seven_key => {
+            *input_deck = InputDeckStatus {
+                state: input_deck::InputDeckState::On,
+                hubboard_present: true,
+                touchpad_present: true,
+                top_row: input_deck::TopRowPositions {
+                    pos0: input_deck::InputModuleType::FullWidth,
+                    pos1: input_deck::InputModuleType::Disconnected,
+                    pos2: input_deck::InputModuleType::Disconnected,
                     pos3: input_deck::InputModuleType::Disconnected,
                     pos4: input_deck::InputModuleType::Disconnected,
                 },

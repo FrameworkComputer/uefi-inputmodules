@@ -133,7 +133,9 @@ Controls:
 
 - A, S, D, F, G: AC/Battery states (No Battery, 5%, 5% charging, 20%, 20% charging)
 - Q, W, E: Module selection (No Module, bad connection, dual)
-- Z, X, C: Fan selection (No Fan, Left, Right, Both)
+- Z, X, C, V: Fan selection (No Fan, Left, Right, Both)
 - L: Latch toggle
 - H: Hubboard toggle
 - 1, 2, 3, 4, 5, 6, 7: Inputmodules (None, Only Touchpad, 1, 2, 3, 3+Touchpad)
+
+Finish everything: L, V, E, H, 7

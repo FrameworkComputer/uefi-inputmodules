@@ -5,11 +5,11 @@ on:
 jobs:
   build:
     name: Build UEFI executable
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: true
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - uses: webfactory/ssh-agent@v0.7.0
       with:
@@ -26,18 +26,18 @@ jobs:
       run: make qemu
 
     - name: Upload UEFI app (release)
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: inputmodules.efi
         path: target/x86_64-unknown-uefi/release/inputmodules.efi
 
   lints:
     name: Lints
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: true
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Setup Rust toolchain
       run: rustup show
