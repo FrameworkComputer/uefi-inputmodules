@@ -647,6 +647,7 @@ dependencies = [
  "framework_lib",
  "getargs",
  "log",
+ "redox_hwio",
  "uefi",
  "uefi-services",
  "zune-core",
