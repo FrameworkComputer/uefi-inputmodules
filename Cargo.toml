@@ -1,6 +1,6 @@
 [package]
 name = "inputmodules"
-version = "0.3.6"
+version = "0.3.7"
 edition = "2021"
 rust-version = "1.61"
 build = "build.rs"
@@ -20,6 +20,7 @@ log = "0.4.27"
 uefi = { version = "0.20", features = ["alloc"] }
 uefi-services = "0.17"
 zune-core = "0.4.12"
+redox_hwio = { git = "https://github.com/FrameworkComputer/rust-hwio", branch = "freebsd", default-features = false }
 
 # Temporarily override because we need pending PRs for
 # for the Shell and ShellParameters protocols
