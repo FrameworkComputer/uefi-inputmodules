@@ -13,7 +13,7 @@ use framework_lib::chromium_ec::commands::{
 };
 use framework_lib::chromium_ec::input_deck::InputDeckStatus;
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType};
-use framework_lib::chromium_ec::{CrosEc, CrosEcDriver};
+use framework_lib::chromium_ec::CrosEc;
 use framework_lib::power::{self, ReducedPowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
@@ -794,17 +794,11 @@ pub fn start(
             (true, StateFrame::InterposerClosed) => {
                 // EfiResetCold does a warm reset on AMD systems,
                 // so we need to manually force a cold reset.
-                // Use EC_CMD_REBOOT_AP_ON_G3
-                if let Some(ec) = ec {
-                    // TODO: Print a warning that user manually needs to burn back on if it failed
-                    if ec.send_command(0x0127, 0, &[]).is_ok() {
-                        return Ok(Some(uefi::table::runtime::ResetType::Shutdown));
-                    }
-                }
-
-                // If EC command hasn't reset, use traditional reset mechanism through port CF9
+                // Use legacy CF9 register - AMD doc says it keeps CPU in S5 for 3 seconds.
                 Pio::<u8>::new(0x0CF9).write(0x0E);
-                return Ok(None);
+                // If it reaches here, it will panic, show an error message and shut off
+                // It's safe and customers can report this issue, if it occurs
+                unreachable!();
             }
             // Just exit and continue
             (true, _) => break,
