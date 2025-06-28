@@ -129,7 +129,7 @@ impl State {
                 pd3_ver = Some(ver.app);
                 if ver.app != PD3_VER {
                     fw_outdated_msg = Some(format!(
-                        "Please update the dGPU PD firmware. {} is older than {}.",
+                        "Please update the dGPU PD firmware. Is {}, expected: {}.",
                         ver.app, PD3_VER
                     ));
                 }
@@ -138,7 +138,7 @@ impl State {
         #[cfg(feature = "qemu")]
         {
             fw_outdated_msg = Some(format!(
-                "Please update the dGPU PD firmware. ??? is older than {}.",
+                "Please update the dGPU PD firmware. Is: ??.??.??, expected: {}.",
                 PD3_VER
             ));
         }
