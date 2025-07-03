@@ -45,7 +45,7 @@ pub const PD3_VER: AppVersion = AppVersion {
     application: Application::Notebook,
     major: 0,
     minor: 0,
-    circuit: 0x0D,
+    circuit: 0x0F,
 };
 
 #[allow(dead_code)]
