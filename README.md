@@ -37,9 +37,13 @@ status on the commandline:
 ```
 # Launch GUI
 Shell> fs0:inputmodules.efi
+Shell> fs0:inputmodules.efi gui
+
+# Launch GUI even if everything is okay
+Shell> fs0:inputmodules.efi force
 
 # Show debug
-Shell> fs0:inputmodules.efi debug
+Shell> fs0:inputmodules.efi info
 Input Deck State: On
 Touchpad present: true
 Positions:
