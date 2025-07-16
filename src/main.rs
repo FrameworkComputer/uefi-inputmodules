@@ -23,6 +23,7 @@ mod uefi_usb;
 // Allow dead code because it's the old implementation that we will remove
 #[allow(dead_code)]
 mod gui;
+mod oem_variable;
 mod sleep;
 mod state_machine;
 mod built_info {
