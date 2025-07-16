@@ -747,7 +747,7 @@ pub fn start(
     bs: &BootServices,
     st: &SystemTable<Boot>,
     ec: &Option<CrosEc>,
-    quick_boot: bool,
+    force_ui: bool,
 ) -> uefi::Result<Option<uefi::table::runtime::ResetType>> {
     let mut input_deck = ec_comm::get_input_deck(ec);
     let mut expansion_bay = ec_comm::get_expansion_bay(ec);
@@ -761,7 +761,7 @@ pub fn start(
     let state = State::new(ec);
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
-    if quick_boot
+    if !force_ui
         && state.next_state(&input_deck, &expansion_bay, &hw_diag, &usb_devices)
             == StateFrame::Finished
     {

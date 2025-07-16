@@ -6,6 +6,7 @@ Unsigned Size:          TBDKB
 
 * inputmodules.efi info - Show BIOS settings
 * fw16: Match on dGPU PD 0.0.21
+* Exit if standalone mode enabled or inputmodules forced
 
 ## 0.3.11
 

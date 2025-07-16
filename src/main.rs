@@ -51,6 +51,23 @@ fn get_bios_settings(boot_services: &BootServices) -> Option<BiosSettings> {
     })
 }
 
+/// If either standalone mode is enabled or Require Inputmodules is set to ForceOff/ForceOn,
+/// don't show the UI but immediately exit and continue booting
+/// Return value of Some(false) means don't show, everything else means show
+///
+/// This is how the BIOS was previously doing it.
+/// TODO: Actually we want to show the UI in any case, if:
+/// - dGPU PD is outdated
+/// - Fan has issues
+/// - Interposer or door has issues
+fn show_ui(boot_services: &BootServices) -> Option<bool> {
+    let settings = get_bios_settings(boot_services)?;
+    let require_inputmodules =
+        settings.inputmodule_setting == Some(oem_variable::InputmoduleSetting::RequireModules);
+
+    Some(!settings.standalone_mode && require_inputmodules)
+}
+
 #[entry]
 fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     let event = uefi_services::init(&mut system_table).unwrap();
@@ -74,12 +91,21 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         #[cfg(feature = "qemu")]
         let ec = None;
 
-        ec_comm::set_uefi_app_mode(&ec, true);
-        let quick_boot = !matches!(arg, Ok(ShellAction::Force));
-        let gui_res = state_machine::start(boot_services, &system_table, &ec, quick_boot);
-        ec_comm::set_uefi_app_mode(&ec, false);
+        let force_ui = matches!(arg, Ok(ShellAction::Force));
 
-        let reset = gui_res.unwrap();
+        // Show the UI if we can't tell the BIOS settings or they indicate we need to show the UI
+        let show_ui = show_ui(boot_services) != Some(false);
+
+        let reset = if force_ui || show_ui {
+            ec_comm::set_uefi_app_mode(&ec, true);
+            let gui_res = state_machine::start(boot_services, &system_table, &ec, force_ui);
+            ec_comm::set_uefi_app_mode(&ec, false);
+            gui_res.unwrap()
+        } else {
+            // If didn't run the app, don't reset, just keep booting
+            None
+        };
+
         if let Some(reset_type) = reset {
             #[cfg(debug_assertions)]
             info!("Shutting down");
