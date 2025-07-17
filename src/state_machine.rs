@@ -589,7 +589,7 @@ fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutput>, 
     {
         gop_handles
     } else {
-        info!("GraphicsOutput protocol is missing");
+        error!("GraphicsOutput protocol is missing");
         return None;
     };
 
@@ -606,7 +606,7 @@ fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutput>, 
             .expect("Failed to open GraphicsOutput handle")
         }
     } else {
-        info!("No GOP handles found");
+        error!("No GOP handles found");
         return None;
     };
 
@@ -625,7 +625,7 @@ fn get_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
         if let Ok(input_handles) = bs.locate_handle_buffer(SearchType::ByProtocol(&Input::GUID)) {
             input_handles
         } else {
-            info!("Input protocol is missing");
+            error!("Input protocol is missing");
             return None;
         };
 
@@ -750,6 +750,7 @@ pub fn start(
     let (mut gop, mut buffer) = if let Some((gop, buf)) = get_gop_buffer(bs) {
         (gop, buf)
     } else {
+        error!("inputmodules.efi - Couldn't draw to display");
         // Something went wrong with GOP initialization, keep booting
         // TODO: Maybe in DVT2 we should still assert here?
         return Ok(None);
@@ -808,6 +809,7 @@ pub fn start(
         if state.keypress == Some(Key::Special(ScanCode::FUNCTION_12)) {
             let rt = st.runtime_services();
             set_os_indications_setupmenu(rt);
+            info!("Rebooting into BIOS Setup Menu");
             return Ok(Some(uefi::table::runtime::ResetType::Cold));
         }
 
@@ -830,6 +832,7 @@ pub fn start(
         let need_redraw = if button_pressed && state.prev_pressed && !need_redraw {
             if long_press > 4 {
                 // Exit and signal that we need to poweroff
+                info!("Powering off");
                 return Ok(Some(uefi::table::runtime::ResetType::Shutdown));
             }
             // Wait a second
@@ -887,5 +890,6 @@ pub fn start(
         state.prev_pressed = button_pressed;
     }
     let _ = clear_screen(&mut buffer, &mut gop);
+    info!("Exited loop, continuing to boot");
     Ok(None)
 }
