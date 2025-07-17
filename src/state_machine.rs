@@ -13,8 +13,7 @@ use framework_lib::ccgx::{AppVersion, Application, MainPdVersions};
 use framework_lib::chromium_ec::commands::{
     EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionBayBoard, ExpansionBayIssue,
 };
-use framework_lib::chromium_ec::input_deck::InputDeckStatus;
-use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType};
+use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
 use framework_lib::power::{self, ReducedPowerInfo};
 #[allow(unused_imports)]
@@ -766,15 +765,6 @@ pub fn start(
             == StateFrame::Finished
     {
         info!("Started out as fully populated, booting immediately");
-        return Ok(None);
-    }
-
-    if !matches!(
-        input_deck.state,
-        InputDeckState::Disconnected | InputDeckState::TurningOn | InputDeckState::On
-    ) {
-        println!("Input Deck State Overridden: {:?}. No detection of modules possible - continuing to boot ", input_deck.state);
-        bs.stall(1_000_000);
         return Ok(None);
     }
 

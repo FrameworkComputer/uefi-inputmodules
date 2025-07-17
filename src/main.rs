@@ -65,6 +65,9 @@ fn show_ui(boot_services: &BootServices) -> Option<bool> {
     let require_inputmodules =
         settings.inputmodule_setting == Some(oem_variable::InputmoduleSetting::RequireModules);
 
+    // require_inputmodules should be equal to the below predicate
+    // !matches!(input_deck.state, InputDeckState::Disconnected | InputDeckState::TurningOn | InputDeckState::On)
+
     Some(!settings.standalone_mode && require_inputmodules)
 }
 

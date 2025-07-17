@@ -4,8 +4,7 @@ use embedded_graphics::primitives::{
     PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle,
 };
 use framework_lib::chromium_ec::commands::{EcRequestUefiAppBtnStatus, EcRequestUefiAppMode};
-use framework_lib::chromium_ec::input_deck::{self, InputDeckState};
-use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
+use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus, InputModuleType};
 use framework_lib::chromium_ec::{CrosEc, EcRequestRaw};
 #[allow(unused_imports)]
 use log::{debug, error, info};
@@ -399,19 +398,6 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
         }
         prev_pressed = pressed;
         prev_input_deck = input_deck.clone();
-
-        //debug!("InputDeck State: {:?}", input_deck.state);
-        //debug!("Touchpad present: {:?}", input_deck.touchpad_present);
-        //debug!("Hubboard present: {:?}", input_deck.hubboard_present);
-
-        if !matches!(
-            input_deck.state,
-            InputDeckState::Disconnected | InputDeckState::TurningOn | InputDeckState::On
-        ) {
-            println!("Input Deck State Overridden: {:?}. No detection of modules possible - continuing to boot ", input_deck.state);
-            bs.stall(1_000_000);
-            return Ok(());
-        }
 
         // Instructions don't need updates, they're only drawn once when the button is pressed
         if !show_instructions && need_redraw {
