@@ -19,6 +19,7 @@ use uefi_services::{print, println};
 mod buffer;
 mod drawing;
 mod ec_comm;
+mod uefi_usb;
 // Allow dead code because it's the old implementation that we will remove
 #[allow(dead_code)]
 mod gui;
