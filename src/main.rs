@@ -44,7 +44,7 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         println!("Provide Parameter: 'gui' to launch UI and show issues");
         println!("Provide Parameter: 'force' to launch UI even if everything is ok");
         println!();
-        print_module_status();
+        print_module_status(&boot_services);
     } else {
         info!("No shell arg, launching GUI");
 
@@ -124,7 +124,7 @@ fn get_shell_action(boot_services: &BootServices) -> uefi::Result<ShellAction> {
     Ok(ShellAction::Gui)
 }
 
-fn print_module_status() {
+fn print_module_status(boot_services: &BootServices) {
     print_tool_version();
     println!("");
 
@@ -152,6 +152,21 @@ fn print_module_status() {
         println!("    Pos 4: {:?}", status.top_row.pos4);
     } else {
         println!("  Unable to tell");
+    }
+
+    println!("  Firmware Versions");
+    if let Ok(devices) = uefi_usb::get_usb_devices(boot_services) {
+        for device in devices {
+            let name = if let Some(name) = device.get_name() {
+                name
+            } else {
+                continue;
+            };
+
+            println!("    {}: {}", name, device.format_bcd_device());
+        }
+    } else {
+        println!("    Unknown");
     }
 }
 
