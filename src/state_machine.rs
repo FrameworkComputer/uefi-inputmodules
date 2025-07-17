@@ -2,6 +2,8 @@
 // use alloc::string::ToString;
 use alloc::format;
 use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
 use core::fmt;
 
 use embedded_graphics::geometry::Size;
@@ -35,6 +37,7 @@ use crate::built_info;
 use crate::drawing::*;
 use crate::ec_comm;
 use crate::sleep::sleep_or;
+use crate::uefi_usb::{self, UsbDevice};
 
 const FAILED_INPUT: &str = "Failed to get keypress";
 
@@ -76,6 +79,7 @@ pub struct State {
     prev_expansion_bay: Option<EcResponseExpansionBayStatus>,
     prev_hw_diag: Option<EcResponseGetHwDiag>,
     prev_power_info: Option<Option<ReducedPowerInfo>>,
+    prev_usb_devices: Option<Vec<UsbDevice>>,
     prev_pressed: bool,
     verbose: bool,
     keypress: Option<Key>,
@@ -115,7 +119,7 @@ enum StateFrame {
     TouchpadButNoInputmodules,
     InputModulesMissing,
     NoTouchpad,
-    OutdatedFirmware(String),
+    OutdatedFirmware(Vec<String>),
     Finished,
 }
 
@@ -155,6 +159,7 @@ impl State {
             prev_expansion_bay: None,
             prev_hw_diag: None,
             prev_power_info: None,
+            prev_usb_devices: None,
             prev_pressed: false,
             verbose: built_info::DEBUG,
             keypress: None,
@@ -170,6 +175,7 @@ impl State {
         input_deck: &InputDeckStatus,
         expansion_bay: &EcResponseExpansionBayStatus,
         hw_diag: &EcResponseGetHwDiag,
+        usb_devices: &Vec<UsbDevice>,
     ) -> StateFrame {
         // Can't get out of this, need to reboot
         if self.frame == StateFrame::InterposerClosed {
@@ -215,8 +221,25 @@ impl State {
             (false, true) => StateFrame::NoTouchpad,
             (true, false) => StateFrame::TouchpadButNoInputmodules,
             (true, true) => {
+                let mut outdated_fw_msgs = vec![];
+
+                for dev in usb_devices {
+                    // Show a warning of older than 0.3.0
+                    if dev.is_framework_keyboard() && dev.bcd_device < 0x0030 {
+                        let name = dev.get_name().unwrap_or("???").trim();
+                        outdated_fw_msgs.push(format!(
+                            "Firmware of {} is outdated. Please update to v0.3.0 or later.",
+                            name
+                        ));
+                    }
+                }
+
                 if let Some(msg) = &self.fw_outdated_msg {
-                    StateFrame::OutdatedFirmware(msg.clone())
+                    outdated_fw_msgs.push(msg.clone());
+                }
+
+                if !outdated_fw_msgs.is_empty() {
+                    StateFrame::OutdatedFirmware(outdated_fw_msgs)
                 } else {
                     StateFrame::Finished
                 }
@@ -376,7 +399,8 @@ impl State {
                 // );
             }
             StateFrame::OutdatedFirmware(msg) => {
-                draw_textbox(buffer, Point::new(WARN_X, WARN_Y), TextColor::Warn, msg);
+                let msg = msg.join("\n");
+                draw_textbox(buffer, Point::new(WARN_X, WARN_Y), TextColor::Warn, &msg);
             }
             StateFrame::Finished => {
                 self.bitmaps.inputmodules_touchpad_ok_text().draw(buffer);
@@ -552,11 +576,13 @@ impl State {
         expansion_bay: &EcResponseExpansionBayStatus,
         hw_diag: &EcResponseGetHwDiag,
         power_info: &Option<ReducedPowerInfo>,
+        usb_devices: &Vec<UsbDevice>,
     ) -> bool {
         let new_deck = Some(input_deck) != self.prev_input_deck.as_ref();
         let new_bay = Some(expansion_bay) != self.prev_expansion_bay.as_ref();
         let new_diag = Some(hw_diag) != self.prev_hw_diag.as_ref();
         let new_power = Some(power_info) != self.prev_power_info.as_ref();
+        let new_usb_devices = Some(usb_devices) != self.prev_usb_devices.as_ref();
 
         if new_deck {
             debug!("Deck Changed");
@@ -578,8 +604,13 @@ impl State {
             debug!("Old: {:?}", self.prev_power_info.as_ref());
             debug!("New: {:?}", power_info);
         }
+        if new_usb_devices {
+            debug!("USB Devices Changed");
+            debug!("Old: {:?}", self.prev_usb_devices.as_ref());
+            debug!("New: {:?}", usb_devices);
+        }
 
-        new_deck || new_bay || new_diag || new_power
+        new_deck || new_bay || new_diag || new_power || new_usb_devices
     }
 }
 
@@ -727,11 +758,14 @@ pub fn start(
         .as_ref()
         .and_then(power::power_info)
         .map(Into::<ReducedPowerInfo>::into);
+    let mut usb_devices = uefi_usb::get_usb_devices_noerr(bs);
 
     let state = State::new(ec);
     // If we start out as fully populated we want to boot as fast as possible
     // and skip the GUI
-    if quick_boot && state.next_state(&input_deck, &expansion_bay, &hw_diag) == StateFrame::Finished
+    if quick_boot
+        && state.next_state(&input_deck, &expansion_bay, &hw_diag, &usb_devices)
+            == StateFrame::Finished
     {
         info!("Started out as fully populated, booting immediately");
         return Ok(None);
@@ -783,6 +817,7 @@ pub fn start(
                 &mut power_info,
             );
         }
+        usb_devices = uefi_usb::get_usb_devices_noerr(bs);
         // TODO: Maybe mock power button press?
         let button_pressed = ec_comm::button_pressed(ec);
 
@@ -813,7 +848,13 @@ pub fn start(
             return Ok(Some(uefi::table::runtime::ResetType::Cold));
         }
 
-        let need_redraw = state.need_redraw(&input_deck, &expansion_bay, &hw_diag, &power_info);
+        let need_redraw = state.need_redraw(
+            &input_deck,
+            &expansion_bay,
+            &hw_diag,
+            &power_info,
+            &usb_devices,
+        );
         if need_redraw && log_enabled!(Level::Debug) {
             // Sleep after state.need_redraw prints debug information
             bs.stall(1_000_000);
@@ -847,7 +888,7 @@ pub fn start(
         };
 
         if need_redraw {
-            state.frame = state.next_state(&input_deck, &expansion_bay, &hw_diag);
+            state.frame = state.next_state(&input_deck, &expansion_bay, &hw_diag, &usb_devices);
             state.draw_state(&mut buffer, &input_deck);
 
             draw_battery_info(&mut buffer, &power_info);
@@ -887,6 +928,7 @@ pub fn start(
         state.prev_expansion_bay = Some(expansion_bay);
         state.prev_hw_diag = Some(hw_diag);
         state.prev_power_info = Some(power_info.clone());
+        state.prev_usb_devices = Some(usb_devices.clone());
         state.prev_pressed = button_pressed;
     }
     let _ = clear_screen(&mut buffer, &mut gop);
