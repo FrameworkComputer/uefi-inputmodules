@@ -67,6 +67,7 @@ pub struct DebugInfo {
     pub deck: InputDeckStatus,
     pub power_info: Option<ReducedPowerInfo>,
     pub pd3_ver: Option<AppVersion>,
+    pub usb_devices: Vec<UsbDevice>,
 }
 
 pub struct State {
@@ -909,6 +910,7 @@ pub fn start(
                     deck: input_deck.clone(),
                     power_info: power_info.clone(),
                     pd3_ver: state.pd3_ver,
+                    usb_devices: usb_devices.clone(),
                 }),
                 state.verbose,
             );
