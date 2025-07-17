@@ -31,6 +31,26 @@ mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
+struct BiosSettings {
+    standalone_mode: bool,
+    inputmodule_setting: Option<oem_variable::InputmoduleSetting>,
+}
+
+fn get_bios_settings(boot_services: &BootServices) -> Option<BiosSettings> {
+    // If the protocol isn't present, assume nothing is disabled and show the UI
+    let oem_handle = boot_services
+        .get_handle_for_protocol::<oem_variable::UefiVariable>()
+        .ok()?;
+    let oem = boot_services
+        .open_protocol_exclusive::<oem_variable::UefiVariable>(oem_handle)
+        .ok()?;
+
+    Some(BiosSettings {
+        standalone_mode: oem.standalone_mode_enabled(),
+        inputmodule_setting: oem.inputmodule_setting(),
+    })
+}
+
 #[entry]
 fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     let event = uefi_services::init(&mut system_table).unwrap();
@@ -168,6 +188,17 @@ fn print_module_status(boot_services: &BootServices) {
         }
     } else {
         println!("    Unknown");
+    }
+
+    println!("BIOS Settings");
+    if let Some(settings) = get_bios_settings(boot_services) {
+        println!("  Standalone Mode Enabled: {}", settings.standalone_mode);
+        println!(
+            "  Inputmodule Setting:     {:?}",
+            settings.inputmodule_setting
+        );
+    } else {
+        println!("  Unknown");
     }
 }
 
