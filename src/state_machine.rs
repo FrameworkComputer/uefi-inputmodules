@@ -224,6 +224,13 @@ impl State {
             (true, true) => {
                 let mut outdated_fw_msgs = vec![];
 
+                // In QEMU force an error message
+                #[cfg(feature = "qemu")]
+                outdated_fw_msgs.push(format!(
+                    "Firmware of {} is outdated. Please update to v0.3.0 or later.",
+                    "Framework 16 - ANSI Keyboard"
+                ));
+
                 for dev in usb_devices {
                     // Show a warning of older than 0.3.0
                     if dev.is_framework_keyboard() && dev.bcd_device < 0x0030 {

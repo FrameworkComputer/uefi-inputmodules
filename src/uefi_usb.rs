@@ -167,6 +167,7 @@ impl UsbDevice {
 pub fn get_usb_devices(bs: &BootServices) -> Result<Vec<UsbDevice>> {
     let mut devices = vec![];
 
+    #[cfg(not(feature = "qemu"))]
     debug!("Locate USB IO Handles");
     let usb_io_handles = bs.locate_handle_buffer(SearchType::ByProtocol(&UsbIo::GUID));
 
@@ -174,7 +175,10 @@ pub fn get_usb_devices(bs: &BootServices) -> Result<Vec<UsbDevice>> {
         debug!("UsbIo protocol found");
         usb_io_handles
     } else {
+        // In QEMU just return an emtpy list, it seems default OVMF does not have this protocol
+        #[cfg(not(feature = "qemu"))]
         error!("UsbIo protocol is missing");
+
         return Ok(devices);
     };
 
