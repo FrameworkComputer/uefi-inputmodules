@@ -1,4 +1,16 @@
-### 0.3.10
+## 0.3.11
+
+Unsigned binary SHA256: 9b72dfb6118172dc0de0f21c804dbff7e2587429e19c163e24d08eb496b589f7
+Authenticode SHA256:    bccd0ff6220e51f6d8f5fe45b80083e692e2f33ea943e4de8f2c8a4e5cf0bb4f
+Unsigned Size:          930KB
+
+* Add artwork for full-width module
+* fw16: If keyboard firmware < 0.3.0, halt and show warning
+* fw16: Add keyboard firmware into verbose debug (?)
+* fw16: inputmodules.efi info - Show keyboard/ledmatrix firmware versions
+* inputmodules.efi info - Show BIOS settings
+
+## 0.3.10
 
 Unsigned binary SHA256: a640866f7cabc5a8c5a15bfdce3608da615b3c621126d39570d98fa3a62d266c
 Authenticode SHA256:    72f1e035200a9728ab72d25d76e1b0b231585f3c8a7b55425063077a320bfa99
@@ -6,7 +18,7 @@ Unsigned Size:          895KB
 
 * fw16: Match on dGPU PD 0.0.10
 
-### 0.3.9
+## 0.3.9
 
 SHA256: 765b864cd6741d956f9cd80ec4fb863823d2b7e798aded496a2a9fe20d6d6dc0
 Size:   895KB
