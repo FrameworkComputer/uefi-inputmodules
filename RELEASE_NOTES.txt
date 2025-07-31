@@ -1,0 +1,108 @@
+### 0.3.10
+
+Unsigned binary SHA256: a640866f7cabc5a8c5a15bfdce3608da615b3c621126d39570d98fa3a62d266c
+Authenticode SHA256:    72f1e035200a9728ab72d25d76e1b0b231585f3c8a7b55425063077a320bfa99
+Unsigned Size:          895KB
+
+* fw16: Match on dGPU PD 0.0.10
+
+### 0.3.9
+
+SHA256: 765b864cd6741d956f9cd80ec4fb863823d2b7e798aded496a2a9fe20d6d6dc0
+Size:   895KB
+
+* Match on PD 0.0.F
+* Change PD warning to "Is {}, expected: {}." instead of "{} is older than {}"
+
+## 0.3.8
+
+* Always use CF9 reset instead of EC_CMD_REBOOT_AP_ON_G3, reduce reset time
+
+## 0.3.7
+
+* Fix 86etqbk8z. Cold reset on button when bay door was closed
+
+## 0.3.6
+
+* Update Rust dependencies
+* Update framework-system to 0.4.3
+* Support full-width input module
+* Add exclamation mark on bad components
+* Show warning if dGPU PD version is not 0.0.D
+* Show dGPU PD version in debug output
+
+## 0.3.5
+
+* Update framework-system to https://github.com/FrameworkComputer/framework-system/commit/6cc151aaeb3a5dce1697b8e2c50f35763786e459
+* Same as 0.3.4, skip SMBIOS detection and hardcode to Framework 16
+* Should be able to work with lotus and tulip
+* Release build without verbose debug output
+
+## 0.3.4
+
+* Test build for tulip with SMBIOS detection hardcoded to Framework 16
+* Known issue: Debug build, will print extremely verbose debug output
+
+## 0.3.3
+
+Size: 407KB
+
+* Fix long press on power button broken since 0.3.0
+
+## 0.3.2
+
+* Fix UMA module detected as "bad interposer connection"
+* Force reboot if user closes interposer door
+* Remove debug print when shutting down/rebooting
+* Add secret F12 hotkey to reboot into setup menu
+
+## 0.3.1
+
+* Refined design (New file size: 383KB, old size: 288KB)
+* Detect expansion bay module and interposer issue
+  * Can detect missing expansion bay
+  * Can detect bad interposer connection (invalid board ID combinations)
+  * NOTE: Will not detect DVT1 UMA module and flag it as an issue because it has no board ID resistor. Will need manual confirmation to boot
+* Better human readable debug output
+* Use black C1 module color instead of silver
+* Guess touchpad position based on keyboard
+* Use proper font
+* Only highlight currently active issue (e.g. just module or interposer)
+
+## 0.3.0
+
+* New design (New file size: 288KB, old size: 589KB)
+* More details about expansion bay issues
+  * Different text for module missing, latch open, (left, right, both, no) fans missing
+* Three different QR codes instead of one
+* Add battery warning if less than 20% charge remaining
+* No changes in EC host commands, does not need new EC version
+
+## 0.2.1
+
+* New design (New file size: 589KB, old size: 542KB)
+* In addition to hubboard and inputmodules, also check dGPU/fans/hatch
+  * Needs new EC version (post PR #807, Sep 28 2023)
+* Can work with old EC version
+* Allow skipping app by ESC and now also short power button press, lonpress to shutdown
+  * Needs new EC version (post PR #807, Sep 28 2023)
+* Can use question mark (`?`) key on external keyboard to show more debug info
+
+## 0.1.3
+
+* Boot immediately if starting out as fully populated
+* Place version info in lower right corner
+* Display more version information in debug builds
+* Hide power button text until it's implemented
+
+## 0.1.2
+
+
+* Implement new design
+* Require hubboard to boot
+* Use wait_for_event to put CPU to sleep by
+* Clear screen after exit
+
+## 0.1.1
+
+* First version
