@@ -1,3 +1,11 @@
+## 0.3.12
+
+Unsigned binary SHA256: TBD
+Authenticode SHA256:    TBD
+Unsigned Size:          TBDKB
+
+* inputmodules.efi info - Show BIOS settings
+
 ## 0.3.11
 
 Unsigned binary SHA256: 9b72dfb6118172dc0de0f21c804dbff7e2587429e19c163e24d08eb496b589f7
@@ -8,7 +16,6 @@ Unsigned Size:          930KB
 * fw16: If keyboard firmware < 0.3.0, halt and show warning
 * fw16: Add keyboard firmware into verbose debug (?)
 * fw16: inputmodules.efi info - Show keyboard/ledmatrix firmware versions
-* inputmodules.efi info - Show BIOS settings
 
 ## 0.3.10
 
