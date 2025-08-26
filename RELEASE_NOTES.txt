@@ -5,6 +5,7 @@ Authenticode SHA256:    TBD
 Unsigned Size:          TBDKB
 
 * inputmodules.efi info - Show BIOS settings
+* fw16: Match on dGPU PD 0.0.21
 
 ## 0.3.11
 
