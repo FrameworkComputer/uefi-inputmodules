@@ -63,6 +63,7 @@ pub struct DebugInfo {
     pub bay_fault: bool,
     pub hatch_closed: bool,
     pub hw_diag: EcResponseGetHwDiag,
+    pub fan_speed: (u16, u16),
     pub deck: InputDeckStatus,
     pub power_info: Option<ReducedPowerInfo>,
     pub pd3_ver: Option<AppVersion>,
@@ -751,6 +752,7 @@ pub fn start(
     let mut input_deck = ec_comm::get_input_deck(ec);
     let mut expansion_bay = ec_comm::get_expansion_bay(ec);
     let mut hw_diag = ec_comm::get_hw_diag(ec);
+    let mut fan_speed = ec_comm::get_fan_speed(ec);
     let mut power_info: Option<ReducedPowerInfo> = ec
         .as_ref()
         .and_then(power::power_info)
@@ -792,6 +794,7 @@ pub fn start(
             input_deck = ec_comm::get_input_deck(ec);
             expansion_bay = ec_comm::get_expansion_bay(ec);
             hw_diag = ec_comm::get_hw_diag(ec);
+            fan_speed = ec_comm::get_fan_speed(ec);
             power_info = ec
                 .as_ref()
                 .and_then(power::power_info)
@@ -836,13 +839,15 @@ pub fn start(
             return Ok(Some(uefi::table::runtime::ResetType::Cold));
         }
 
-        let need_redraw = state.need_redraw(
-            &input_deck,
-            &expansion_bay,
-            &hw_diag,
-            &power_info,
-            &usb_devices,
-        );
+        // If verbose always need to update, to update things like fan info in the debug section
+        let need_redraw = state.verbose
+            || state.need_redraw(
+                &input_deck,
+                &expansion_bay,
+                &hw_diag,
+                &power_info,
+                &usb_devices,
+            );
         if need_redraw && log_enabled!(Level::Debug) {
             // Sleep after state.need_redraw prints debug information
             bs.stall(1_000_000);
@@ -894,6 +899,7 @@ pub fn start(
                     bay_fault: expansion_bay.module_fault(),
                     hatch_closed: expansion_bay.hatch_switch_closed(),
                     hw_diag,
+                    fan_speed,
                     deck: input_deck.clone(),
                     power_info: power_info.clone(),
                     pd3_ver: state.pd3_ver,

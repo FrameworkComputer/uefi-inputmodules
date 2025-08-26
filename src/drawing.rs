@@ -861,7 +861,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
     );
     let (height, ver_text) = if verbose {
         (
-            7, // Need to update if adding more lines
+            8, // Need to update if adding more lines
             if let Some(debug_info) = debug_info {
                 let power_str = if let Some(power_info) = debug_info.power_info {
                     if let Some(battery) = power_info.battery {
@@ -887,7 +887,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                     .join(", ");
                 format!(
                     // TODO: Pad dirty to the end
-                    "Version:  {}\nRef:      {}, Dirty:{}\nCommit:   {}\nHas EC:   {}, PwrBtn pressed:{}, PwrBtn Long press cnt:{}\nBay State:{}, En:{}, Fault:{}, Closed:{}\nBayModule:IDs: ({}, {}), {:?}\nHW Diag:  {}\n          {:#032b}\nDeckState:{:?}, Hubboard:{}, Touchpad:{}, {}\n{}\nPD 3 Ver: {}, Expected: {}\n{}",
+                    "Version:  {}\nRef:      {}, Dirty:{}\nCommit:   {}\nHas EC:   {}, PwrBtn pressed:{}, PwrBtn Long press cnt:{}\nBay State:{}, En:{}, Fault:{}, Closed:{}\nBayModule:IDs: ({}, {}), {:?}\nHW Diag:  {}\n          {:#032b}\nFan Speed  Left: {}RPM Right {}RPM\nDeckState:{:?}, Hubboard:{}, Touchpad:{}, {}\n{}\nPD 3 Ver: {}, Expected: {}\n{}",
                     built_info::PKG_VERSION,
                     built_info::GIT_HEAD_REF.unwrap_or("?"),
                     built_info::GIT_DIRTY.unwrap_or(false),
@@ -908,6 +908,8 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                     // HW Diag
                     debug_info.hw_diag,
                     { debug_info.hw_diag.hw_diag },
+                    debug_info.fan_speed.0,
+                    debug_info.fan_speed.1,
                     // Input Deck
                     debug_info.deck.state,
                     debug_info.deck.hubboard_present,

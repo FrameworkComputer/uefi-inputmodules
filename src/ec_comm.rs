@@ -7,12 +7,20 @@ use framework_lib::chromium_ec::commands::{
 };
 use framework_lib::chromium_ec::input_deck::{self, InputDeckStatus};
 use framework_lib::chromium_ec::input_deck::{InputDeckState, InputModuleType, TopRowPositions};
-use framework_lib::chromium_ec::{CrosEc, EcError, EcRequestRaw, EcResponseStatus, EcResult};
+use framework_lib::chromium_ec::{
+    CrosEc, CrosEcDriver, EcError, EcRequestRaw, EcResponseStatus, EcResult,
+};
 use framework_lib::power::{BatteryInformation, PowerInfo, ReducedPowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::proto::console::text::Key;
 use uefi::Char16;
+
+// TODO: Mark as public in framework-lib
+const EC_MEMMAP_FAN: u16 = 0x10;
+/// Used on old EC firmware (before 2023)
+const EC_FAN_SPEED_STALLED_DEPRECATED: u16 = 0xFFFE;
+const EC_FAN_SPEED_NOT_PRESENT: u16 = 0xFFFF;
 
 /// Get current state of expansion bay
 ///
@@ -166,6 +174,39 @@ pub fn get_hw_diag(ec: &Option<CrosEc>) -> EcResponseGetHwDiag {
         // Other error or no EC
         _ => all_ok,
     }
+}
+
+pub fn get_fan_speed(ec: &Option<CrosEc>) -> (u16, u16) {
+    let mut speed = (0, 0);
+
+    // Pretend there's no EC because the EC is guaranteed not to have this command
+    #[cfg(feature = "azalea")]
+    let ec = None;
+
+    let ec = if let Some(ec) = ec {
+        ec
+    } else {
+        // If no EC, just return 0
+        return speed;
+    };
+
+    if let Some(fans) = ec.read_memory(EC_MEMMAP_FAN, 0x08) {
+        for i in 0..2 {
+            let fan = u16::from_le_bytes([fans[i * 2], fans[1 + i * 2]]);
+            if fan == EC_FAN_SPEED_STALLED_DEPRECATED {
+                info!("Fan {} stalled", i);
+            } else if fan == EC_FAN_SPEED_NOT_PRESENT {
+                info!("Fan {} not present", i);
+            } else {
+                if i == 0 {
+                    speed.0 = fan;
+                } else if i == 1 {
+                    speed.1 = fan;
+                }
+            }
+        }
+    }
+    speed
 }
 
 /// Set (enable/disable UEFI App mode)
