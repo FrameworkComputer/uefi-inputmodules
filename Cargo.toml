@@ -1,6 +1,6 @@
 [package]
 name = "inputmodules"
-version = "0.3.11"
+version = "0.3.12"
 edition = "2021"
 rust-version = "1.61"
 build = "build.rs"
