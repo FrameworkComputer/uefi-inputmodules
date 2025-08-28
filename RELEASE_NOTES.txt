@@ -1,3 +1,11 @@
+## 0.3.13
+
+Unsigned binary SHA256: TBD
+Authenticode SHA256:    TBD
+Unsigned Size:          TBDKB
+
+* fw16: Add "Laptop" in keyboard naming and fix typo in copilot keyboard name
+
 ## 0.3.12
 
 Unsigned binary SHA256: TBD

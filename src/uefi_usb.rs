@@ -137,13 +137,13 @@ pub struct UsbDevice {
 impl UsbDevice {
     pub fn get_name(&self) -> Option<&str> {
         match (self.vid, self.pid) {
-            (0x32AC, 0x0012) => Some("Framework 16 - ANSI Keyboard    "),
-            (0x32AC, 0x0018) => Some("Framework 16 - ISO Keyboard     "),
-            (0x32AC, 0x0019) => Some("Framework 16 - JIS Keyboard     "),
-            (0x32AC, 0x0013) => Some("Framework 16 - Macropad         "),
-            (0x32AC, 0x0014) => Some("Framework 16 - Numpad           "),
-            (0x32AC, 0x0020) => Some("Framework 16 - LED Matrix       "),
-            (0x32AC, 0x0030) => Some("Framework 16 - Copiilot Keyboard"),
+            (0x32AC, 0x0012) => Some("Framework Laptop 16 - ANSI Keyboard   "),
+            (0x32AC, 0x0018) => Some("Framework Laptop 16 - ISO Keyboard    "),
+            (0x32AC, 0x0019) => Some("Framework Laptop 16 - JIS Keyboard    "),
+            (0x32AC, 0x0013) => Some("Framework Laptop 16 - Macropad        "),
+            (0x32AC, 0x0014) => Some("Framework Laptop 16 - Numpad          "),
+            (0x32AC, 0x0020) => Some("Framework Laptop 16 - LED Matrix      "),
+            (0x32AC, 0x0030) => Some("Framework Laptop 16 - Copilot Keyboard"),
             _ => None,
         }
     }
