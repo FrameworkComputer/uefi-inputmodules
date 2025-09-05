@@ -3,7 +3,6 @@
 use crate::alloc::string::ToString;
 use alloc::format;
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
 
@@ -90,7 +89,7 @@ pub struct State {
     verbose: bool,
     keypress: Option<Key>,
     pd3_ver: Option<AppVersion>,
-    fw_outdated_msg: Option<String>,
+    outdated_firmware: OutdatedFirmware,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -115,6 +114,23 @@ impl fmt::Display for BayIssue {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+struct OutdatedFirmware {
+    keyboard: Vec<String>,
+    pd_controller: Option<String>,
+}
+impl OutdatedFirmware {
+    fn is_empty(&self) -> bool {
+        self.keyboard.is_empty() && self.pd_controller.is_none()
+    }
+    fn merge_with(&mut self, other: &Self) {
+        self.keyboard.extend(other.keyboard.clone());
+        if other.pd_controller.is_some() {
+            self.pd_controller = other.pd_controller.clone();
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum StateFrame {
     NoExpansionBay(BayIssue),
@@ -125,20 +141,20 @@ enum StateFrame {
     TouchpadButNoInputmodules,
     InputModulesMissing,
     NoTouchpad,
-    OutdatedFirmware(Vec<String>),
+    OutdatedFirmware(OutdatedFirmware),
     Finished,
 }
 
 impl State {
     pub fn new(ec: &Option<CrosEc>) -> Self {
-        let mut fw_outdated_msg = None;
+        let mut outdated_firmware = OutdatedFirmware::default();
         let mut pd3_ver = None;
         let versions = ec.as_ref().and_then(|x| power::read_pd_version(x).ok());
         if let Some(MainPdVersions::Many(versions)) = versions {
             if let Some(ver) = versions.get(2) {
                 pd3_ver = Some(ver.app);
                 if ver.app != PD3_VER {
-                    fw_outdated_msg = Some(format!(
+                    outdated_firmware.pd_controller = Some(format!(
                         "Please update the dGPU PD firmware. Is {}, expected: {}.",
                         ver.app, PD3_VER
                     ));
@@ -147,7 +163,7 @@ impl State {
         }
         #[cfg(feature = "qemu")]
         {
-            fw_outdated_msg = Some(format!(
+            outdated_firmware.pd_controller = Some(format!(
                 "Please update the dGPU PD firmware. Is: ??.??.??, expected: {}.",
                 PD3_VER
             ));
@@ -170,7 +186,7 @@ impl State {
             verbose: built_info::DEBUG,
             keypress: None,
             pd3_ver,
-            fw_outdated_msg,
+            outdated_firmware,
         }
     }
 
@@ -227,11 +243,11 @@ impl State {
             (false, true) => StateFrame::NoTouchpad,
             (true, false) => StateFrame::TouchpadButNoInputmodules,
             (true, true) => {
-                let mut outdated_fw_msgs = vec![];
+                let mut outdated_fw_msgs = OutdatedFirmware::default();
 
                 // In QEMU force an error message
                 #[cfg(feature = "qemu")]
-                outdated_fw_msgs.push(format!(
+                outdated_fw_msgs.keyboard.push(format!(
                     "Firmware of {} is outdated. Please update to v0.3.0 or later.",
                     "Framework 16 - ANSI Keyboard"
                 ));
@@ -240,16 +256,14 @@ impl State {
                     // Show a warning of older than 0.3.0
                     if dev.is_framework_keyboard() && dev.bcd_device < 0x0030 {
                         let name = dev.get_name().unwrap_or("???").trim();
-                        outdated_fw_msgs.push(format!(
+                        outdated_fw_msgs.keyboard.push(format!(
                             "Firmware of {} is outdated. Please update to v0.3.0 or later.",
                             name
                         ));
                     }
                 }
 
-                if let Some(msg) = &self.fw_outdated_msg {
-                    outdated_fw_msgs.push(msg.clone());
-                }
+                outdated_fw_msgs.merge_with(&self.outdated_firmware);
 
                 if !outdated_fw_msgs.is_empty() {
                     StateFrame::OutdatedFirmware(outdated_fw_msgs)
@@ -320,14 +334,38 @@ impl State {
         }
 
         // QR Codes
-        match self.frame {
+        match &self.frame {
             StateFrame::NoExpansionBay(_) | StateFrame::InterposerClosed => {
                 self.bitmaps.qr_code_1().draw(buffer);
             }
             StateFrame::NoHubboard => {
                 self.bitmaps.qr_code_2().draw(buffer);
             }
-            StateFrame::Finished | StateFrame::OutdatedFirmware(_) => {}
+            StateFrame::Finished => {}
+            StateFrame::OutdatedFirmware(msgs) => {
+                match (!msgs.keyboard.is_empty(), msgs.pd_controller.is_some()) {
+                    // No issue, no QR code needed
+                    (false, false) => {}
+                    (false, true) => {
+                        self.bitmaps.qr_code_pd().draw(buffer);
+                    }
+                    (true, false) => {
+                        self.bitmaps.qr_code_kb().draw(buffer);
+                    }
+                    (true, true) => {
+                        self.bitmaps.qr_code_kb().draw(buffer);
+                        // To show both QR codes at the same time we need to move one up a bit
+                        // By the height (198) and some extra padding
+                        self.bitmaps.qr_code_pd().draw_pos(
+                            buffer,
+                            Point {
+                                x: 1814,
+                                y: 967 - 198 - 15,
+                            },
+                        );
+                    }
+                };
+            }
             _ => {
                 self.bitmaps.qr_code_3().draw(buffer);
             }
@@ -418,8 +456,13 @@ impl State {
                 //     "Touchpad not detected",
                 // );
             }
-            StateFrame::OutdatedFirmware(msg) => {
-                let msg = msg.join("\n");
+            StateFrame::OutdatedFirmware(msgs) => {
+                let mut all_msgs = msgs.keyboard.clone();
+                if let Some(msg) = &msgs.pd_controller {
+                    all_msgs.push(msg.to_string());
+                }
+
+                let msg = all_msgs.join("\n");
                 draw_textbox(buffer, Point::new(WARN_X, WARN_Y), TextColor::Warn, &msg);
             }
             StateFrame::Finished => {

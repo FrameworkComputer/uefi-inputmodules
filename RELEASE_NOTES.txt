@@ -7,6 +7,7 @@ Unsigned Size:          TBDKB
 * fw16: Add "Laptop" in keyboard naming and fix typo in copilot keyboard name
 * Show current fan speed in ? debug info
 * Show BIOS and EC version in ? debug info
+* Show a QR code linking to help when Keyboard or dGPU PD versions are outdated
 * If keyboard or dGPU problems also show power off button (not just skip)
 
 ## 0.3.12

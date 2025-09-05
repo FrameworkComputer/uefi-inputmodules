@@ -39,6 +39,8 @@ pub struct StateBitmaps {
     qr_code_1: Option<Vec<u8>>,
     qr_code_2: Option<Vec<u8>>,
     qr_code_3: Option<Vec<u8>>,
+    qr_code_pd: Option<Vec<u8>>,
+    qr_code_kb: Option<Vec<u8>>,
     button_long_off: Option<Vec<u8>>,
     button_short_skip: Option<Vec<u8>>,
     button_short_reboot: Option<Vec<u8>>,
@@ -139,6 +141,44 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.qr_code_3.as_ref().unwrap(),
+            width: 168,
+            pos: Point { x: 1814, y: 967 },
+        }
+    }
+
+    // Points to https://fr.mw/FRANNB0006
+    pub fn qr_code_kb(&mut self) -> ImagePlusMeta {
+        if self.qr_code_kb.is_none() {
+            let png = include_bytes!("../resources/figma/qr-code-kb.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.qr_code_kb = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.qr_code_kb.as_ref().unwrap(),
+            width: 168,
+            pos: Point { x: 1814, y: 967 },
+        }
+    }
+
+    // Points to https://fr.mw/FRANNB0007
+    pub fn qr_code_pd(&mut self) -> ImagePlusMeta {
+        if self.qr_code_pd.is_none() {
+            let png = include_bytes!("../resources/figma/qr-code-pd.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.qr_code_pd = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.qr_code_pd.as_ref().unwrap(),
             width: 168,
             pos: Point { x: 1814, y: 967 },
         }
