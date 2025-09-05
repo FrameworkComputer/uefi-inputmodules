@@ -8,9 +8,9 @@ Unsigned Size:          TBDKB
 
 ## 0.3.12
 
-Unsigned binary SHA256: TBD
-Authenticode SHA256:    TBD
-Unsigned Size:          TBDKB
+Unsigned binary SHA256: 5f2a18d11d229bf41e3a3cf7d75ec2257fab98e4ec2235c046f64ac767d70d7a
+Authenticode SHA256:    106c79403483d39d785fff9c9600d8881584bb7a90379dff4f71c292f3c85914
+Unsigned Size:          932KB
 
 * inputmodules.efi info - Show BIOS settings
 * fw16: Match on dGPU PD 0.0.21
