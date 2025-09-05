@@ -1,4 +1,4 @@
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use framework_lib::chromium_ec::commands::{
     EcRequestExpansionBayStatus, EcRequestGetHwDiag, EcRequestUefiAppBtnStatus,
     EcRequestUefiAppMode, EcResponseExpansionBayStatus, EcResponseGetHwDiag, ExpansionByStates,
@@ -21,6 +21,18 @@ const EC_MEMMAP_FAN: u16 = 0x10;
 /// Used on old EC firmware (before 2023)
 const EC_FAN_SPEED_STALLED_DEPRECATED: u16 = 0xFFFE;
 const EC_FAN_SPEED_NOT_PRESENT: u16 = 0xFFFF;
+
+pub fn version_info(ec: &Option<CrosEc>) -> String {
+    if let Some(ec) = ec {
+        if let Ok(version) = ec.version_info() {
+            version.to_string()
+        } else {
+            "???".to_string()
+        }
+    } else {
+        "???".to_string()
+    }
+}
 
 /// Get current state of expansion bay
 ///

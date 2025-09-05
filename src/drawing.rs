@@ -887,7 +887,9 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                     .join(", ");
                 format!(
                     // TODO: Pad dirty to the end
-                    "Version:  {}\nRef:      {}, Dirty:{}\nCommit:   {}\nHas EC:   {}, PwrBtn pressed:{}, PwrBtn Long press cnt:{}\nBay State:{}, En:{}, Fault:{}, Closed:{}\nBayModule:IDs: ({}, {}), {:?}\nHW Diag:  {}\n          {:#032b}\nFan Speed  Left: {}RPM Right {}RPM\nDeckState:{:?}, Hubboard:{}, Touchpad:{}, {}\n{}\nPD 3 Ver: {}, Expected: {}\n{}",
+                    "BIOS: {}, EC: {}, App Version:  {}\nRef:      {}, Dirty:{}\nCommit:   {}\nHas EC:   {}, PwrBtn pressed:{}, PwrBtn Long press cnt:{}\nBay State:{}, En:{}, Fault:{}, Closed:{}\nBayModule:IDs: ({}, {}), {:?}\nHW Diag:  {}\n          {:#032b}\nFan Speed  Left: {}RPM Right {}RPM\nDeckState:{:?}, Hubboard:{}, Touchpad:{}, {}\n{}\nPD 3 Ver: {}, Expected: {}\n{}",
+                    debug_info.bios_version,
+                    debug_info.ec_version,
                     built_info::PKG_VERSION,
                     built_info::GIT_HEAD_REF.unwrap_or("?"),
                     built_info::GIT_DIRTY.unwrap_or(false),

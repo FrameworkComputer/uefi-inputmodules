@@ -648,6 +648,7 @@ dependencies = [
  "getargs",
  "log",
  "redox_hwio",
+ "smbios-lib",
  "uefi",
  "uefi-services",
  "zune-core",

@@ -1,5 +1,6 @@
 // TODO: For when I ported the font
 // use alloc::string::ToString;
+use crate::alloc::string::ToString;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec;
@@ -16,9 +17,11 @@ use framework_lib::chromium_ec::commands::{
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
 use framework_lib::power::{self, ReducedPowerInfo};
+use framework_lib::smbios::get_smbios;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use log::{log_enabled, Level};
+use smbioslib::SMBiosInformation;
 use uefi::prelude::{BootServices, RuntimeServices};
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::console::text::{Input, Key, ScanCode};
@@ -52,6 +55,8 @@ pub const PD3_VER: AppVersion = AppVersion {
 
 #[allow(dead_code)]
 pub struct DebugInfo {
+    pub bios_version: String,
+    pub ec_version: String,
     pub power_button: bool,
     pub ec_present: bool,
     pub long_press: i32,
@@ -758,6 +763,14 @@ pub fn start(
         .and_then(power::power_info)
         .map(Into::<ReducedPowerInfo>::into);
     let mut usb_devices = uefi_usb::get_usb_devices_noerr(bs);
+    let bios_version = if let Some(smbios) = get_smbios() {
+        let bios_entries = smbios.collect::<SMBiosInformation>();
+        let bios = bios_entries.first().unwrap();
+        format!("{}", bios.version())
+    } else {
+        "?.??".to_string()
+    };
+    let ec_version = ec_comm::version_info(ec);
 
     let state = State::new(ec);
     // If we start out as fully populated we want to boot as fast as possible
@@ -888,6 +901,8 @@ pub fn start(
             draw_version(
                 &mut buffer,
                 Some(DebugInfo {
+                    bios_version: bios_version.clone(),
+                    ec_version: ec_version.clone(),
                     power_button: button_pressed,
                     ec_present: ec.is_some(),
                     long_press,

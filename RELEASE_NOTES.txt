@@ -6,6 +6,7 @@ Unsigned Size:          TBDKB
 
 * fw16: Add "Laptop" in keyboard naming and fix typo in copilot keyboard name
 * Show current fan speed in ? debug info
+* Show BIOS and EC version in ? debug info
 
 ## 0.3.12
 

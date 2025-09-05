@@ -21,6 +21,7 @@ uefi = { version = "0.20", features = ["alloc"] }
 uefi-services = "0.17"
 zune-core = "0.4.12"
 redox_hwio = { git = "https://github.com/FrameworkComputer/rust-hwio", branch = "freebsd", default-features = false }
+smbios-lib = { git = "https://github.com/FrameworkComputer/smbios-lib.git", branch = "no-std", default-features = false }
 
 # Temporarily override because we need pending PRs for
 # for the Shell and ShellParameters protocols
