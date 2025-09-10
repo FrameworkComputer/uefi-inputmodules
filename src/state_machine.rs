@@ -293,9 +293,17 @@ impl State {
 
         // Hints on lower left and right
         match self.frame {
-            StateFrame::Finished | StateFrame::OutdatedFirmware(_) => {
+            StateFrame::Finished => {
                 // Boot Button indicator right
                 self.bitmaps.button_boot().draw(buffer);
+
+                // Overlay latches closed
+                self.bitmaps.latches_closed_left().draw(buffer);
+                self.bitmaps.latches_closed_right().draw(buffer);
+            }
+            StateFrame::OutdatedFirmware(_) => {
+                self.bitmaps.button_short_skip().draw(buffer);
+                self.bitmaps.button_long_off().draw(buffer);
 
                 // Overlay latches closed
                 self.bitmaps.latches_closed_left().draw(buffer);
@@ -306,7 +314,6 @@ impl State {
                 self.bitmaps.button_long_off().draw(buffer);
             }
             _ => {
-                // Button indicators right
                 self.bitmaps.button_short_skip().draw(buffer);
                 self.bitmaps.button_long_off().draw(buffer);
             }
