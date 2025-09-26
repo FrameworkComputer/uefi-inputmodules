@@ -1,8 +1,8 @@
 ## 0.3.13
 
-Unsigned binary SHA256: TBD
-Authenticode SHA256:    TBD
-Unsigned Size:          TBDKB
+Unsigned binary SHA256: 58d043e667e3a65cecfcd3be4009e0a0eb71a9f288f6d7fe14bc91fac8ae2d50
+Authenticode SHA256:    4ed337f3b1c0814c181acbb96c1284afbe89f117a35e5f3720f0615f115572b3
+Unsigned Size:          983KB
 
 * fw16: Add "Laptop" in keyboard naming and fix typo in copilot keyboard name
 * Show current fan speed in ? debug info
