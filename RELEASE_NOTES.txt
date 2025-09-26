@@ -1,3 +1,11 @@
+## 0.3.14
+
+Unsigned binary SHA256: TBD
+Authenticode SHA256:    TBD
+Unsigned Size:          TBDKB
+
+* fw16: ? Info: EC present and Power button swapped
+
 ## 0.3.13
 
 Unsigned binary SHA256: 58d043e667e3a65cecfcd3be4009e0a0eb71a9f288f6d7fe14bc91fac8ae2d50

@@ -935,8 +935,8 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                     built_info::GIT_DIRTY.unwrap_or(false),
                     built_info::GIT_COMMIT_HASH.unwrap_or("?"),
                     // Basics
-                    debug_info.power_button,
                     debug_info.ec_present,
+                    debug_info.power_button,
                     debug_info.long_press,
                     // Bay State
                     debug_info.bay_state,
