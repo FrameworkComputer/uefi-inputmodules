@@ -6,9 +6,9 @@ Unsigned Size:          TBDKB
 
 ## 0.3.14
 
-Unsigned binary SHA256: TBD
-Authenticode SHA256:    TBD
-Unsigned Size:          TBDKB
+Unsigned binary SHA256: e154573e9c2f02d8e4b2f3a2e9bf53c6b12e1982872a0d38319f305b439b896b
+Authenticode SHA256:    c45d21edeb69d5a9cc0ceaae247880caa51994e6b43204f18958a4eecf807d7f
+Unsigned Size:          982KB
 
 * fw16: ? Info: EC present and Power button swapped
 * fw16: Match on dGPU PD 0.0.22
