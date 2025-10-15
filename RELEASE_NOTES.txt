@@ -5,6 +5,7 @@ Authenticode SHA256:    TBD
 Unsigned Size:          TBDKB
 
 * fw16: ? Info: EC present and Power button swapped
+* fw16: Match on dGPU PD 0.0.22
 
 ## 0.3.13
 
