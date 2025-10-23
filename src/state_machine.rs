@@ -16,10 +16,13 @@ use framework_lib::chromium_ec::commands::{
 use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
 use framework_lib::power::{self, ReducedPowerInfo};
+#[cfg(not(feature = "qemu"))]
 use framework_lib::smbios::get_smbios;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use log::{log_enabled, Level};
+#[cfg(feature = "qemu")]
+use smbioslib::SMBiosData;
 use smbioslib::SMBiosInformation;
 use uefi::prelude::{BootServices, RuntimeServices};
 use uefi::proto::console::gop::GraphicsOutput;
@@ -813,7 +816,12 @@ pub fn start(
         .and_then(power::power_info)
         .map(Into::<ReducedPowerInfo>::into);
     let mut usb_devices = uefi_usb::get_usb_devices_noerr(bs);
-    let bios_version = if let Some(smbios) = get_smbios() {
+
+    #[cfg(feature = "qemu")]
+    let smbios: Option<SMBiosData> = None;
+    #[cfg(not(feature = "qemu"))]
+    let smbios = get_smbios();
+    let bios_version = if let Some(smbios) = smbios {
         let bios_entries = smbios.collect::<SMBiosInformation>();
         let bios = bios_entries.first().unwrap();
         format!("{}", bios.version())
