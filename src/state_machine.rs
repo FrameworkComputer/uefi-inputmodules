@@ -256,11 +256,11 @@ impl State {
                 ));
 
                 for dev in usb_devices {
-                    // Show a warning of older than 0.3.0
-                    if dev.is_framework_keyboard() && dev.bcd_device < 0x0030 {
+                    // Show a warning of older than 0.3.1
+                    if dev.is_framework_keyboard() && dev.bcd_device < 0x0031 {
                         let name = dev.get_name().unwrap_or("???").trim();
                         outdated_fw_msgs.keyboard.push(format!(
-                            "Firmware of {} is outdated. Please update to v0.3.0 or later.",
+                            "Firmware of {} is outdated. Please update to v0.3.1 or later.",
                             name
                         ));
                     }
