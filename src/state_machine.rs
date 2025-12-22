@@ -50,6 +50,8 @@ const FAILED_INPUT: &str = "Failed to get keypress";
 const EFI_OS_INDICATIONS_BOOT_TO_FW_UI: u64 = 0x0000000000000001;
 const EFI_GLOBAL_VARIABLE_GUID: uefi::Guid = guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
 
+const BOOT_TIME_SECONDS: u32 = 20;
+
 pub const LOTUS_PD1_VER: AppVersion = AppVersion {
     application: Application::Notebook,
     major: 0,
@@ -996,9 +998,56 @@ pub fn start(
     // Get Input protocol to detect keypresses
     let mut input = get_input_protocol(bs).expect("Should always have input protocol");
 
+    let rt = st.runtime_services();
     let mut state = State::new(ec);
+    // Record the time when the warning shows up and the timer starts
+    // So that the countdown does not start when the user is still installing inputmodules
+    let mut warning_start_time: Option<u32> = None;
+    let mut last_second: u32 = 0;
+    let mut countdown_text = String::new();
     let mut long_press = 0;
     loop {
+        let mut force_tick_redraw = false;
+        // If the any firmware (keyboard or PD) is outdated, start a countdown timer and continue boot
+        // Outdated keyboard or PD firmware does not impact boot functionality, so we can safely continue
+        if let StateFrame::OutdatedFirmware(_) = &state.frame {
+            if let Ok(now) = rt.get_time() {
+                let current_seconds = now.second() as u32 + (now.minute() as u32 * 60);
+
+                if now.second() as u32 != last_second {
+                    last_second = now.second() as u32;
+                    force_tick_redraw = true;
+                }
+
+                if warning_start_time.is_none() {
+                    warning_start_time = Some(current_seconds);
+                }
+
+                let start_sec = warning_start_time.unwrap();
+                let elapsed = if current_seconds >= start_sec {
+                    current_seconds - start_sec
+                } else {
+                    // Because we're using the clock time not a timestamp, if the timer was started
+                    // during the previous hour, the delta is negative.
+                    // So push the elapsed time into same hour as start time
+                    // TODO: Upgrade uefi-rs and use timestamp instead of clock time
+                    (current_seconds + 3600) - start_sec
+                };
+
+                let remaining = BOOT_TIME_SECONDS.saturating_sub(elapsed);
+                countdown_text = format!("\nContinuing boot in {}s...", remaining);
+
+                if elapsed >= BOOT_TIME_SECONDS {
+                    info!("Timeout reached for firmware warning. Continuing boot...");
+                    break;
+                }
+            }
+        } else {
+            // Reset the timer in case we exit the OutdatedFirmware state and enter again later
+            warning_start_time = None;
+            countdown_text.clear();
+        }
+
         #[cfg(feature = "azalea")]
         let azalea = true;
         #[cfg(not(feature = "azalea"))]
@@ -1053,7 +1102,8 @@ pub fn start(
         }
 
         // If verbose always need to update, to update things like fan info in the debug section
-        let need_redraw = state.verbose
+        let need_redraw = force_tick_redraw
+            || state.verbose
             || state.need_redraw(
                 &input_deck,
                 &expansion_bay,
@@ -1096,6 +1146,29 @@ pub fn start(
         if need_redraw {
             state.frame = state.next_state(&input_deck, &expansion_bay, &hw_diag, &usb_devices);
             state.draw_state(&mut buffer, &input_deck);
+
+            if let StateFrame::OutdatedFirmware(msgs) = &state.frame {
+                let mut all_msgs = msgs.keyboard.clone();
+                if let Some(msg) = &msgs.pd1_controller {
+                    all_msgs.push(msg.to_string());
+                }
+                if let Some(msg) = &msgs.pd2_controller {
+                    all_msgs.push(msg.to_string());
+                }
+                if let Some(msg) = &msgs.pd3_controller {
+                    all_msgs.push(msg.to_string());
+                }
+
+                let mut msg = all_msgs.join("\n");
+                msg.push_str(&countdown_text);
+
+                draw_textbox(
+                    &mut buffer,
+                    Point::new(WARN_X, WARN_Y),
+                    TextColor::Warn,
+                    &msg,
+                );
+            }
 
             draw_battery_info(&mut buffer, &power_info);
             draw_version(
