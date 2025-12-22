@@ -43,7 +43,11 @@ jobs:
     # Print in github actions log that you don't have to manually hash it
     - name: Hash release binary
       run: |
+        echo "Filesize in KiB"
+        du -k --apparent-size target/x86_64-unknown-uefi/release/inputmodules.efi
+        echo "Unsigned SHA256"
         sha256sum target/x86_64-unknown-uefi/release/inputmodules.efi
+        echo "SHA256 Authenticode"
         authenticode-tool info target/x86_64-unknown-uefi/release/inputmodules.efi
 
   lints:
