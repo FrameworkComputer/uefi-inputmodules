@@ -6,9 +6,9 @@ Unsigned Size:          TBDKB
 
 ## 0.3.15
 
-Unsigned binary SHA256: TBD
-Authenticode SHA256:    TBD
-Unsigned Size:          TBDKB
+Unsigned binary SHA256: cdcb7bc91f18a3022098f1a06372ac4e2c0cc149ef24032e5d8787cec2290601
+Authenticode SHA256:    85b92608bb531470df4a5c73821d253adf96b6e639acb0a3c4e60eed13ead943
+Unsigned Size:          1030KB
 
 * fw16: Require keyboard firmware > 0.3.1 instead of 0.3.0
 * fw16: Clarify PD firmware issue error messages
