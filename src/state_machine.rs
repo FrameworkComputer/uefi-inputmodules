@@ -158,7 +158,7 @@ impl State {
                 pd3_ver = Some(ver.app);
                 if ver.app != PD3_VER {
                     outdated_firmware.pd_controller = Some(format!(
-                        "Please update the dGPU PD firmware. Is {}, expected: {}.",
+                        "Please manually reinstall the BIOS to update dGPU firmware. Currently: {}. Expected: {}.",
                         ver.app, PD3_VER
                     ));
                 }
@@ -167,7 +167,7 @@ impl State {
         #[cfg(feature = "qemu")]
         {
             outdated_firmware.pd_controller = Some(format!(
-                "Please update the dGPU PD firmware. Is: ??.??.??, expected: {}.",
+                "Please manually reinstall the BIOS to update dGPU firmware. Currently: ??.??.??. Expected: {}.",
                 PD3_VER
             ));
         }

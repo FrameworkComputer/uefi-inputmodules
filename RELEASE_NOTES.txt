@@ -5,6 +5,7 @@ Authenticode SHA256:    TBD
 Unsigned Size:          TBDKB
 
 * fw16: Require keyboard firmware > 0.3.1 instead of 0.3.0
+* fw16: Clarify PD firmware issue error messages
 
 ## 0.3.14
 
