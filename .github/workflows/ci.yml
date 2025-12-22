@@ -22,14 +22,19 @@ jobs:
     - name: Build UEFI app (release)
       run: make release
 
-    - name: Build UEFI app (QEMU)
-      run: make qemu
+    - name: Generate artifact version
+      run: |
+        echo "VERSIONINFO=$(date -u +'%Y-%m-%d-%H-%M-%S')_$GITHUB_SHA" >> $GITHUB_ENV
 
+    # Upload release first to get fast builds from CI
     - name: Upload UEFI app (release)
       uses: actions/upload-artifact@v4
       with:
-        name: inputmodules.efi
+        name: inputmodules_release_${{ env.VERSIONINFO }}
         path: target/x86_64-unknown-uefi/release/inputmodules.efi
+
+    - name: Build UEFI app (QEMU)
+      run: make qemu
 
   lints:
     name: Lints
