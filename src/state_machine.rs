@@ -17,7 +17,9 @@ use framework_lib::chromium_ec::input_deck::{InputDeckStatus, InputModuleType};
 use framework_lib::chromium_ec::CrosEc;
 use framework_lib::power::{self, ReducedPowerInfo};
 #[cfg(not(feature = "qemu"))]
-use framework_lib::smbios::get_smbios;
+use framework_lib::smbios::{get_platform, get_smbios, Platform};
+#[cfg(feature = "qemu")]
+use framework_lib::smbios::{get_platform, Platform};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use log::{log_enabled, Level};
@@ -48,6 +50,34 @@ const FAILED_INPUT: &str = "Failed to get keypress";
 const EFI_OS_INDICATIONS_BOOT_TO_FW_UI: u64 = 0x0000000000000001;
 const EFI_GLOBAL_VARIABLE_GUID: uefi::Guid = guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
 
+pub const LOTUS_PD1_VER: AppVersion = AppVersion {
+    application: Application::Notebook,
+    major: 0,
+    minor: 0,
+    circuit: 0x21,
+};
+
+pub const LOTUS_PD2_VER: AppVersion = AppVersion {
+    application: Application::Notebook,
+    major: 0,
+    minor: 0,
+    circuit: 0x21,
+};
+
+pub const TULIP_PD1_VER: AppVersion = AppVersion {
+    application: Application::Notebook,
+    major: 0,
+    minor: 0,
+    circuit: 0x22,
+};
+
+pub const TULIP_PD2_VER: AppVersion = AppVersion {
+    application: Application::Notebook,
+    major: 0,
+    minor: 0,
+    circuit: 0x22,
+};
+
 pub const PD3_VER: AppVersion = AppVersion {
     application: Application::Notebook,
     major: 0,
@@ -73,6 +103,8 @@ pub struct DebugInfo {
     pub fan_speed: (u16, u16),
     pub deck: InputDeckStatus,
     pub power_info: Option<ReducedPowerInfo>,
+    pub pd1_ver: Option<AppVersion>,
+    pub pd2_ver: Option<AppVersion>,
     pub pd3_ver: Option<AppVersion>,
     pub usb_devices: Vec<UsbDevice>,
 }
@@ -91,6 +123,8 @@ pub struct State {
     prev_pressed: bool,
     verbose: bool,
     keypress: Option<Key>,
+    pd1_ver: Option<AppVersion>,
+    pd2_ver: Option<AppVersion>,
     pd3_ver: Option<AppVersion>,
     outdated_firmware: OutdatedFirmware,
 }
@@ -120,16 +154,27 @@ impl fmt::Display for BayIssue {
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 struct OutdatedFirmware {
     keyboard: Vec<String>,
-    pd_controller: Option<String>,
+    pd1_controller: Option<String>,
+    pd2_controller: Option<String>,
+    pd3_controller: Option<String>,
 }
 impl OutdatedFirmware {
     fn is_empty(&self) -> bool {
-        self.keyboard.is_empty() && self.pd_controller.is_none()
+        self.keyboard.is_empty()
+            && self.pd1_controller.is_none()
+            && self.pd2_controller.is_none()
+            && self.pd3_controller.is_none()
     }
     fn merge_with(&mut self, other: &Self) {
         self.keyboard.extend(other.keyboard.clone());
-        if other.pd_controller.is_some() {
-            self.pd_controller = other.pd_controller.clone();
+        if other.pd1_controller.is_some() {
+            self.pd1_controller = other.pd1_controller.clone();
+        }
+        if other.pd2_controller.is_some() {
+            self.pd2_controller = other.pd2_controller.clone();
+        }
+        if other.pd3_controller.is_some() {
+            self.pd3_controller = other.pd3_controller.clone();
         }
     }
 }
@@ -151,13 +196,54 @@ enum StateFrame {
 impl State {
     pub fn new(ec: &Option<CrosEc>) -> Self {
         let mut outdated_firmware = OutdatedFirmware::default();
+        let mut pd1_ver = None;
+        let mut pd2_ver = None;
         let mut pd3_ver = None;
         let versions = ec.as_ref().and_then(|x| power::read_pd_version(x).ok());
         if let Some(MainPdVersions::Many(versions)) = versions {
+            if let Some(Platform::Framework16Amd7080) = get_platform() {
+                if let Some(ver) = versions.get(0) {
+                    pd1_ver = Some(ver.app);
+                    if ver.app != LOTUS_PD1_VER {
+                        outdated_firmware.pd1_controller = Some(format!(
+                            "Please manually reinstall the BIOS to update PD1 firmware. Currently: {}. Expected: {}.",
+                            ver.app, LOTUS_PD1_VER
+                        ));
+                    }
+                }
+                if let Some(ver) = versions.get(1) {
+                    pd2_ver = Some(ver.app);
+                    if ver.app != LOTUS_PD2_VER {
+                        outdated_firmware.pd2_controller = Some(format!(
+                            "Please manually reinstall the BIOS to update PD2 firmware. Currently: {}. Expected: {}.",
+                            ver.app, LOTUS_PD2_VER
+                        ));
+                    }
+                }
+            } else {
+                if let Some(ver) = versions.get(0) {
+                    pd1_ver = Some(ver.app);
+                    if ver.app != TULIP_PD1_VER {
+                        outdated_firmware.pd1_controller = Some(format!(
+                            "Please manually reinstall the BIOS to update PD1 firmware. Currently: {}. Expected: {}.",
+                            ver.app, TULIP_PD1_VER
+                        ));
+                    }
+                }
+                if let Some(ver) = versions.get(1) {
+                    pd2_ver = Some(ver.app);
+                    if ver.app != TULIP_PD2_VER {
+                        outdated_firmware.pd2_controller = Some(format!(
+                            "Please manually reinstall the BIOS to update PD2 firmware. Currently: {}. Expected: {}.",
+                            ver.app, TULIP_PD2_VER
+                        ));
+                    }
+                }
+            }
             if let Some(ver) = versions.get(2) {
                 pd3_ver = Some(ver.app);
                 if ver.app != PD3_VER {
-                    outdated_firmware.pd_controller = Some(format!(
+                    outdated_firmware.pd3_controller = Some(format!(
                         "Please manually reinstall the BIOS to update dGPU firmware. Currently: {}. Expected: {}.",
                         ver.app, PD3_VER
                     ));
@@ -166,7 +252,15 @@ impl State {
         }
         #[cfg(feature = "qemu")]
         {
-            outdated_firmware.pd_controller = Some(format!(
+            outdated_firmware.pd1_controller = Some(format!(
+                "Please manually reinstall the BIOS to update PD1 firmware. Currently: ??.??.??. Expected: {}.",
+                LOTUS_PD1_VER
+            ));
+            outdated_firmware.pd2_controller = Some(format!(
+                "Please manually reinstall the BIOS to update PD2 firmware. Currently: ??.??.??. Expected: {}.",
+                LOTUS_PD2_VER
+            ));
+            outdated_firmware.pd3_controller = Some(format!(
                 "Please manually reinstall the BIOS to update dGPU firmware. Currently: ??.??.??. Expected: {}.",
                 PD3_VER
             ));
@@ -188,6 +282,8 @@ impl State {
             prev_pressed: false,
             verbose: built_info::DEBUG,
             keypress: None,
+            pd1_ver,
+            pd2_ver,
             pd3_ver,
             outdated_firmware,
         }
@@ -346,20 +442,60 @@ impl State {
             }
             StateFrame::Finished => {}
             StateFrame::OutdatedFirmware(msgs) => {
-                match (!msgs.keyboard.is_empty(), msgs.pd_controller.is_some()) {
+                let side_pd_version_issue =
+                    msgs.pd1_controller.is_some() || msgs.pd2_controller.is_some();
+                match (
+                    !msgs.keyboard.is_empty(),
+                    side_pd_version_issue,
+                    msgs.pd3_controller.is_some(),
+                ) {
                     // No issue, no QR code needed
-                    (false, false) => {}
-                    (false, true) => {
+                    (false, false, false) => {}
+                    (false, false, true) => {
                         self.bitmaps.qr_code_pd().draw(buffer);
                     }
-                    (true, false) => {
+                    (false, true, false) => {
+                        self.bitmaps.qr_code_side_pd().draw(buffer);
+                    }
+                    // If dGPU and side PD both are outdated, show only the side PD QR code for two reasons.
+                    // 1. They both redirect to the same KB article - no need to duplicate.
+                    // 2. Side PD not in sync with BIOS version means there was a bug during the BIOS update.
+                    // We use the side PD QR code to track who experienced the updater bug, so prioritize that QR over the other one
+                    (false, true, true) => {
+                        self.bitmaps.qr_code_side_pd().draw(buffer);
+                    }
+                    (true, false, false) => {
                         self.bitmaps.qr_code_kb().draw(buffer);
                     }
-                    (true, true) => {
+                    (true, false, true) => {
                         self.bitmaps.qr_code_kb().draw(buffer);
                         // To show both QR codes at the same time we need to move one up a bit
                         // By the height (198) and some extra padding
                         self.bitmaps.qr_code_pd().draw_pos(
+                            buffer,
+                            Point {
+                                x: 1814,
+                                y: 967 - 198 - 15,
+                            },
+                        );
+                    }
+                    (true, true, false) => {
+                        self.bitmaps.qr_code_kb().draw(buffer);
+                        // To show both QR codes at the same time we need to move one up a bit
+                        // By the height (198) and some extra padding
+                        self.bitmaps.qr_code_side_pd().draw_pos(
+                            buffer,
+                            Point {
+                                x: 1814,
+                                y: 967 - 198 - 15,
+                            },
+                        );
+                    }
+                    (true, true, true) => {
+                        self.bitmaps.qr_code_kb().draw(buffer);
+                        // To show both QR codes at the same time we need to move one up a bit
+                        // By the height (198) and some extra padding
+                        self.bitmaps.qr_code_side_pd().draw_pos(
                             buffer,
                             Point {
                                 x: 1814,
@@ -461,7 +597,13 @@ impl State {
             }
             StateFrame::OutdatedFirmware(msgs) => {
                 let mut all_msgs = msgs.keyboard.clone();
-                if let Some(msg) = &msgs.pd_controller {
+                if let Some(msg) = &msgs.pd1_controller {
+                    all_msgs.push(msg.to_string());
+                }
+                if let Some(msg) = &msgs.pd2_controller {
+                    all_msgs.push(msg.to_string());
+                }
+                if let Some(msg) = &msgs.pd3_controller {
                     all_msgs.push(msg.to_string());
                 }
 
@@ -975,6 +1117,8 @@ pub fn start(
                     fan_speed,
                     deck: input_deck.clone(),
                     power_info: power_info.clone(),
+                    pd1_ver: state.pd1_ver,
+                    pd2_ver: state.pd2_ver,
                     pd3_ver: state.pd3_ver,
                     usb_devices: usb_devices.clone(),
                 }),

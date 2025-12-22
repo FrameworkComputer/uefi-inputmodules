@@ -6,6 +6,7 @@ Unsigned Size:          TBDKB
 
 * fw16: Require keyboard firmware > 0.3.1 instead of 0.3.0
 * fw16: Clarify PD firmware issue error messages
+* fw16: Warn if side PD firmware is outdated with additional QR code
 
 ## 0.3.14
 

@@ -22,7 +22,7 @@ use zune_png::PngDecoder;
 
 use crate::buffer::Buffer;
 use crate::built_info;
-use crate::state_machine::{DebugInfo, PD3_VER};
+use crate::state_machine::{DebugInfo, LOTUS_PD1_VER, LOTUS_PD2_VER, PD3_VER};
 
 pub const WIDTH: usize = 2560;
 pub const WIDTH_I32: i32 = 2560;
@@ -39,6 +39,7 @@ pub struct StateBitmaps {
     qr_code_1: Option<Vec<u8>>,
     qr_code_2: Option<Vec<u8>>,
     qr_code_3: Option<Vec<u8>>,
+    qr_code_side_pd: Option<Vec<u8>>,
     qr_code_pd: Option<Vec<u8>>,
     qr_code_kb: Option<Vec<u8>>,
     button_long_off: Option<Vec<u8>>,
@@ -179,6 +180,25 @@ impl StateBitmaps {
         ImagePlusMeta {
             // Guaranteed to be set above
             data: self.qr_code_pd.as_ref().unwrap(),
+            width: 168,
+            pos: Point { x: 1814, y: 967 },
+        }
+    }
+
+    // Points to https://fr.mw/FRANNB0009
+    pub fn qr_code_side_pd(&mut self) -> ImagePlusMeta {
+        if self.qr_code_side_pd.is_none() {
+            let png = include_bytes!("../resources/figma/qr-code-side-pd.png");
+            let mut decoder = PngDecoder::new(png);
+            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
+                panic!("Failed to decode PNG")
+            };
+            self.qr_code_side_pd = Some(image_bytes);
+        }
+
+        ImagePlusMeta {
+            // Guaranteed to be set above
+            data: self.qr_code_side_pd.as_ref().unwrap(),
             width: 168,
             pos: Point { x: 1814, y: 967 },
         }
@@ -901,7 +921,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
     );
     let (height, ver_text) = if verbose {
         (
-            8, // Need to update if adding more lines
+            10, // Need to update if adding more lines
             if let Some(debug_info) = debug_info {
                 let power_str = if let Some(power_info) = debug_info.power_info {
                     if let Some(battery) = power_info.battery {
@@ -927,7 +947,7 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                     .join(", ");
                 format!(
                     // TODO: Pad dirty to the end
-                    "BIOS: {}, EC: {}, App Version:  {}\nRef:      {}, Dirty:{}\nCommit:   {}\nHas EC:   {}, PwrBtn pressed:{}, PwrBtn Long press cnt:{}\nBay State:{}, En:{}, Fault:{}, Closed:{}\nBayModule:IDs: ({}, {}), {:?}\nHW Diag:  {}\n          {:#032b}\nFan Speed  Left: {}RPM Right {}RPM\nDeckState:{:?}, Hubboard:{}, Touchpad:{}, {}\n{}\nPD 3 Ver: {}, Expected: {}\n{}",
+                    "BIOS: {}, EC: {}, App Version:  {}\nRef:      {}, Dirty:{}\nCommit:   {}\nHas EC:   {}, PwrBtn pressed:{}, PwrBtn Long press cnt:{}\nBay State:{}, En:{}, Fault:{}, Closed:{}\nBayModule:IDs: ({}, {}), {:?}\nHW Diag:  {}\n          {:#032b}\nFan Speed  Left: {}RPM Right {}RPM\nDeckState:{:?}, Hubboard:{}, Touchpad:{}, {}\n{}\nPD 1 Ver: {}, Expected: {}\nPD 2 Ver: {}, Expected: {}\nPD 3 Ver: {}, Expected: {}\n{}",
                     debug_info.bios_version,
                     debug_info.ec_version,
                     built_info::PKG_VERSION,
@@ -958,6 +978,10 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
                     debug_info.deck.touchpad_present,
                     top_row_string(&debug_info.deck.top_row),
                     power_str,
+                    debug_info.pd1_ver.map(|x| format!("{}", x)).unwrap_or("Unknown".to_string()),
+                    LOTUS_PD1_VER,
+                    debug_info.pd2_ver.map(|x| format!("{}", x)).unwrap_or("Unknown".to_string()),
+                    LOTUS_PD2_VER,
                     debug_info.pd3_ver.map(|x| format!("{}", x)).unwrap_or("Unknown".to_string()),
                     PD3_VER,
                     usb_fw_versions,
