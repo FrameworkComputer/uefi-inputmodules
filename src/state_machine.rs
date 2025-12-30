@@ -625,7 +625,18 @@ impl State {
     }
 
     fn draw_inputmodules(&mut self, buffer: &mut Buffer, input_deck: &InputDeckStatus) {
-        if input_deck.top_row.pos0 == InputModuleType::FullWidth {
+        // Full width location can have pogo connection on any location. For other modules we
+        // assume it's connected at the very left of the module. But because full-width covers the
+        // whole area, it has flexibility of connector position.
+        if [
+            input_deck.top_row.pos0,
+            input_deck.top_row.pos1,
+            input_deck.top_row.pos2,
+            input_deck.top_row.pos3,
+            input_deck.top_row.pos4,
+        ]
+        .contains(&InputModuleType::FullWidth)
+        {
             self.bitmaps.full_width().draw(buffer);
         }
         if input_deck.top_row.pos0 == InputModuleType::GenericC {
