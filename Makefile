@@ -32,12 +32,15 @@ clippy:
 
 # Automatically get OVMF from system path
 ovmf/OVMF_CODE.fd:
+	mkdir -p ovmf
 	cp `nix-build '<nixpkgs>' -A OVMF.fd`/FV/OVMF_CODE.fd ovmf/ || \
 		cp /usr/share/OVMF/OVMF_CODE.fd ovmf/
 	chmod 755 ovmf/*
 ovmf/OVMF_VARS.fd:
+	mkdir -p ovmf
 	cp `nix-build '<nixpkgs>' -A OVMF.fd`/FV/OVMF_VARS.fd ovmf/ || \
-		cp /usr/share/OVMF/OVMF_VARS.fd ovmf/
+		cp /usr/share/OVMF/OVMF_VARS.fd ovmf/ || \
+		sudo dnf install edk
 	chmod 755 ovmf/*
 
 run: ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi
