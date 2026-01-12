@@ -341,44 +341,57 @@ impl QemuProcess {
         // Remove old socket if it exists
         let _ = fs::remove_file(&qmp_socket);
 
+        // Check if KVM is available
+        let kvm_available = Path::new("/dev/kvm").exists();
+
+        let mut args = vec!["-M".to_string(), "q35".to_string()];
+
+        // Use KVM if available, otherwise fall back to TCG (slower but works everywhere)
+        if kvm_available {
+            args.push("-accel".to_string());
+            args.push("kvm".to_string());
+        } else {
+            args.push("-accel".to_string());
+            args.push("tcg".to_string());
+        }
+
+        args.extend([
+            "-m".to_string(),
+            "1024".to_string(),
+            "-net".to_string(),
+            "none".to_string(),
+            // Headless display - use VNC server for screendump and keyboard input
+            "-display".to_string(),
+            "none".to_string(),
+            "-vnc".to_string(),
+            ":99".to_string(),
+            // QMP socket for control
+            "-qmp".to_string(),
+            format!("unix:{},server,nowait", qmp_socket.display()),
+            // Serial output to null
+            "-serial".to_string(),
+            "null".to_string(),
+            // UEFI firmware
+            "-drive".to_string(),
+            format!(
+                "if=pflash,format=raw,readonly=on,file={}",
+                ovmf_code.display()
+            ),
+            "-drive".to_string(),
+            format!(
+                "if=pflash,format=raw,readonly=off,file={}",
+                ovmf_vars_copy.display()
+            ),
+            // ESP with our UEFI app
+            "-drive".to_string(),
+            format!("format=raw,file=fat:rw:{}", esp_dir.display()),
+            // Set resolution via device properties
+            "-device".to_string(),
+            "VGA,vgamem_mb=64".to_string(),
+        ]);
+
         let child = Command::new("qemu-system-x86_64")
-            .args([
-                "-enable-kvm",
-                "-M",
-                "q35",
-                "-m",
-                "1024",
-                "-net",
-                "none",
-                // Headless display - use VNC server for screendump and keyboard input
-                "-display",
-                "none",
-                "-vnc",
-                ":99",
-                // QMP socket for control
-                "-qmp",
-                &format!("unix:{},server,nowait", qmp_socket.display()),
-                // Serial output to null (or could capture for debugging)
-                "-serial",
-                "null",
-                // UEFI firmware
-                "-drive",
-                &format!(
-                    "if=pflash,format=raw,readonly=on,file={}",
-                    ovmf_code.display()
-                ),
-                "-drive",
-                &format!(
-                    "if=pflash,format=raw,readonly=off,file={}",
-                    ovmf_vars_copy.display()
-                ),
-                // ESP with our UEFI app
-                "-drive",
-                &format!("format=raw,file=fat:rw:{}", esp_dir.display()),
-                // Set resolution via device properties
-                "-device",
-                "VGA,vgamem_mb=64",
-            ])
+            .args(&args)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
