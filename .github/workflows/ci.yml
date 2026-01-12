@@ -57,3 +57,41 @@ jobs:
 
     - name: Run cargo clippy
       run: make clippy
+
+  visual-tests:
+    name: Visual Regression Tests
+    runs-on: ubuntu-24.04
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: true
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Rust toolchain
+      run: rustup show
+
+    - name: Install QEMU and OVMF
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y qemu-system-x86 ovmf
+
+    - name: Setup OVMF
+      run: |
+        mkdir -p ovmf
+        cp /usr/share/OVMF/OVMF_VARS_4M.fd ovmf/OVMF_VARS.fd
+        cp /usr/share/OVMF/OVMF_CODE_4M.fd ovmf/OVMF_CODE.fd
+
+    - name: Build UEFI app (QEMU release)
+      run: make qemu-release
+
+    - name: Build visual test runner
+      run: make test-build
+
+    - name: Run visual regression tests
+      run: make test
+
+    - name: Upload test outputs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: visual-test-outputs
+        path: tests/visual/outputs/
