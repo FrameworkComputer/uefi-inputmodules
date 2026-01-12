@@ -34,13 +34,16 @@ clippy:
 ovmf/OVMF_CODE.fd:
 	mkdir -p ovmf
 	cp `nix-build '<nixpkgs>' -A OVMF.fd`/FV/OVMF_CODE.fd ovmf/ || \
-		cp /usr/share/OVMF/OVMF_CODE.fd ovmf/
+		cp /usr/share/OVMF/OVMF_CODE.fd ovmf/ || \
+		cp /usr/share/OVMF/OVMF_CODE_4M.fd ovmf/OVMF_CODE.fd
 	chmod 755 ovmf/*
 ovmf/OVMF_VARS.fd:
 	mkdir -p ovmf
 	cp `nix-build '<nixpkgs>' -A OVMF.fd`/FV/OVMF_VARS.fd ovmf/ || \
 		cp /usr/share/OVMF/OVMF_VARS.fd ovmf/ || \
-		sudo dnf install edk
+		cp /usr/share/OVMF/OVMF_VARS_4M.fd ovmf/OVMF_VARS.fd || \
+		sudo dnf install edk || \
+		sudo apt install ovmf
 	chmod 755 ovmf/*
 	# Enable 2560x1600 resolution, same as Framework Laptop 16
 	sudo dnf install python3-virt-firmware || \
