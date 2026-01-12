@@ -42,6 +42,10 @@ ovmf/OVMF_VARS.fd:
 		cp /usr/share/OVMF/OVMF_VARS.fd ovmf/ || \
 		sudo dnf install edk
 	chmod 755 ovmf/*
+	# Enable 2560x1600 resolution, same as Framework Laptop 16
+	sudo dnf install python3-virt-firmware || \
+		sudo apt install python3-virt-firmware || true
+	virt-fw-vars --in-place ovmf/OVMF_VARS.fd --set-json ovmf_vars.json || true
 
 run: ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd target/x86_64-unknown-uefi/$(TARGET)/inputmodules.efi
 	mkdir -p esp/efi/boot

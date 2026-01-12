@@ -1,0 +1,11 @@
+{
+    "version": 2,
+    "variables": [
+        {
+            "name": "PlatformConfig",
+            "guid": "7235c51c-0c80-4cab-87ac-3b084a6304b1",
+            "attr": 7,
+            "data": "000a000040060000"
+        }
+    ]
+}
