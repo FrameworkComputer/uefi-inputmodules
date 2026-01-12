@@ -18,6 +18,9 @@ qemu: $(SOURCES)
 qemu-release: $(SOURCES)
 	cargo build --release --target x86_64-unknown-uefi --features qemu
 
+visual-test: $(SOURCES)
+	cargo build --release --target x86_64-unknown-uefi --features visual-test
+
 target/x86_64-unknown-uefi/debug/inputmodules.efi: $(SOURCES)
 	cargo build --target x86_64-unknown-uefi
 
@@ -70,7 +73,7 @@ test-build:
 	cargo build --manifest-path tests/visual/Cargo.toml
 
 # Run tests in release mode (default)
-test: qemu-release ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
+test: visual-test ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
 	./tests/visual/target/debug/visual-test-runner run
 
 # Run tests in debug mode
@@ -78,7 +81,7 @@ test-debug: qemu ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
 	./tests/visual/target/debug/visual-test-runner run --debug
 
 # Update baselines in release mode (default)
-test-update: qemu-release ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
+test-update: visual-test ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
 	./tests/visual/target/debug/visual-test-runner run --update
 
 # Update baselines in debug mode

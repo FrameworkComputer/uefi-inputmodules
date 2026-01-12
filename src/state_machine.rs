@@ -1120,7 +1120,11 @@ pub fn start(
                     (current_seconds + 3600) - start_sec
                 };
 
+                #[cfg(not(feature = "visual-test"))]
                 let remaining = BOOT_TIME_SECONDS.saturating_sub(elapsed);
+                // Use fixed value for visual testing to avoid flaky screenshot comparisons
+                #[cfg(feature = "visual-test")]
+                let remaining = BOOT_TIME_SECONDS;
                 countdown_text = format!("\nContinuing boot in {}s...", remaining);
 
                 if elapsed >= BOOT_TIME_SECONDS {

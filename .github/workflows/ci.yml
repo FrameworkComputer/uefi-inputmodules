@@ -76,8 +76,8 @@ jobs:
         make ovmf/OVMF_CODE.fd
         make ovmf/OVMF_VARS.fd
 
-    - name: Build UEFI app (QEMU release)
-      run: make qemu-release
+    - name: Build UEFI app (visual-test)
+      run: make visual-test
 
     - name: Build visual test runner
       run: make test-build

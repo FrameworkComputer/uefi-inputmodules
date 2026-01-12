@@ -11,6 +11,7 @@ license-file = "LICENSE.md"
 [features]
 qemu = []
 azalea = []
+visual-test = ["qemu"]  # Implies qemu, also disables dynamic elements like countdown timer
 
 [build-dependencies]
 built = { version = "0.5.0", default-features = false, features = ["chrono", "git2"] }
