@@ -1,0 +1,27 @@
+[package]
+name = "visual-test-runner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# YAML parsing
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+
+# Image handling and comparison
+image = "0.25"
+
+# JSON for QMP protocol
+serde_json = "1.0"
+
+# Command line arguments
+clap = { version = "4.0", features = ["derive"] }
+
+# Error handling
+anyhow = "1.0"
+
+# Colored terminal output
+colored = "2.0"
+
+# Temporary directories
+tempfile = "3.0"

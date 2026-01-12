@@ -222,3 +222,170 @@ Security boundaries:
 
 It has **one** purpose: detect issues with the system and show a graphical
 interface to the user to let them know what is wrong and what to do about it.
+
+## Visual Regression Testing
+
+This project includes an automated visual regression testing system that runs the UEFI app in QEMU, simulates different hardware states, captures screenshots, and compares them against baseline images. This ensures UI changes are intentional and don't break existing functionality.
+
+### How It Works
+
+1. **Test Runner**: A Rust-based tool (`tests/visual/`) that controls QEMU programmatically
+2. **QMP Protocol**: Uses QEMU Machine Protocol to send keystrokes and capture screenshots
+3. **Scenarios**: YAML files define test sequences (keystrokes, waits, screenshots)
+4. **Baselines**: Expected screenshots stored in `tests/visual/baselines/`
+5. **Comparison**: Exact pixel-by-pixel comparison for strict validation
+
+### Prerequisites
+
+- QEMU (`qemu-system-x86_64`)
+- OVMF firmware (auto-downloaded or install `edk2-ovmf` / `ovmf` package)
+
+### Running Tests
+
+```bash
+# Run all visual tests (uses release build by default)
+make test
+
+# Run tests with debug build
+make test-debug
+
+# List available test scenarios
+make test-list
+
+# Run specific scenarios (filter by name)
+./tests/visual/target/debug/visual-test-runner run --filter "fan"
+./tests/visual/target/debug/visual-test-runner run --filter "battery"
+```
+
+### Updating Baselines
+
+When you intentionally change the UI, update the baseline screenshots:
+
+```bash
+# Update all baselines (release build)
+make test-update
+
+# Update baselines with debug build
+make test-update-debug
+
+# Update specific scenarios only
+./tests/visual/target/debug/visual-test-runner run --update --filter "expansion"
+```
+
+After updating, review the changes in `tests/visual/baselines/` and commit them.
+
+### Test Scenarios
+
+Scenarios are defined in `tests/visual/scenarios/` as YAML files:
+
+```yaml
+name: "Expansion bay states"
+description: "Test expansion bay module detection states"
+# Optional: override default build mode (release/debug)
+# build_mode: debug
+
+steps:
+  # Wait for app to initialize
+  - action: wait
+    ms: 2000
+
+  # Simulate hardware state (see QEMU Special Keys above)
+  - action: send_keys
+    keys: ["q"]  # No expansion bay module
+  - action: wait
+    ms: 500
+
+  # Capture and compare screenshot
+  - action: screenshot
+    name: "no_expansion_bay"
+    compare: true
+```
+
+#### Available Actions
+
+| Action | Parameters | Description |
+|--------|------------|-------------|
+| `wait` | `ms` | Wait for specified milliseconds |
+| `send_keys` | `keys` (list) | Send keyboard keys to QEMU |
+| `screenshot` | `name`, `compare` | Capture screenshot, optionally compare to baseline |
+
+#### Key Mapping
+
+Keys are mapped to QEMU key codes. Common keys:
+- Letters: `a`-`z` (lowercase)
+- Numbers: `0`-`9`
+- Special: `esc`, `enter`, `space`, `f12`
+- Shift combo: `?` (sends shift+slash)
+
+### Writing New Tests
+
+1. Create a new YAML file in `tests/visual/scenarios/`:
+   ```bash
+   touch tests/visual/scenarios/11_my_new_test.yaml
+   ```
+
+2. Define your test scenario (see example above)
+
+3. Generate the baseline:
+   ```bash
+   ./tests/visual/target/debug/visual-test-runner run --update --filter "my_new_test"
+   ```
+
+4. Verify the screenshot looks correct in `tests/visual/baselines/`
+
+5. Run the test to confirm it passes:
+   ```bash
+   ./tests/visual/target/debug/visual-test-runner run --filter "my_new_test"
+   ```
+
+### Build Modes
+
+Tests run in **release mode by default** for consistency with production builds. You can override this:
+
+- **CLI flag**: `--debug` or `-d` to use debug build
+- **Per-scenario**: Add `build_mode: debug` in the YAML file
+
+When a scenario specifies a different build mode than the current one, the test runner automatically restarts QEMU with the appropriate binary.
+
+### CI Integration
+
+Visual tests run automatically on GitHub Actions. On failure:
+- Test outputs (actual screenshots + diff images) are uploaded as artifacts
+- Diff images highlight pixel differences in red for easy debugging
+
+### Troubleshooting
+
+**Tests fail with verbose/debug info in screenshots**
+- In release mode, verbose is OFF by default (correct for testing)
+- In debug mode, verbose is ON by default, which causes non-deterministic output
+- Use release mode (`make test`) for consistent results
+- The `?` key toggles verbose mode - don't use it in release mode scenarios
+
+**QEMU fails to start**
+- Check that OVMF firmware is available: `make ovmf/OVMF_CODE.fd`
+- Ensure QEMU is installed: `qemu-system-x86_64 --version`
+
+**Screenshots have wrong resolution**
+- Default resolution is 2560x1600 (Framework 16 native)
+- OVMF may need configuration for higher resolutions (see "Running in native resolution" above)
+
+**Test runner can't find binary**
+- Build the app first: `make qemu-release` (or `make qemu` for debug)
+
+### File Structure
+
+```
+tests/visual/
+├── Cargo.toml              # Test runner dependencies
+├── src/main.rs             # Test runner implementation
+├── scenarios/              # Test scenario definitions (YAML)
+│   ├── 01_initial_state.yaml
+│   ├── 02_input_modules_missing.yaml
+│   └── ...
+├── baselines/              # Expected screenshots (committed to git)
+│   ├── initial_no_modules.png
+│   └── ...
+└── outputs/                # Test run outputs (gitignored)
+    ├── *.png               # Actual screenshots
+    └── *_diff.png          # Diff images on failure
+```

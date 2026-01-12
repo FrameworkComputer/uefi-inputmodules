@@ -1,4 +1,4 @@
-.PHONY: run clean
+.PHONY: run clean test test-debug test-update test-update-debug test-build test-list
 TARGET:=debug
 SOURCES=Cargo.toml $(wildcard src/*.rs) $(wildcard resources/*)
 
@@ -61,3 +61,26 @@ run: ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd target/x86_64-unknown-uefi/$(TARGET)/in
     -drive if=pflash,format=raw,readonly=on,file=ovmf/OVMF_CODE.fd \
     -drive if=pflash,format=raw,readonly=off,file=ovmf/OVMF_VARS.fd \
     -drive format=raw,file=fat:rw:esp
+
+# Visual regression tests
+test-build:
+	cargo build --manifest-path tests/visual/Cargo.toml
+
+# Run tests in release mode (default)
+test: qemu-release ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
+	./tests/visual/target/debug/visual-test-runner run
+
+# Run tests in debug mode
+test-debug: qemu ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
+	./tests/visual/target/debug/visual-test-runner run --debug
+
+# Update baselines in release mode (default)
+test-update: qemu-release ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
+	./tests/visual/target/debug/visual-test-runner run --update
+
+# Update baselines in debug mode
+test-update-debug: qemu ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
+	./tests/visual/target/debug/visual-test-runner run --update --debug
+
+test-list: test-build
+	./tests/visual/target/debug/visual-test-runner list

@@ -7,3 +7,8 @@ debug.log
 
 # Nix
 result*
+.devenv*
+
+# Visual test outputs (baselines are tracked)
+/tests/visual/outputs/
+/tests/visual/target/
