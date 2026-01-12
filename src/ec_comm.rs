@@ -258,6 +258,7 @@ pub fn keypress_mock_data(
     let q_key = Char16::try_from('q').unwrap();
     let w_key = Char16::try_from('w').unwrap();
     let e_key = Char16::try_from('e').unwrap();
+    let r_key = Char16::try_from('r').unwrap();
     let z_key = Char16::try_from('z').unwrap();
     let x_key = Char16::try_from('x').unwrap();
     let c_key = Char16::try_from('c').unwrap();
@@ -324,12 +325,24 @@ pub fn keypress_mock_data(
                 } else {
                     0
                 },
+                // Bad connection
+                board_id_0: BOARD_VERSION_13,
+                board_id_1: BOARD_VERSION_13,
+            };
+        }
+        Some(Key::Printable(key)) if key == e_key => {
+            (*expansion_bay) = EcResponseExpansionBayStatus {
+                state: if expansion_bay.hatch_switch_closed() {
+                    ExpansionByStates::HatchSwitchClosed as u8
+                } else {
+                    0
+                },
                 // UMA Fan
                 board_id_0: BOARD_VERSION_13,
                 board_id_1: BOARD_VERSION_15,
             };
         }
-        Some(Key::Printable(key)) if key == e_key => {
+        Some(Key::Printable(key)) if key == r_key => {
             (*expansion_bay) = EcResponseExpansionBayStatus {
                 state: if expansion_bay.hatch_switch_closed() {
                     ExpansionByStates::HatchSwitchClosed as u8

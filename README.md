@@ -191,7 +191,7 @@ window menu: "View" -> "Zoom Out".
 Controls:
 
 - A, S, D, F, G: AC/Battery states (No Battery, 5%, 5% charging, 20%, 20% charging)
-- Q, W, E: Expansion Bay selection (No Module, bad connection, dual)
+- Q, W, E, R: Expansion Bay selection (No Module, bad connection, UMA fan, dual interposer (dGPU))
 - Z, X, C, V: Fan selection (No Fan, Left, Right, Both)
 - L: Interposer Door/Latch toggle
 - H: Hubboard toggle
@@ -199,7 +199,7 @@ Controls:
 - P: Outdated firmware warning toggle (keyboard + PD)
 - B: Device diagnostics complete toggle
 
-Finish everything: L, V, E, H, 7, P, B
+Finish everything: L, V, E, H, 6, P, B
 
 ## Security Design
 
