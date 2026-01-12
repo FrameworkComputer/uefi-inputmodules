@@ -1,0 +1,24 @@
+name: "Interposer door/latch state"
+description: "Test interposer door open/closed detection"
+
+steps:
+  - action: wait
+    ms: 2000
+
+  # Toggle latch closed (key L)
+  - action: send_keys
+    keys: ["l"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "interposer_closed"
+    compare: true
+
+  # Toggle latch open again (key L)
+  - action: send_keys
+    keys: ["l"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "interposer_open"
+    compare: true

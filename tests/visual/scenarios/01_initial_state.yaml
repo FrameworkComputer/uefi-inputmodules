@@ -1,0 +1,12 @@
+name: "Initial state - No modules"
+description: "Verify the initial UI state when no modules are installed"
+
+steps:
+  # Wait for app to fully initialize
+  - action: wait
+    ms: 2000
+
+  # Capture the initial state (default is no modules in QEMU)
+  - action: screenshot
+    name: "initial_no_modules"
+    compare: true

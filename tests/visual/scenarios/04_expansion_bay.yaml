@@ -1,0 +1,50 @@
+name: "Expansion bay states"
+description: "Test expansion bay module detection states"
+
+steps:
+  - action: wait
+    ms: 2000
+
+  # Toggle latch closed (key L)
+  - action: send_keys
+    keys: ["l"]
+
+  # Connect both fans (so we can see expansion bay issues)
+  - action: send_keys
+    keys: ["v"]
+
+  # No expansion bay module (key Q)
+  - action: send_keys
+    keys: ["q"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "no_expansion_bay"
+    compare: true
+
+  # Bad connection / UMA fan (key W)
+  - action: send_keys
+    keys: ["w"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "expansion_bay_bad_connection"
+    compare: true
+
+  # UMA interposer - OK state (key E)
+  - action: send_keys
+    keys: ["e"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "expansion_bay_uma"
+    compare: true
+
+  # Dual interposer - OK state (key R)
+  - action: send_keys
+    keys: ["r"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "expansion_bay_dual"
+    compare: true

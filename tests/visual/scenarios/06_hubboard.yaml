@@ -1,0 +1,40 @@
+name: "Hubboard detection"
+description: "Test hubboard presence detection"
+
+steps:
+  - action: wait
+    ms: 2000
+
+  # Toggle latch closed (key L)
+  - action: send_keys
+    keys: ["l"]
+  - action: wait
+    ms: 500
+
+  # Connect both fans (so we can see hubboard issues)
+  - action: send_keys
+    keys: ["v"]
+
+  # First set expansion bay to dual (so we can see hubboard issues)
+  - action: send_keys
+    keys: ["e"]
+
+  # ... and all inputmodules so that the error message is clear
+  - action: send_keys
+    keys: ["6"]
+  - action: wait
+    ms: 300
+
+  # Six toggles hubboard on
+  - action: screenshot
+    name: "hubboard_present"
+    compare: true
+
+  # Toggle hubboard off on (key H again)
+  - action: send_keys
+    keys: ["h"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "no_hubboard"
+    compare: true

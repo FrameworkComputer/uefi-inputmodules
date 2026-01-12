@@ -1,0 +1,54 @@
+name: "Input modules missing"
+description: "Test various input module configurations"
+
+steps:
+  - action: wait
+    ms: 2000
+
+  # Toggle latch closed (key L)
+  - action: send_keys
+    keys: ["l"]
+
+  # Connect both fans (so we can see inputdeck issues)
+  - action: send_keys
+    keys: ["v"]
+
+  # First set expansion bay to dual (so we can see inputdeck issues)
+  - action: send_keys
+    keys: ["e"]
+
+  # No modules, no touchpad (key 2)
+  - action: send_keys
+    keys: ["2"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "no_modules_no_touchpad"
+    compare: true
+
+  # 1x C-module, no touchpad (key 3)
+  - action: send_keys
+    keys: ["3"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "one_c_module"
+    compare: true
+
+  # 2x C-modules, no touchpad (key 4)
+  - action: send_keys
+    keys: ["4"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "two_c_modules"
+    compare: true
+
+  # 3x modules (C, C, Keyboard A), no touchpad (key 5)
+  - action: send_keys
+    keys: ["5"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "three_modules_no_touchpad"
+    compare: true

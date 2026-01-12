@@ -1,0 +1,27 @@
+name: "Full-width module configuration"
+description: "Test full-width module with touchpad"
+
+steps:
+  - action: wait
+    ms: 2000
+
+  # Toggle latch closed (key L)
+  - action: send_keys
+    keys: ["l"]
+
+  # Connect both fans (so we can see inputdeck issues)
+  - action: send_keys
+    keys: ["v"]
+
+  # First set expansion bay to dual (so we can see inputdeck issues)
+  - action: send_keys
+    keys: ["e"]
+
+  # Full-width module + touchpad (key 7)
+  - action: send_keys
+    keys: ["7"]
+  - action: wait
+    ms: 500
+  - action: screenshot
+    name: "full_width_module"
+    compare: true
