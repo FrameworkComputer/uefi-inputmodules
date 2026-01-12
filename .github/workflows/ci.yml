@@ -87,7 +87,14 @@ jobs:
       run: make test-build
 
     - name: Run visual regression tests
-      run: make test
+      # To log qemu output instead of make test
+      run: ./tests/visual/target/debug/visual-test-runner run --qemu-log tests/visual/qemu-stderr.log
+
+    - name: Print QEMU log on failure
+      if: failure()
+      run: |
+        echo "=== QEMU stderr log ==="
+        cat tests/visual/qemu-stderr.log || echo "No QEMU log file found"
 
     - name: Upload test outputs on failure
       if: failure()

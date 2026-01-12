@@ -61,6 +61,10 @@ enum Commands {
         /// Use debug build instead of release (default: release)
         #[arg(short = 'd', long)]
         debug: bool,
+
+        /// Path to write QEMU stderr log (useful for CI debugging)
+        #[arg(long)]
+        qemu_log: Option<PathBuf>,
     },
     /// List available test scenarios
     List {
@@ -157,7 +161,11 @@ impl QmpClient {
                 break;
             }
             if i == 59 {
-                bail!("QMP socket did not appear after 30 seconds");
+                bail!(
+                    "QMP socket did not appear after 30 seconds at {:?}. \
+                     QEMU may have failed to start - check the QEMU log file.",
+                    socket_path
+                );
             }
             thread::sleep(Duration::from_millis(500));
         }
@@ -165,8 +173,13 @@ impl QmpClient {
         // Small delay to ensure QEMU is ready
         thread::sleep(Duration::from_millis(500));
 
-        let stream = UnixStream::connect(socket_path)
-            .with_context(|| format!("Failed to connect to QMP socket: {:?}", socket_path))?;
+        let stream = UnixStream::connect(socket_path).with_context(|| {
+            format!(
+                "Failed to connect to QMP socket: {:?} (socket exists: {})",
+                socket_path,
+                socket_path.exists()
+            )
+        })?;
 
         stream.set_read_timeout(Some(Duration::from_secs(10)))?;
         stream.set_write_timeout(Some(Duration::from_secs(10)))?;
@@ -324,6 +337,7 @@ impl QemuProcess {
         ovmf_code: &Path,
         ovmf_vars: &Path,
         work_dir: &Path,
+        qemu_log_file: Option<&Path>,
     ) -> Result<Self> {
         let esp_dir = work_dir.join("esp");
         let boot_dir = esp_dir.join("efi/boot");
@@ -343,6 +357,11 @@ impl QemuProcess {
 
         // Check if KVM is available
         let kvm_available = Path::new("/dev/kvm").exists();
+        println!(
+            "  {} KVM available: {}",
+            if kvm_available { "✓" } else { "✗" },
+            kvm_available
+        );
 
         let mut args = vec!["-M".to_string(), "q35".to_string()];
 
@@ -390,11 +409,20 @@ impl QemuProcess {
             "VGA,vgamem_mb=64".to_string(),
         ]);
 
+        // Set up stderr handling - either to a log file or piped
+        let stderr_config = if let Some(log_path) = qemu_log_file {
+            let log_file = fs::File::create(log_path)
+                .with_context(|| format!("Failed to create QEMU log file: {:?}", log_path))?;
+            Stdio::from(log_file)
+        } else {
+            Stdio::piped()
+        };
+
         let child = Command::new("qemu-system-x86_64")
             .args(&args)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::piped())
+            .stderr(stderr_config)
             .spawn()
             .context("Failed to start QEMU")?;
 
@@ -830,6 +858,7 @@ fn main() -> Result<()> {
             binary,
             keep_on_failure,
             debug,
+            qemu_log,
         } => {
             let test_dir = project_root.join("tests/visual");
             let scenarios_dir = if scenarios.is_absolute() {
@@ -942,6 +971,7 @@ fn main() -> Result<()> {
                         &ovmf_code,
                         &ovmf_vars,
                         new_temp_dir.path(),
+                        qemu_log.as_deref(),
                     )?;
 
                     // Connect to QMP
