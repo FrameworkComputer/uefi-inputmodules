@@ -978,7 +978,10 @@ pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose:
             },
         )
     } else {
-        (1, format!("v{}", built_info::PKG_VERSION))
+        let bios_ver = debug_info
+            .map(|d| d.bios_version)
+            .unwrap_or_else(|| "?".to_string());
+        (1, format!("BIOS {}", bios_ver))
     };
     let ver_len = ver_text.lines().fold(0, |longest, cur| -> i32 {
         let cur_len = cur.len() as i32;
