@@ -72,13 +72,9 @@ jobs:
     - name: Install QEMU and OVMF
       run: |
         sudo apt-get update
-        sudo apt-get install -y qemu-system-x86 ovmf
-
-    - name: Setup OVMF
-      run: |
-        mkdir -p ovmf
-        cp /usr/share/OVMF/OVMF_VARS_4M.fd ovmf/OVMF_VARS.fd
-        cp /usr/share/OVMF/OVMF_CODE_4M.fd ovmf/OVMF_CODE.fd
+        sudo apt-get install -y qemu-system-x86 ovmf python3-virt-firmware
+        make ovmf/OVMF_CODE.fd
+        make ovmf/OVMF_VARS.fd
 
     - name: Build UEFI app (QEMU release)
       run: make qemu-release
