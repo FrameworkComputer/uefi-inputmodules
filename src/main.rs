@@ -19,13 +19,10 @@ use uefi_services::{print, println};
 mod buffer;
 mod drawing;
 mod ec_comm;
-mod uefi_usb;
-// Allow dead code because it's the old implementation that we will remove
-#[allow(dead_code)]
-mod gui;
 mod oem_variable;
 mod sleep;
 mod state_machine;
+mod uefi_usb;
 mod built_info {
     // The file has been placed there by the build script.
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
