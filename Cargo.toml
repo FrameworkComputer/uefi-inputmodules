@@ -10,7 +10,7 @@ qemu = []
 azalea = []
 
 [build-dependencies]
-built = { version = "0.5.0", no-default-features = true, features = ["chrono", "git2"] }
+built = { version = "0.5.0", default-features = false, features = ["chrono", "git2"] }
 
 [dependencies]
 cfg-if = "1.0.0"
