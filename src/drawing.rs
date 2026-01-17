@@ -95,7 +95,7 @@ impl<'a> ImagePlusMeta<'a> {
 }
 
 impl StateBitmaps {
-    pub fn qr_code_1(&mut self) -> ImagePlusMeta {
+    pub fn qr_code_1(&mut self) -> ImagePlusMeta<'_> {
         if self.qr_code_1.is_none() {
             let png = include_bytes!("../resources/figma/qr-code-expansion-bay.png");
             let mut decoder = PngDecoder::new(png);
@@ -112,7 +112,7 @@ impl StateBitmaps {
             pos: Point { x: 1814, y: 967 },
         }
     }
-    pub fn qr_code_2(&mut self) -> ImagePlusMeta {
+    pub fn qr_code_2(&mut self) -> ImagePlusMeta<'_> {
         if self.qr_code_2.is_none() {
             let png = include_bytes!("../resources/figma/qr-code-hubboard.png");
             let mut decoder = PngDecoder::new(png);
@@ -129,7 +129,7 @@ impl StateBitmaps {
             pos: Point { x: 1814, y: 967 },
         }
     }
-    pub fn qr_code_3(&mut self) -> ImagePlusMeta {
+    pub fn qr_code_3(&mut self) -> ImagePlusMeta<'_> {
         if self.qr_code_3.is_none() {
             let png = include_bytes!("../resources/figma/qr-code-inputmodules.png");
             let mut decoder = PngDecoder::new(png);
@@ -148,7 +148,7 @@ impl StateBitmaps {
     }
 
     // Points to https://fr.mw/FRANNB0006
-    pub fn qr_code_kb(&mut self) -> ImagePlusMeta {
+    pub fn qr_code_kb(&mut self) -> ImagePlusMeta<'_> {
         if self.qr_code_kb.is_none() {
             let png = include_bytes!("../resources/figma/qr-code-kb.png");
             let mut decoder = PngDecoder::new(png);
@@ -167,7 +167,7 @@ impl StateBitmaps {
     }
 
     // Points to https://fr.mw/FRANNB0007
-    pub fn qr_code_pd(&mut self) -> ImagePlusMeta {
+    pub fn qr_code_pd(&mut self) -> ImagePlusMeta<'_> {
         if self.qr_code_pd.is_none() {
             let png = include_bytes!("../resources/figma/qr-code-pd.png");
             let mut decoder = PngDecoder::new(png);
@@ -186,7 +186,7 @@ impl StateBitmaps {
     }
 
     // Points to https://fr.mw/FRANNB0009
-    pub fn qr_code_side_pd(&mut self) -> ImagePlusMeta {
+    pub fn qr_code_side_pd(&mut self) -> ImagePlusMeta<'_> {
         if self.qr_code_side_pd.is_none() {
             let png = include_bytes!("../resources/figma/qr-code-side-pd.png");
             let mut decoder = PngDecoder::new(png);
@@ -204,7 +204,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn button_long_off(&mut self) -> ImagePlusMeta {
+    pub fn button_long_off(&mut self) -> ImagePlusMeta<'_> {
         if self.button_long_off.is_none() {
             let png = include_bytes!("../resources/figma/button-long-off.png");
             let mut decoder = PngDecoder::new(png);
@@ -225,7 +225,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn button_short_skip(&mut self) -> ImagePlusMeta {
+    pub fn button_short_skip(&mut self) -> ImagePlusMeta<'_> {
         if self.button_short_skip.is_none() {
             let png = include_bytes!("../resources/figma/button-short-skip.png");
             let mut decoder = PngDecoder::new(png);
@@ -246,7 +246,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn button_short_reboot(&mut self) -> ImagePlusMeta {
+    pub fn button_short_reboot(&mut self) -> ImagePlusMeta<'_> {
         if self.button_short_reboot.is_none() {
             let png = include_bytes!("../resources/figma/button-short-reboot.png");
             let mut decoder = PngDecoder::new(png);
@@ -267,7 +267,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn button_boot(&mut self) -> ImagePlusMeta {
+    pub fn button_boot(&mut self) -> ImagePlusMeta<'_> {
         if self.button_boot.is_none() {
             let png = include_bytes!("../resources/figma/button-boot.png");
             let mut decoder = PngDecoder::new(png);
@@ -288,7 +288,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn latches_closed_left(&mut self) -> ImagePlusMeta {
+    pub fn latches_closed_left(&mut self) -> ImagePlusMeta<'_> {
         if self.latches_closed_left.is_none() {
             let png = include_bytes!("../resources/figma/latch-closed-left.png");
             let mut decoder = PngDecoder::new(png);
@@ -306,7 +306,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn latches_closed_right(&mut self) -> ImagePlusMeta {
+    pub fn latches_closed_right(&mut self) -> ImagePlusMeta<'_> {
         if self.latches_closed_right.is_none() {
             let png = include_bytes!("../resources/figma/latch-closed-right.png");
             let mut decoder = PngDecoder::new(png);
@@ -324,7 +324,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn laptop_latches_open(&mut self) -> ImagePlusMeta {
+    pub fn laptop_latches_open(&mut self) -> ImagePlusMeta<'_> {
         if self.laptop_latches_open.is_none() {
             let png = include_bytes!("../resources/figma/laptop-latch-open.png");
             let mut decoder = PngDecoder::new(png);
@@ -344,7 +344,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn touchpad(&mut self) -> ImagePlusMeta {
+    pub fn touchpad(&mut self) -> ImagePlusMeta<'_> {
         if self.touchpad.is_none() {
             let png = include_bytes!("../resources/figma/touchpad.png");
             let mut decoder = PngDecoder::new(png);
@@ -363,7 +363,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn full_width(&mut self) -> ImagePlusMeta {
+    pub fn full_width(&mut self) -> ImagePlusMeta<'_> {
         if self.full_width.is_none() {
             let png = include_bytes!("../resources/figma/full-width-module.png");
             let mut decoder = PngDecoder::new(png);
@@ -381,7 +381,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn keyboard(&mut self) -> ImagePlusMeta {
+    pub fn keyboard(&mut self) -> ImagePlusMeta<'_> {
         if self.keyboard.is_none() {
             let png = include_bytes!("../resources/figma/keyboard.png");
             let mut decoder = PngDecoder::new(png);
@@ -403,7 +403,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn b1_module(&mut self) -> ImagePlusMeta {
+    pub fn b1_module(&mut self) -> ImagePlusMeta<'_> {
         if self.b1_module.is_none() {
             let png = include_bytes!("../resources/figma/b1-module.png");
             let mut decoder = PngDecoder::new(png);
@@ -422,7 +422,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn numpad(&mut self) -> ImagePlusMeta {
+    pub fn numpad(&mut self) -> ImagePlusMeta<'_> {
         if self.numpad.is_none() {
             let png = include_bytes!("../resources/figma/numpad.png");
             let mut decoder = PngDecoder::new(png);
@@ -441,7 +441,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn _macropad(&mut self) -> ImagePlusMeta {
+    pub fn _macropad(&mut self) -> ImagePlusMeta<'_> {
         if self._macropad.is_none() {
             let png = include_bytes!("../resources/figma/macropad.png");
             let mut decoder = PngDecoder::new(png);
@@ -460,7 +460,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn c1_module(&mut self) -> ImagePlusMeta {
+    pub fn c1_module(&mut self) -> ImagePlusMeta<'_> {
         if self.c1_module.is_none() {
             let png = include_bytes!("../resources/figma/c1c2-black-module.png");
             let mut decoder = PngDecoder::new(png);
@@ -479,7 +479,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn c2_module(&mut self) -> ImagePlusMeta {
+    pub fn c2_module(&mut self) -> ImagePlusMeta<'_> {
         if self.c2_module.is_none() {
             let png = include_bytes!("../resources/figma/c1c2-silver-module.png");
             let mut decoder = PngDecoder::new(png);
@@ -498,7 +498,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn hubboard_missing(&mut self) -> ImagePlusMeta {
+    pub fn hubboard_missing(&mut self) -> ImagePlusMeta<'_> {
         if self.hubboard_missing.is_none() {
             let png = include_bytes!("../resources/figma/hubboard-missing.png");
             let mut decoder = PngDecoder::new(png);
@@ -516,7 +516,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn expansion_bay_missing(&mut self) -> ImagePlusMeta {
+    pub fn expansion_bay_missing(&mut self) -> ImagePlusMeta<'_> {
         if self.expansion_bay_missing.is_none() {
             let png = include_bytes!("../resources/figma/expansion-bay-missing.png");
             let mut decoder = PngDecoder::new(png);
@@ -534,7 +534,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn latch_warning(&mut self) -> ImagePlusMeta {
+    pub fn latch_warning(&mut self) -> ImagePlusMeta<'_> {
         if self.latch_warning.is_none() {
             let png = include_bytes!("../resources/figma/latch-warning.png");
             let mut decoder = PngDecoder::new(png);
@@ -551,7 +551,7 @@ impl StateBitmaps {
             pos: Point { x: 1181, y: 616 },
         }
     }
-    pub fn fans_missing_text(&mut self) -> ImagePlusMeta {
+    pub fn fans_missing_text(&mut self) -> ImagePlusMeta<'_> {
         if self.fans_missing_text.is_none() {
             let png = include_bytes!("../resources/figma/warning-text/fans-missing.png");
             let mut decoder = PngDecoder::new(png);
@@ -572,7 +572,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn interposer_closed_text(&mut self) -> ImagePlusMeta {
+    pub fn interposer_closed_text(&mut self) -> ImagePlusMeta<'_> {
         if self.interposer_closed_text.is_none() {
             let png = include_bytes!("../resources/figma/warning-text/interposer-closed.png");
             let mut decoder = PngDecoder::new(png);
@@ -593,7 +593,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn hubboard_missing_text(&mut self) -> ImagePlusMeta {
+    pub fn hubboard_missing_text(&mut self) -> ImagePlusMeta<'_> {
         if self.hubboard_missing_text.is_none() {
             let png = include_bytes!("../resources/figma/warning-text/hubboard-missing.png");
             let mut decoder = PngDecoder::new(png);
@@ -614,7 +614,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn inputmodules_touchpad_ok_text(&mut self) -> ImagePlusMeta {
+    pub fn inputmodules_touchpad_ok_text(&mut self) -> ImagePlusMeta<'_> {
         if self.inputmodules_touchpad_ok_text.is_none() {
             let png =
                 include_bytes!("../resources/figma/warning-text/inputmodules-and-touchpad-ok.png");
@@ -636,7 +636,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn inputmodules_not_detected_text(&mut self) -> ImagePlusMeta {
+    pub fn inputmodules_not_detected_text(&mut self) -> ImagePlusMeta<'_> {
         if self.inputmodules_not_detected_text.is_none() {
             let png =
                 include_bytes!("../resources/figma/warning-text/inputmodules-not-detected.png");
@@ -658,7 +658,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn interposer_door_open_text(&mut self) -> ImagePlusMeta {
+    pub fn interposer_door_open_text(&mut self) -> ImagePlusMeta<'_> {
         if self.interposer_door_open_text.is_none() {
             let png = include_bytes!("../resources/figma/warning-text/interposer-door-open.png");
             let mut decoder = PngDecoder::new(png);
@@ -679,7 +679,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn left_fan_not_detected_text(&mut self) -> ImagePlusMeta {
+    pub fn left_fan_not_detected_text(&mut self) -> ImagePlusMeta<'_> {
         if self.left_fan_not_detected_text.is_none() {
             let png = include_bytes!("../resources/figma/warning-text/left-fan-not-detected.png");
             let mut decoder = PngDecoder::new(png);
@@ -700,7 +700,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn module_missing_text(&mut self) -> ImagePlusMeta {
+    pub fn module_missing_text(&mut self) -> ImagePlusMeta<'_> {
         if self.module_missing_text.is_none() {
             let png = include_bytes!("../resources/figma/warning-text/module-missing.png");
             let mut decoder = PngDecoder::new(png);
@@ -721,7 +721,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn bay_bad_connection_text(&mut self) -> ImagePlusMeta {
+    pub fn bay_bad_connection_text(&mut self) -> ImagePlusMeta<'_> {
         if self.bay_bad_connection_text.is_none() {
             let png = include_bytes!("../resources/figma/warning-text/bay-bad-connection.png");
             let mut decoder = PngDecoder::new(png);
@@ -742,7 +742,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn right_fan_not_detected_text(&mut self) -> ImagePlusMeta {
+    pub fn right_fan_not_detected_text(&mut self) -> ImagePlusMeta<'_> {
         if self.right_fan_not_detected_text.is_none() {
             let png = include_bytes!("../resources/figma/warning-text/right-fan-not-detected.png");
             let mut decoder = PngDecoder::new(png);
@@ -763,7 +763,7 @@ impl StateBitmaps {
         }
     }
 
-    pub fn touchpad_not_detected_text(&mut self) -> ImagePlusMeta {
+    pub fn touchpad_not_detected_text(&mut self) -> ImagePlusMeta<'_> {
         if self.touchpad_not_detected_text.is_none() {
             let png = include_bytes!("../resources/figma/warning-text/touchpad-not-detected.png");
             let mut decoder = PngDecoder::new(png);

@@ -814,7 +814,7 @@ impl State {
     }
 }
 
-fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutput>, Buffer)> {
+fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<'_, GraphicsOutput>, Buffer)> {
     let gop_handles = if let Ok(gop_handles) =
         bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
     {
@@ -851,7 +851,7 @@ fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutput>, 
     Some((gop, Buffer::new(width, height)))
 }
 
-fn get_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
+fn get_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<'_, Input>> {
     let input_handles =
         if let Ok(input_handles) = bs.locate_handle_buffer(SearchType::ByProtocol(&Input::GUID)) {
             input_handles
@@ -879,7 +879,7 @@ fn get_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
 }
 
 // Avoid using because it might cause trouble with later boot process
-fn _get_exclusive_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
+fn _get_exclusive_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<'_, Input>> {
     let input_handle = bs.get_handle_for_protocol::<Input>().ok()?;
     bs.open_protocol_exclusive::<Input>(input_handle).ok()
 }
