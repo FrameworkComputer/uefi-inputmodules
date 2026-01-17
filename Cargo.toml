@@ -47,3 +47,6 @@ lto = true
 # Strip binary for reproducibility and binary size (remove debugging data)
 # Otherwise the RSDS signature and some instructions are different in each build
 strip = true
+opt-level = "s"      # Optimize for size (z and s are similar)
+codegen-units = 1    # Better optimization
+panic = "abort"      # Remove unwinding code
