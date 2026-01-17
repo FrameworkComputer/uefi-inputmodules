@@ -637,7 +637,18 @@ impl State {
         ]
         .contains(&InputModuleType::FullWidth)
         {
-            self.bitmaps.full_width().draw(buffer);
+            // C1 spacer in left-most location
+            self.bitmaps.c1_module().draw(buffer);
+            // Keyboard in the middle
+            self.bitmaps.keyboard().draw(buffer);
+            // C1 spacer in right-most location
+            self.bitmaps.c1_module().draw_pos(
+                buffer,
+                Point {
+                    x: 829 + 84 + 736,
+                    y: 583,
+                },
+            );
         }
         if input_deck.top_row.pos0 == InputModuleType::GenericC {
             self.bitmaps.c1_module().draw(buffer);

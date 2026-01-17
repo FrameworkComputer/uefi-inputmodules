@@ -50,7 +50,6 @@ pub struct StateBitmaps {
     latches_closed_left: Option<Vec<u8>>,
     latches_closed_right: Option<Vec<u8>>,
     touchpad: Option<Vec<u8>>,
-    full_width: Option<Vec<u8>>,
     keyboard: Option<Vec<u8>>,
     b1_module: Option<Vec<u8>>,
     numpad: Option<Vec<u8>>,
@@ -360,24 +359,6 @@ impl StateBitmaps {
             width: 736,
             // Middle position
             pos: Point { x: 912, y: 874 },
-        }
-    }
-
-    pub fn full_width(&mut self) -> ImagePlusMeta<'_> {
-        if self.full_width.is_none() {
-            let png = include_bytes!("../resources/figma/full-width-module.png");
-            let mut decoder = PngDecoder::new(png);
-            let DecodingResult::U8(image_bytes) = decoder.decode().unwrap() else {
-                panic!("Failed to decode PNG")
-            };
-            self.full_width = Some(image_bytes);
-        }
-
-        ImagePlusMeta {
-            // Guaranteed to be set above
-            data: self.full_width.as_ref().unwrap(),
-            width: 904,
-            pos: Point { x: 829, y: 583 },
         }
     }
 
