@@ -232,6 +232,7 @@ fn print_tool_version() {
     let q = "?".to_string();
     println!("Tool Version Information");
     println!("  Version:     {}", built_info::PKG_VERSION);
+    #[cfg(debug_assertions)]
     println!("  Built At:    {}", built_info::BUILT_TIME_UTC);
     println!(
         "  Git Commit:  {}",
