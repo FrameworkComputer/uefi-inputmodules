@@ -136,6 +136,9 @@
         inputmodules-qemu = buildInputmodules { release = false; features = [ "qemu" ]; };
         inputmodules-qemu-release = buildInputmodules { release = true; features = [ "qemu" ]; };
 
+        # OVMF vars config for 2560x1600 resolution (Framework Laptop 16 display)
+        ovmfVarsJson = ./ovmf_vars.json;
+
         # Wrapper script to run the QEMU build in an emulator
         run-qemu = pkgs.writeShellScriptBin "run-inputmodules-qemu" ''
           set -e
@@ -152,7 +155,13 @@
           cp ${pkgs.OVMF.fd}/FV/OVMF_VARS.fd "$TMPDIR/OVMF_VARS.fd"
           chmod 644 "$TMPDIR/OVMF_VARS.fd"
 
+          # Set 2560x1600 resolution (Framework Laptop 16 display)
+          ${pkgs.python3Packages.virt-firmware}/bin/virt-fw-vars \
+            --inplace "$TMPDIR/OVMF_VARS.fd" \
+            --set-json ${ovmfVarsJson}
+
           echo "Starting QEMU with InputModules UEFI app..."
+          echo "Resolution: 2560x1600"
           echo "Debug output will be written to: $TMPDIR/debug.log"
 
           ${pkgs.qemu}/bin/qemu-system-x86_64 \
@@ -182,7 +191,13 @@
           cp ${pkgs.OVMF.fd}/FV/OVMF_VARS.fd "$TMPDIR/OVMF_VARS.fd"
           chmod 644 "$TMPDIR/OVMF_VARS.fd"
 
+          # Set 2560x1600 resolution (Framework Laptop 16 display)
+          ${pkgs.python3Packages.virt-firmware}/bin/virt-fw-vars \
+            --inplace "$TMPDIR/OVMF_VARS.fd" \
+            --set-json ${ovmfVarsJson}
+
           echo "Starting QEMU with InputModules UEFI app (release)..."
+          echo "Resolution: 2560x1600"
 
           ${pkgs.qemu}/bin/qemu-system-x86_64 \
             ''${QEMU_KVM:+-enable-kvm} \
@@ -230,6 +245,7 @@
             qemu
             parted
             OVMF
+            python3Packages.virt-firmware
 
             # Build dependencies
             pkg-config
@@ -249,7 +265,11 @@
               # OVMF_VARS needs to be writable, so copy it instead of symlinking
               cp -f ${pkgs.OVMF.fd}/FV/OVMF_VARS.fd ovmf/OVMF_VARS.fd
               chmod 644 ovmf/OVMF_VARS.fd
-              echo "OVMF files set up in ovmf/"
+              # Set 2560x1600 resolution (Framework Laptop 16 display)
+              ${pkgs.python3Packages.virt-firmware}/bin/virt-fw-vars \
+                --inplace ovmf/OVMF_VARS.fd \
+                --set-json ovmf_vars.json
+              echo "OVMF files set up in ovmf/ (2560x1600 resolution)"
             fi
           '';
         };
