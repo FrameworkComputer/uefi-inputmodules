@@ -83,6 +83,7 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
         state: InputDeckState::On,
         hubboard_present: true,
         touchpad_present: true,
+        touchpad_id: InputModuleType::Touchpad as u8,
         top_row: TopRowPositions {
             pos0: InputModuleType::KeyboardA,
             pos1: InputModuleType::Disconnected,
@@ -95,6 +96,7 @@ pub fn get_input_deck(ec: &Option<CrosEc>) -> InputDeckStatus {
         state: InputDeckState::On,
         hubboard_present: false,
         touchpad_present: true,
+        touchpad_id: InputModuleType::Touchpad as u8,
         top_row: TopRowPositions {
             pos0: InputModuleType::GenericB,
             pos1: InputModuleType::Disconnected,
@@ -350,6 +352,7 @@ pub fn keypress_mock_data(
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
                 touchpad_present: true,
+                touchpad_id: InputModuleType::Touchpad as u8,
                 top_row: input_deck::TopRowPositions {
                     pos0: input_deck::InputModuleType::Disconnected,
                     pos1: input_deck::InputModuleType::Disconnected,
@@ -365,6 +368,7 @@ pub fn keypress_mock_data(
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
                 touchpad_present: false,
+                touchpad_id: InputModuleType::Disconnected as u8,
                 top_row: input_deck::TopRowPositions {
                     pos0: input_deck::InputModuleType::Disconnected,
                     pos1: input_deck::InputModuleType::Disconnected,
@@ -380,6 +384,7 @@ pub fn keypress_mock_data(
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
                 touchpad_present: false,
+                touchpad_id: InputModuleType::Disconnected as u8,
                 top_row: input_deck::TopRowPositions {
                     pos0: input_deck::InputModuleType::GenericC,
                     pos1: input_deck::InputModuleType::Disconnected,
@@ -395,6 +400,7 @@ pub fn keypress_mock_data(
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
                 touchpad_present: false,
+                touchpad_id: InputModuleType::Disconnected as u8,
                 top_row: input_deck::TopRowPositions {
                     pos0: input_deck::InputModuleType::GenericC,
                     pos1: input_deck::InputModuleType::GenericC,
@@ -410,6 +416,7 @@ pub fn keypress_mock_data(
                 state: input_deck::InputDeckState::Disconnected,
                 hubboard_present: true,
                 touchpad_present: false,
+                touchpad_id: InputModuleType::Disconnected as u8,
                 top_row: input_deck::TopRowPositions {
                     pos0: input_deck::InputModuleType::GenericC,
                     pos1: input_deck::InputModuleType::GenericC,
@@ -425,6 +432,7 @@ pub fn keypress_mock_data(
                 state: input_deck::InputDeckState::On,
                 hubboard_present: true,
                 touchpad_present: true,
+                touchpad_id: InputModuleType::Touchpad as u8,
                 top_row: input_deck::TopRowPositions {
                     pos0: input_deck::InputModuleType::GenericC,
                     pos1: input_deck::InputModuleType::GenericC,
@@ -440,6 +448,7 @@ pub fn keypress_mock_data(
                 state: input_deck::InputDeckState::On,
                 hubboard_present: true,
                 touchpad_present: true,
+                touchpad_id: InputModuleType::Touchpad as u8,
                 top_row: input_deck::TopRowPositions {
                     pos0: input_deck::InputModuleType::FullWidth,
                     pos1: input_deck::InputModuleType::Disconnected,
