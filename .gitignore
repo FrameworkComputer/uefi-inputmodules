@@ -5,6 +5,5 @@
 debug.log
 /ovmf
 
-# Nix, devenv
+# Nix
 result*
-.devenv*

@@ -80,6 +80,58 @@ cp target/x86_64-unknown-uefi/debug/uefi-qmk-hid.efi /boot/efi
 # Or put it somewhere else on the ESP and add a bootloader entry for it
 ```
 
+## Building with Nix
+
+For reproducible builds across different systems, you can use [Nix](https://nixos.org/).
+
+### Building
+
+```sh
+# Build release version (default)
+nix build
+
+# Build debug version
+nix build .#debug
+
+# Build with QEMU feature
+nix build .#qemu
+nix build .#qemu-release
+```
+
+The resulting binary will be at `result/bin/inputmodules.efi`.
+
+### Running in QEMU
+
+Run directly in QEMU with the Framework Laptop 16 native resolution (2560x1600):
+
+```sh
+# Debug build
+nix run
+
+# Release build
+nix run .#qemu-release
+```
+
+### Development Shell
+
+Enter a development shell with all tools (Rust toolchain, QEMU, OVMF, etc.):
+
+```sh
+nix develop
+```
+
+This sets up:
+- Rust toolchain with the `x86_64-unknown-uefi` target
+- QEMU and OVMF for testing
+- `virt-fw-vars` for UEFI variable manipulation
+- OVMF files in `ovmf/` configured for 2560x1600 resolution
+
+You can then use `make` commands as usual:
+
+```sh
+make qemu && make run
+```
+
 ## Debugging
 To test in QEMU build the QEMU version and run it.
 
@@ -101,7 +153,10 @@ through 5. ESC quits the app.
 
 ###### Running in native Framework Laptop 16 resolution
 
-QEMU/OVMF has the capability to display higher resolutions.
+When using Nix (`nix run` or `nix develop`), the 2560x1600 resolution is
+configured automatically via `ovmf_vars.json`.
+
+For manual setup, QEMU/OVMF has the capability to display higher resolutions.
 During early startup, press ESC repeatedly until you enter the setup menu.
 There navigate to "Device Manager" -> "OVMF Platform Configuration" and change
 the preferred resolution to 2560x1600.
