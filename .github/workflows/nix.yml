@@ -1,6 +1,7 @@
 name: Nix Build
 on:
   push:
+  pull_request:
 
 jobs:
   build:
@@ -77,3 +78,128 @@ jobs:
 
     - name: Check flake
       run: nix flake check
+
+  compare:
+    name: Compare Binary Size
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@main
+
+    - name: Setup Nix cache
+      uses: DeterminateSystems/magic-nix-cache-action@main
+
+    - name: Checkout base branch
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.base.sha }}
+        path: base
+
+    - name: Build base branch release
+      id: base
+      run: |
+        cd base
+        nix build .#release
+        SIZE=$(stat -c%s result/bin/inputmodules.efi)
+        HASH=$(sha256sum result/bin/inputmodules.efi | cut -d' ' -f1)
+        echo "size=$SIZE" >> $GITHUB_OUTPUT
+        echo "hash=$HASH" >> $GITHUB_OUTPUT
+        echo "Base: $SIZE bytes, SHA256: $HASH"
+
+    - name: Checkout PR branch
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        path: pr
+
+    - name: Build PR branch release
+      id: pr
+      run: |
+        cd pr
+        nix build .#release
+        SIZE=$(stat -c%s result/bin/inputmodules.efi)
+        HASH=$(sha256sum result/bin/inputmodules.efi | cut -d' ' -f1)
+        echo "size=$SIZE" >> $GITHUB_OUTPUT
+        echo "hash=$HASH" >> $GITHUB_OUTPUT
+        echo "PR: $SIZE bytes, SHA256: $HASH"
+
+    - name: Generate comparison
+      id: compare
+      run: |
+        BASE_SIZE=${{ steps.base.outputs.size }}
+        PR_SIZE=${{ steps.pr.outputs.size }}
+        BASE_HASH=${{ steps.base.outputs.hash }}
+        PR_HASH=${{ steps.pr.outputs.hash }}
+
+        DIFF=$((PR_SIZE - BASE_SIZE))
+        if [ $DIFF -gt 0 ]; then
+          DIFF_STR="+$DIFF"
+          DIFF_EMOJI="📈"
+        elif [ $DIFF -lt 0 ]; then
+          DIFF_STR="$DIFF"
+          DIFF_EMOJI="📉"
+        else
+          DIFF_STR="±0"
+          DIFF_EMOJI="✅"
+        fi
+
+        # Calculate percentage
+        if [ $BASE_SIZE -ne 0 ]; then
+          PERCENT=$(echo "scale=2; ($DIFF * 100) / $BASE_SIZE" | bc)
+          PERCENT_STR="${PERCENT}%"
+        else
+          PERCENT_STR="N/A"
+        fi
+
+        # Format sizes in KiB
+        BASE_KIB=$(echo "scale=2; $BASE_SIZE / 1024" | bc)
+        PR_KIB=$(echo "scale=2; $PR_SIZE / 1024" | bc)
+        DIFF_KIB=$(echo "scale=2; $DIFF / 1024" | bc)
+
+        if [ "$BASE_HASH" = "$PR_HASH" ]; then
+          HASH_STATUS="✅ Identical"
+        else
+          HASH_STATUS="⚠️ Changed"
+        fi
+
+        # Create comment body
+        cat << EOF > comment.md
+        ## 📦 Binary Size Comparison (Nix Build)
+
+        | Metric | Base | PR | Difference |
+        |--------|------|----|-----------:|
+        | Size | ${BASE_KIB} KiB | ${PR_KIB} KiB | ${DIFF_EMOJI} ${DIFF_STR} bytes (${PERCENT_STR}) |
+        | SHA256 | \`${BASE_HASH:0:16}...\` | \`${PR_HASH:0:16}...\` | ${HASH_STATUS} |
+
+        <details>
+        <summary>Full hashes</summary>
+
+        - **Base:** \`$BASE_HASH\`
+        - **PR:** \`$PR_HASH\`
+
+        </details>
+        EOF
+
+        echo "comment<<EOF" >> $GITHUB_OUTPUT
+        cat comment.md >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Find existing comment
+      uses: peter-evans/find-comment@v3
+      id: find-comment
+      with:
+        issue-number: ${{ github.event.pull_request.number }}
+        comment-author: 'github-actions[bot]'
+        body-includes: Binary Size Comparison (Nix Build)
+
+    - name: Post or update comment
+      uses: peter-evans/create-or-update-comment@v4
+      with:
+        comment-id: ${{ steps.find-comment.outputs.comment-id }}
+        issue-number: ${{ github.event.pull_request.number }}
+        body: ${{ steps.compare.outputs.comment }}
+        edit-mode: replace
