@@ -1,0 +1,79 @@
+name: Nix Build
+on:
+  push:
+
+jobs:
+  build:
+    name: Build with Nix
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@main
+
+    - name: Setup Nix cache
+      uses: DeterminateSystems/magic-nix-cache-action@main
+
+    - name: Build release
+      run: nix build .#release
+
+    - name: Hash release binary
+      run: |
+        echo "=== Release Binary ==="
+        echo "Filesize:"
+        ls -lh result/bin/inputmodules.efi
+        echo ""
+        echo "SHA256:"
+        sha256sum result/bin/inputmodules.efi
+        echo ""
+        echo "Store path:"
+        readlink result
+
+    - name: Upload release artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: inputmodules-release-nix
+        path: result/bin/inputmodules.efi
+
+    - name: Build debug
+      run: nix build .#debug
+
+    - name: Hash debug binary
+      run: |
+        echo "=== Debug Binary ==="
+        echo "Filesize:"
+        ls -lh result/bin/inputmodules.efi
+        echo ""
+        echo "SHA256:"
+        sha256sum result/bin/inputmodules.efi
+
+    - name: Upload debug artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: inputmodules-debug-nix
+        path: result/bin/inputmodules.efi
+
+    - name: Build QEMU package
+      run: nix build .#qemu
+
+    - name: Upload QEMU artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: inputmodules-qemu-nix
+        path: result/bin/inputmodules.efi
+
+  flake-check:
+    name: Nix Flake Check
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@main
+
+    - name: Setup Nix cache
+      uses: DeterminateSystems/magic-nix-cache-action@main
+
+    - name: Check flake
+      run: nix flake check
