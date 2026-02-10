@@ -2,7 +2,7 @@
 name = "inputmodules"
 version = "0.3.16"
 edition = "2021"
-rust-version = "1.61"
+rust-version = "1.89"
 build = "build.rs"
 readme = "../README.md"
 license = "BSD-3-Clause"
@@ -13,24 +13,17 @@ qemu = []
 azalea = []
 
 [build-dependencies]
-built = { version = "0.5.0", default-features = false, features = ["chrono", "git2"] }
+built = { version = "0.8", default-features = false, features = ["chrono", "git2"] }
 
 [dependencies]
 cfg-if = "1.0.0"
 embedded-graphics = "0.8.1"
 getargs = { version = "0.5.0", default-features = false }
 log = "0.4.27"
-uefi = { version = "0.20", features = ["alloc"] }
-uefi-services = "0.17"
+uefi = { version = "0.41", features = ["alloc", "global_allocator", "logger", "panic_handler"] }
 zune-core = "0.4.12"
 redox_hwio = { git = "https://github.com/FrameworkComputer/rust-hwio", branch = "freebsd", default-features = false }
-smbios-lib = { git = "https://github.com/FrameworkComputer/smbios-lib.git", branch = "no-std", default-features = false }
-
-# Temporarily override because we need pending PRs for
-# for the Shell and ShellParameters protocols
-[patch.crates-io]
-uefi = { git = "https://github.com/FrameworkComputer/uefi-rs", branch = "merged" }
-uefi-services = { git = "https://github.com/FrameworkComputer/uefi-rs", branch = "merged" }
+dmidecode = { version = "1", default-features = false }
 
 [dependencies.zune-png]
 version = "0.4.10"
@@ -39,8 +32,7 @@ default-features = false
 [dependencies.framework_lib]
 #path = "/home/zoid/clone/framework-system/framework_lib"
 git = "https://github.com/FrameworkComputer/framework-system"
-rev = "v0.4.3"
-#branch = "main"
+rev = "844d64061120676388cbd741f6ba78469cfcef3a"
 features = ["uefi"]
 default-features = false
 

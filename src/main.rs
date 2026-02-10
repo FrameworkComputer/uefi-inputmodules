@@ -4,17 +4,18 @@
 
 extern crate alloc;
 
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 use framework_lib::chromium_ec::input_deck::InputDeckState;
 use framework_lib::chromium_ec::{print_err, CrosEc};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
+use uefi::boot::{self, OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::prelude::*;
-use uefi::proto::shell_params::*;
-use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
+use uefi::proto::shell_params::ShellParameters;
 use uefi::Identify;
 #[allow(unused_imports)]
-use uefi_services::{print, println};
+use uefi::{print, println};
 
 mod buffer;
 mod drawing;
@@ -33,14 +34,10 @@ struct BiosSettings {
     inputmodule_setting: Option<oem_variable::InputmoduleSetting>,
 }
 
-fn get_bios_settings(boot_services: &BootServices) -> Option<BiosSettings> {
+fn get_bios_settings() -> Option<BiosSettings> {
     // If the protocol isn't present, assume nothing is disabled and show the UI
-    let oem_handle = boot_services
-        .get_handle_for_protocol::<oem_variable::UefiVariable>()
-        .ok()?;
-    let oem = boot_services
-        .open_protocol_exclusive::<oem_variable::UefiVariable>(oem_handle)
-        .ok()?;
+    let oem_handle = boot::get_handle_for_protocol::<oem_variable::UefiVariable>().ok()?;
+    let oem = boot::open_protocol_exclusive::<oem_variable::UefiVariable>(oem_handle).ok()?;
 
     Some(BiosSettings {
         standalone_mode: oem.standalone_mode_enabled(),
@@ -57,8 +54,8 @@ fn get_bios_settings(boot_services: &BootServices) -> Option<BiosSettings> {
 /// - dGPU PD is outdated
 /// - Fan has issues
 /// - Interposer or door has issues
-fn show_ui(boot_services: &BootServices) -> Option<bool> {
-    let settings = get_bios_settings(boot_services)?;
+fn show_ui() -> Option<bool> {
+    let settings = get_bios_settings()?;
     let require_inputmodules =
         settings.inputmodule_setting == Some(oem_variable::InputmoduleSetting::RequireModules);
 
@@ -85,24 +82,23 @@ pub unsafe extern "C" fn wcslen(s: *const u16) -> usize {
 }
 
 #[entry]
-fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    let event = uefi_services::init(&mut system_table).unwrap();
-    let boot_services = system_table.boot_services();
+fn main() -> Status {
+    uefi::helpers::init().unwrap();
 
     // Only error prints in release build
     #[cfg(not(debug_assertions))]
     log::set_max_level(log::LevelFilter::Error);
 
-    let arg = get_shell_action(boot_services);
+    let arg = get_shell_action();
     if let Ok(ShellAction::Info) = arg {
         println!("Provide Parameter: 'gui' to launch UI and show issues");
         println!("Provide Parameter: 'force' to launch UI even if everything is ok");
         println!("Provide Parameter: 'gop' to print GOP debugging info");
         println!();
-        print_module_status(&boot_services);
+        print_module_status();
     } else if let Ok(ShellAction::GopInfo) = arg {
         println!("GOP Info");
-        state_machine::print_gop_info(boot_services);
+        state_machine::print_gop_info();
     } else {
         info!("No shell arg, launching GUI");
 
@@ -114,11 +110,11 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         let force_ui = matches!(arg, Ok(ShellAction::Force));
 
         // Show the UI if we can't tell the BIOS settings or they indicate we need to show the UI
-        let show_ui = show_ui(boot_services) != Some(false);
+        let show_ui = show_ui() != Some(false);
 
         let reset = if force_ui || show_ui {
             ec_comm::set_uefi_app_mode(&ec, true);
-            let gui_res = state_machine::start(boot_services, &system_table, &ec, force_ui);
+            let gui_res = state_machine::start(&ec, force_ui);
             ec_comm::set_uefi_app_mode(&ec, false);
             gui_res.unwrap()
         } else {
@@ -129,18 +125,12 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         if let Some(reset_type) = reset {
             #[cfg(debug_assertions)]
             info!("Shutting down");
-            boot_services.stall(1_000_000);
+            boot::stall(core::time::Duration::from_micros(1_000_000));
 
             // Shut down the system
             // TODO: I should do this outside of this function
-            let rt = system_table.runtime_services();
-            rt.reset(reset_type, Status::SUCCESS, None);
+            uefi::runtime::reset(reset_type, Status::SUCCESS, None);
         }
-    }
-
-    if let Some(event) = event {
-        // Will crash when Linux boots if we don't call this
-        boot_services.close_event(event).unwrap();
     }
 
     Status::SUCCESS
@@ -154,17 +144,17 @@ enum ShellAction {
     GopInfo,
 }
 
-fn get_shell_action(boot_services: &BootServices) -> uefi::Result<ShellAction> {
+fn get_shell_action() -> uefi::Result<ShellAction> {
     // TODO: I think I should open this from the ImageHandle?
     let shell_params_h =
-        boot_services.locate_handle_buffer(SearchType::ByProtocol(&ShellParameters::GUID))?;
-    trace!("Found {} ShellParameters handles", (*shell_params_h).len());
-    for handle in &*shell_params_h {
+        boot::locate_handle_buffer(SearchType::ByProtocol(&ShellParameters::GUID))?;
+    trace!("Found {} ShellParameters handles", shell_params_h.len());
+    for handle in shell_params_h.iter() {
         let params_handle = unsafe {
-            boot_services.open_protocol::<ShellParameters>(
+            boot::open_protocol::<ShellParameters>(
                 OpenProtocolParams {
                     handle: *handle,
-                    agent: boot_services.image_handle(),
+                    agent: boot::image_handle(),
                     controller: None,
                 },
                 OpenProtocolAttributes::GetProtocol,
@@ -173,11 +163,11 @@ fn get_shell_action(boot_services: &BootServices) -> uefi::Result<ShellAction> {
 
         // Ehm why are there two and one has no args?
         // Maybe one is the shell itself?
-        if params_handle.argc == 0 {
+        if params_handle.args_len() == 0 {
             continue;
         }
 
-        let args = params_handle.get_args();
+        let args: Vec<String> = params_handle.args().map(|arg| arg.to_string()).collect();
         // First arg is the executable path
         return Ok(if args.len() == 2 && args[1] == "gui" {
             ShellAction::Gui
@@ -194,7 +184,7 @@ fn get_shell_action(boot_services: &BootServices) -> uefi::Result<ShellAction> {
     Ok(ShellAction::Gui)
 }
 
-fn print_module_status(boot_services: &BootServices) {
+fn print_module_status() {
     print_tool_version();
     println!("");
 
@@ -225,7 +215,7 @@ fn print_module_status(boot_services: &BootServices) {
     }
 
     println!("  Firmware Versions");
-    if let Ok(devices) = uefi_usb::get_usb_devices(boot_services) {
+    if let Ok(devices) = uefi_usb::get_usb_devices() {
         for device in devices {
             let name = if let Some(name) = device.get_name() {
                 name
@@ -240,7 +230,7 @@ fn print_module_status(boot_services: &BootServices) {
     }
 
     println!("BIOS Settings");
-    if let Some(settings) = get_bios_settings(boot_services) {
+    if let Some(settings) = get_bios_settings() {
         println!("  Standalone Mode Enabled: {}", settings.standalone_mode);
         println!(
             "  Inputmodule Setting:     {:?}",

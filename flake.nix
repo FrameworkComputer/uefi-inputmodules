@@ -85,11 +85,8 @@
             cargoLock = {
               lockFile = ./Cargo.lock;
               outputHashes = {
-                "framework_lib-0.4.3" = "sha256-gO7ieyVQzK3BkNsy451WNtrx51jlzd6vhwJX8RDoj/o=";
-                "guid-create-0.4.1" = "sha256-tf38uNtC8YhDN4TZ3yfj4oOG3mYccHPa962YCLkVx4g=";
+                "framework_lib-0.6.6" = "sha256-OuCDl5h4Vnyoc26wsJail8KZ9Fyfd/7T04gOsLCyx6k=";
                 "redox_hwio-0.1.6" = "sha256-knLIZ7yp42SQYk32NGq3SUGvJFVumFhD64Njr5TRdFs=";
-                "smbios-lib-0.9.1" = "sha256-3L8JaA75j9Aaqg1z9lVs61m6CvXDeQprEFRq+UDCHQo=";
-                "uefi-0.20.0" = "sha256-2lUd2a+7NvS94LyAHE2BwGV4j6607mbPXE5htrwdz04=";
               };
             };
 
