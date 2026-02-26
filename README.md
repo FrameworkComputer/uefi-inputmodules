@@ -196,6 +196,7 @@ Controls:
 - L: Interposer Door/Latch toggle
 - H: Hubboard toggle
 - 1, 2, 3, 4, 5, 6, 7: Inputmodules (Only Touchpad, None, 1, 2, 3, 3+Touchpad, Full-Width+Touchpad)
+- P: Outdated firmware warning toggle (keyboard + PD)
 - B: Device diagnostics complete toggle
 
-Finish everything: L, V, E, H, 7, B
+Finish everything: L, V, E, H, 7, P, B

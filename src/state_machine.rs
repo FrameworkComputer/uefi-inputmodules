@@ -129,6 +129,7 @@ pub struct State {
     pd2_ver: Option<AppVersion>,
     pd3_ver: Option<AppVersion>,
     outdated_firmware: OutdatedFirmware,
+    mock_outdated_fw: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -290,6 +291,7 @@ impl State {
             pd2_ver,
             pd3_ver,
             outdated_firmware,
+            mock_outdated_fw: false,
         }
     }
 
@@ -350,10 +352,12 @@ impl State {
 
                 // In QEMU force an error message
                 #[cfg(feature = "qemu")]
-                outdated_fw_msgs.keyboard.push(format!(
-                    "Firmware of {} is outdated. Please update to v0.3.0 or later.",
-                    "Framework 16 - ANSI Keyboard"
-                ));
+                if self.mock_outdated_fw {
+                    outdated_fw_msgs.keyboard.push(format!(
+                        "Firmware of {} is outdated. Please update to v0.3.0 or later.",
+                        "Framework 16 - ANSI Keyboard"
+                    ));
+                }
 
                 for dev in usb_devices {
                     // Show a warning of older than 0.3.1
@@ -366,7 +370,9 @@ impl State {
                     }
                 }
 
-                outdated_fw_msgs.merge_with(&self.outdated_firmware);
+                if !cfg!(feature = "qemu") || self.mock_outdated_fw {
+                    outdated_fw_msgs.merge_with(&self.outdated_firmware);
+                }
 
                 if !outdated_fw_msgs.is_empty() {
                     StateFrame::OutdatedFirmware(outdated_fw_msgs)
@@ -1157,9 +1163,14 @@ pub fn start(
         }
 
         let q_key = Char16::try_from('?').unwrap();
+        let p_key = Char16::try_from('p').unwrap();
         let need_redraw = match state.keypress {
             Some(Key::Printable(key)) if key == q_key => {
                 state.verbose = !state.verbose;
+                true
+            }
+            Some(Key::Printable(key)) if key == p_key => {
+                state.mock_outdated_fw = !state.mock_outdated_fw;
                 true
             }
             _ => need_redraw,
