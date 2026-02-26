@@ -192,6 +192,8 @@ enum StateFrame {
     InputModulesMissing,
     NoTouchpad,
     OutdatedFirmware(OutdatedFirmware),
+    /// EC diagnostics still in progress (device_complete == 0)
+    CheckingDiagnostics,
     Finished,
 }
 
@@ -368,6 +370,8 @@ impl State {
 
                 if !outdated_fw_msgs.is_empty() {
                     StateFrame::OutdatedFirmware(outdated_fw_msgs)
+                } else if hw_diag.device_complete == 0 {
+                    StateFrame::CheckingDiagnostics
                 } else {
                     StateFrame::Finished
                 }
@@ -442,7 +446,7 @@ impl State {
             StateFrame::NoHubboard => {
                 self.bitmaps.qr_code_2().draw(buffer);
             }
-            StateFrame::Finished => {}
+            StateFrame::Finished | StateFrame::CheckingDiagnostics => {}
             StateFrame::OutdatedFirmware(msgs) => {
                 let side_pd_version_issue =
                     msgs.pd1_controller.is_some() || msgs.pd2_controller.is_some();
@@ -519,6 +523,7 @@ impl State {
                 | StateFrame::InputModulesMissing
                 | StateFrame::NoTouchpad
                 | StateFrame::OutdatedFirmware(_)
+                | StateFrame::CheckingDiagnostics
                 | StateFrame::Finished
         ) {
             self.draw_inputmodules(buffer, input_deck)
@@ -611,6 +616,14 @@ impl State {
 
                 let msg = all_msgs.join("\n");
                 draw_textbox(buffer, Point::new(WARN_X, WARN_Y), TextColor::Warn, &msg);
+            }
+            StateFrame::CheckingDiagnostics => {
+                draw_textbox(
+                    buffer,
+                    Point::new(WARN_X, WARN_Y),
+                    TextColor::Warn,
+                    "Checking fan status...",
+                );
             }
             StateFrame::Finished => {
                 self.bitmaps.inputmodules_touchpad_ok_text().draw(buffer);
@@ -926,11 +939,16 @@ fn has_bay_issue(
         Ok(_) => {}
     }
 
-    match hw_diag.fan_fault() {
-        (true, true) => return Some(BayIssue::BothFans),
-        (false, true) => return Some(BayIssue::RightFan),
-        (true, false) => return Some(BayIssue::LeftFan),
-        (false, false) => {}
+    // Only report fan faults after EC has completed device diagnostics.
+    // The EC starts with fault bits set and only clears them after confirming
+    // fans are spinning (takes ~2-5s from chipset resume).
+    if hw_diag.device_complete != 0 {
+        match hw_diag.fan_fault() {
+            (true, true) => return Some(BayIssue::BothFans),
+            (false, true) => return Some(BayIssue::RightFan),
+            (true, false) => return Some(BayIssue::LeftFan),
+            (false, false) => {}
+        }
     }
 
     None

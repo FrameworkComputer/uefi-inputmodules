@@ -269,6 +269,7 @@ pub fn keypress_mock_data(
     let g_key = Char16::try_from('g').unwrap();
     let l_key = Char16::try_from('l').unwrap();
     let h_key = Char16::try_from('h').unwrap();
+    let b_key = Char16::try_from('b').unwrap();
 
     match keypress {
         Some(Key::Printable(key)) if key == a_key => {
@@ -300,6 +301,9 @@ pub fn keypress_mock_data(
         }
         Some(Key::Printable(key)) if key == v_key => {
             hw_diag.hw_diag = 0;
+        }
+        Some(Key::Printable(key)) if key == b_key => {
+            hw_diag.device_complete = if hw_diag.device_complete == 0 { 1 } else { 0 };
         }
         Some(Key::Printable(key)) if key == q_key => {
             (*expansion_bay) = EcResponseExpansionBayStatus {
