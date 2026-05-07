@@ -168,6 +168,13 @@ Presence/Status detection
 
 ### Version 0.4.4
 
+- File size: 396K
+- Changes
+    - Don't require specific SMBIOS entries
+    - Update framework_lib to 32ab4f7a2b9fb55f9a53d4b60c17624029ba017b
+
+### Version 0.4.4
+
 - File size: 419K
 - Changes
     - Highlight RAM flap in orange if any issues with pogo pins
