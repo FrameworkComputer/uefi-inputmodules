@@ -9,7 +9,7 @@ jobs:
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: true
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - uses: webfactory/ssh-agent@v0.7.0
       with:
@@ -28,7 +28,7 @@ jobs:
 
     # Upload release first to get fast builds from CI
     - name: Upload UEFI app (release)
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: inputmodules_release_${{ env.VERSIONINFO }}
         path: target/x86_64-unknown-uefi/release/inputmodules.efi
@@ -56,7 +56,7 @@ jobs:
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: true
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Setup Rust toolchain
       run: rustup show
