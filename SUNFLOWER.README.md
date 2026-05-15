@@ -166,7 +166,7 @@ Presence/Status detection
 
 ## Release Notes
 
-### Version 0.4.4
+### Version 0.4.5
 
 - File size: 396K
 - Changes
