@@ -2,9 +2,14 @@
 
 Unsigned binary SHA256: TBD
 Authenticode SHA256:    TBD
-Unsigned Size:          TBDKB
+Unsigned Size:          751KB
 
 * fw16: Render full-width module with connector in any location
+* fw16: Wait for diag finished to avoid "Fan not detected"
+* fw16: Draw KB with spacers instead of full-width artwork
+* repro: Avoid nondeterministic RSDS signature
+* built: Only include timestamp in debug build
+* repro: Use repro linker flag to avoid timestamp in PE
 
 ## 0.3.15
 

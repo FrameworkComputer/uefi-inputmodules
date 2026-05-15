@@ -78,7 +78,7 @@
           in
           rustPlatform.buildRustPackage {
             pname = "inputmodules";
-            version = "0.3.15";
+            version = "0.3.16";
 
             src = buildSrc;
 
