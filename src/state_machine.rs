@@ -855,6 +855,46 @@ impl State {
     }
 }
 
+pub fn print_gop_info(bs: &BootServices) -> Option<()> {
+    let gop_handles = if let Ok(gop_handles) =
+        bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
+    {
+        gop_handles
+    } else {
+        error!("GraphicsOutput protocol is missing");
+        return None;
+    };
+
+    let gop = if let Some(handle) = gop_handles.iter().next() {
+        unsafe {
+            bs.open_protocol::<GraphicsOutput>(
+                OpenProtocolParams {
+                    handle: *handle,
+                    agent: bs.image_handle(),
+                    controller: None,
+                },
+                OpenProtocolAttributes::GetProtocol,
+            )
+            .expect("Failed to open GraphicsOutput handle")
+        }
+    } else {
+        error!("No GOP handles found");
+        return None;
+    };
+
+    println!("Available resolutions:");
+    for mode in gop.modes() {
+        let (width, height) = mode.info().resolution();
+        println!("  {}x{}", width, height);
+    }
+
+    let mode = gop.current_mode_info();
+    let (width, height) = mode.resolution();
+    println!("Current Resolution: {}x{}", width, height);
+
+    Some(())
+}
+
 fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<'_, GraphicsOutput>, Buffer)> {
     let gop_handles = if let Ok(gop_handles) =
         bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
