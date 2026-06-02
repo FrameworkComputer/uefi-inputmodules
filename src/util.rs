@@ -26,7 +26,7 @@ pub fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutpu
         return None;
     };
 
-    let gop = if let Some(handle) = gop_handles.iter().next() {
+    let mut gop = if let Some(handle) = gop_handles.iter().next() {
         unsafe {
             bs.open_protocol::<GraphicsOutput>(
                 OpenProtocolParams {
@@ -42,6 +42,18 @@ pub fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutpu
         info!("No GOP handles found");
         return None;
     };
+
+    // Switch to the highest available resolution (largest pixel count).
+    if let Some(highest) = gop.modes().max_by_key(|mode| {
+        let (width, height) = mode.info().resolution();
+        width * height
+    }) {
+        let (width, height) = highest.info().resolution();
+        info!("Switching to highest resolution: {}x{}", width, height);
+        if let Err(err) = gop.set_mode(&highest) {
+            error!("Failed to set GOP mode: {:?}", err);
+        }
+    }
 
     let mode = gop.current_mode_info();
     let (width, height) = mode.resolution();
