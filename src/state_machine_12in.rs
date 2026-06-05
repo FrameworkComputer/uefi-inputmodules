@@ -284,8 +284,8 @@ pub fn start(
     // }
 
     // Get GOP protocol to draw on the screen
-    let (mut gop, mut buffer) = if let Some((gop, buf)) = util::get_gop_buffer(bs) {
-        (gop, buf)
+    let (mut gop, mut buffer, original_mode) = if let Some(res) = util::get_gop_buffer(bs) {
+        res
     } else {
         // Something went wrong with GOP initialization, keep booting
         // TODO: Maybe in DVT2 we should still assert here?
@@ -414,5 +414,13 @@ pub fn start(
         state.prev_pressed = button_pressed;
     }
     let _ = clear_screen(&mut buffer, &mut gop);
+
+    // Restore the resolution we changed when entering graphical mode
+    if let Some(original_mode) = original_mode {
+        let (width, height) = original_mode.info().resolution();
+        info!("Restoring original resolution: {}x{}", width, height);
+        let _ = gop.set_mode(&original_mode);
+    }
+
     Ok(None)
 }

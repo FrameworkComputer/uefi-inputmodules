@@ -3,7 +3,7 @@ use embedded_graphics::prelude::Point;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::prelude::{BootServices, RuntimeServices};
-use uefi::proto::console::gop::GraphicsOutput;
+use uefi::proto::console::gop::{GraphicsOutput, Mode};
 use uefi::proto::console::text::Input;
 use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
 use uefi::table::runtime::{VariableAttributes, VariableVendor};
@@ -16,7 +16,9 @@ use crate::buffer::Buffer;
 const EFI_OS_INDICATIONS_BOOT_TO_FW_UI: u64 = 0x0000000000000001;
 const EFI_GLOBAL_VARIABLE_GUID: uefi::Guid = guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
 
-pub fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutput>, Buffer)> {
+pub fn get_gop_buffer(
+    bs: &BootServices,
+) -> Option<(ScopedProtocol<GraphicsOutput>, Buffer, Option<Mode>)> {
     let gop_handles = if let Ok(gop_handles) =
         bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
     {
@@ -43,6 +45,10 @@ pub fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutpu
         return None;
     };
 
+    // Remember the original mode so the caller can restore it on exit.
+    let original_info = gop.current_mode_info();
+    let original_mode = gop.modes().find(|mode| *mode.info() == original_info);
+
     // Switch to the highest available resolution (largest pixel count).
     if let Some(highest) = gop.modes().max_by_key(|mode| {
         let (width, height) = mode.info().resolution();
@@ -62,7 +68,7 @@ pub fn get_gop_buffer(bs: &BootServices) -> Option<(ScopedProtocol<GraphicsOutpu
 
     // Create a buffer to draw into.
     let (width, height) = gop.current_mode_info().resolution();
-    Some((gop, Buffer::new(width, height)))
+    Some((gop, Buffer::new(width, height), original_mode))
 }
 
 pub fn get_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
