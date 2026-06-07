@@ -200,3 +200,25 @@ Controls:
 - B: Device diagnostics complete toggle
 
 Finish everything: L, V, E, H, 7, P, B
+
+## Security Design
+
+This sections explains the design of this project.
+It should serve as guidance for future changes. Any changes that change the
+security related design, should be carefully evaluated.
+
+To limit how bugs in this application affect boot-time and overall system
+security, this app/driver is constrained to a very limited purpose and does not
+have many touchpoints with anything else.
+
+Security boundaries:
+
+- does **not** read/write to/from disk
+- does **not** interact with the network
+- does **not** leave anything in memory after it exits
+- **may** access (read/write) UEFI variables (to communicate issues to the OS)
+- does **not** execute any UEFI drivers/executables
+- does **not** interact with USB or other external devices
+
+It has **one** purpose: detect issues with the system and show a graphical
+interface to the user to let them know what is wrong and what to do about it.
