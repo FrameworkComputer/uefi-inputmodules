@@ -166,6 +166,12 @@ Presence/Status detection
 
 ## Release Notes
 
+### Version 0.4.6
+
+- File size: 400K
+- Changes
+    - Use the highest available resolution for external monitor
+
 ### Version 0.4.5
 
 - File size: 396K
