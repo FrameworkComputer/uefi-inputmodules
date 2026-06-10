@@ -48,9 +48,22 @@ pub fn get_gop_buffer(
     // Remember the original mode so the caller can restore it on exit.
     let original_info = gop.current_mode_info();
     let original_mode = gop.modes().find(|mode| *mode.info() == original_info);
+    const NATIVE_RESOLUTION: (usize, usize) = (1920, 1200);
 
-    // Switch to the highest available resolution (largest pixel count).
-    if let Some(highest) = gop.modes().max_by_key(|mode| {
+    if original_info.resolution() == NATIVE_RESOLUTION {
+        // Already at the native resolution, nothing to do.
+    } else if let Some(native) = gop
+        .modes()
+        .find(|mode| mode.info().resolution() == NATIVE_RESOLUTION)
+    {
+        // The native resolution is available, prefer it over anything else.
+        let (width, height) = native.info().resolution();
+        info!("Switching to native resolution: {}x{}", width, height);
+        if let Err(err) = gop.set_mode(&native) {
+            error!("Failed to set GOP mode: {:?}", err);
+        }
+    } else if let Some(highest) = gop.modes().max_by_key(|mode| {
+        // Fall back to the highest available resolution (largest pixel count).
         let (width, height) = mode.info().resolution();
         width * height
     }) {
