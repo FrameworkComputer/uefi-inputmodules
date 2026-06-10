@@ -58,6 +58,7 @@ pub struct DebugInfo {
     pub deck: InputDeckStatus12In,
     pub power_info: Option<ReducedPowerInfo>,
     pub accel_reading: (AccelData, AccelData, LidAngle),
+    pub resolution: (usize, usize),
 }
 
 pub struct State {
@@ -392,6 +393,7 @@ pub fn start(
                     deck: input_deck.clone(),
                     power_info: power_info.clone(),
                     accel_reading: accel_reading.clone(),
+                    resolution: gop.current_mode_info().resolution(),
                 }),
                 state.verbose,
             );
