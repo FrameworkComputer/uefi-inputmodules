@@ -172,6 +172,7 @@ Presence/Status detection
 - Changes
     - Skip resolution update if already native
     - Add current resolution to ? debug info
+    - Add commandline flag `inputmodules.efi gop` to print GOP modes for debugging
 
 ### Version 0.4.6
 

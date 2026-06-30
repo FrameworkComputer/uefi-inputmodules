@@ -56,11 +56,15 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     if let Ok(ShellAction::Info) = arg {
         println!("Provide Parameter: 'gui' to launch UI and show issues");
         println!("Provide Parameter: 'force' to launch UI even if everything is ok");
+        println!("Provide Parameter: 'gop' to print GOP debugging info");
         println!();
         #[cfg(not(feature = "12in"))]
         print_module_status();
         #[cfg(feature = "12in")]
         print_12in_status();
+    } else if let Ok(ShellAction::GopInfo) = arg {
+        println!("GOP Info");
+        util::print_gop_info(boot_services);
     } else {
         info!("No shell arg, launching GUI");
 
@@ -103,6 +107,7 @@ enum ShellAction {
     Gui,
     Force,
     Info,
+    GopInfo,
 }
 
 fn get_shell_action(boot_services: &BootServices) -> uefi::Result<ShellAction> {
@@ -134,6 +139,8 @@ fn get_shell_action(boot_services: &BootServices) -> uefi::Result<ShellAction> {
             ShellAction::Gui
         } else if args.len() == 2 && args[1] == "force" {
             ShellAction::Force
+        } else if args.len() == 2 && args[1] == "gop" {
+            ShellAction::GopInfo
         } else if args.len() == 1 {
             ShellAction::Gui
         } else {
