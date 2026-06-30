@@ -166,9 +166,18 @@ Presence/Status detection
 
 ## Release Notes
 
+### Version 0.4.7
+
+- File size: ???K
+- Changes
+    - Skip resolution update if already native
+    - Add current resolution to ? debug info
+
 ### Version 0.4.6
 
 - File size: 400K
+- Unsigned binary SHA256: 6de7d05c796e8897778d5721c5f5bafeb582aa5104512ff207f84c725e232d17
+- Authenticode SHA256: f079af4198516169b98bb750d66d3fb01dadb6548e934f8dc569fa199c92b88e
 - Changes
     - Use the highest available resolution for external monitor
 
