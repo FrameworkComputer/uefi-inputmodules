@@ -35,7 +35,7 @@ pub const BACKGROUND_COLOR: Rgb888 = Rgb888::new(0xFF, 0xFF, 0xFF); //0xF3, 0xF2
 pub const BLACK_BAR: Rgb888 = Rgb888::new(0x33, 0x33, 0x33);
 
 pub const WARN_X: i32 = 50 + WIDTH_I32 / 2;
-pub const WARN_Y: i32 = HEIGHT_I32 - 250;
+pub const WARN_Y: i32 = HEIGHT_I32 - 275;
 
 #[derive(Default)]
 pub struct StateBitmaps {
