@@ -6,15 +6,8 @@ jobs:
   build:
     name: Build UEFI executable
     runs-on: ubuntu-24.04
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: true
     steps:
     - uses: actions/checkout@v6
-
-    - uses: webfactory/ssh-agent@v0.7.0
-      with:
-        ssh-private-key: |
-            ${{ secrets.PRIVKEY_FRAMEWORK_SYSTEM_UEFI_INPUTMODULES }}
 
     - name: Setup Rust toolchain
       run: rustup show
@@ -53,18 +46,11 @@ jobs:
   lints:
     name: Lints
     runs-on: ubuntu-24.04
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: true
     steps:
     - uses: actions/checkout@v6
 
     - name: Setup Rust toolchain
       run: rustup show
-
-    - uses: webfactory/ssh-agent@v0.7.0
-      with:
-        ssh-private-key: |
-            ${{ secrets.PRIVKEY_FRAMEWORK_SYSTEM_UEFI_INPUTMODULES }}
 
     - name: Run cargo fmt
       run: cargo fmt --all -- --check
