@@ -324,7 +324,7 @@ pub fn start(
 
         // Detect short press of power button
         // Short press (or ESC) will exit and boot (skip all further checks)
-        let short_press = (!button_pressed && state.prev_pressed && long_press == 1)
+        let short_press = (!button_pressed && state.prev_pressed)
             || state.keypress == Some(Key::Special(ScanCode::ESCAPE));
         if let (true, _) = (short_press, state.frame) {
             // Just exit and continue

@@ -166,9 +166,19 @@ Presence/Status detection
 
 ## Release Notes
 
+### Version 0.4.8
+
+- Unsigned binary SHA256: TBD
+- Authenticode SHA256:    TBD
+- Unsigned Size:          TBDKB
+- Changes
+    - Move error message box up a bit to avoid it being cut off
+
 ### Version 0.4.7
 
-- File size: ???K
+- Unsigned binary SHA256: 7ca4fe16046442d9a8fe9210fc4c824e804557d85fe1fb7afe0f408fb7bd3f2b
+- Authenticode SHA256:    9b532c0dbcd5c9a766f7d386d8b2180d36d173e3a1d506c6a00e95dd1ae75558
+- Unsigned Size:          401KB
 - Changes
     - Skip resolution update if already native
     - Add current resolution to ? debug info
