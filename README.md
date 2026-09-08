@@ -236,6 +236,9 @@ This project includes an automated visual regression testing system that runs th
 5. **Comparison**: Exact pixel-by-pixel comparison for strict validation
 6. **Stable frames**: Before every screenshot the runner polls the framebuffer until two
    consecutive frames are identical, so scenarios don't need fixed waits after keypresses
+7. **Duplicate detection**: At the end of a run, screenshots that are pixel-identical to each
+   other are listed as a warning. Usually that means a keypress had no visible effect or the
+   state you wanted to see is masked by a higher-priority message.
 
 The app under test is built with the `visual-test` cargo feature (implies `qemu`, and freezes
 dynamic elements like the boot countdown) into its own target directory
@@ -282,6 +285,9 @@ make test-update FILTER=expansion
 ```
 
 After updating, review the changes in `tests/visual/baselines/` and commit them.
+Check the "pixel-identical screenshots" warning at the end of the run: a new
+screenshot that equals an existing one usually means the scenario is not
+showing the state its name claims.
 
 ### Test Scenarios
 
@@ -340,7 +346,8 @@ Keys are mapped to QEMU key codes. Common keys:
    make test-update FILTER=my_new_test
    ```
 
-4. Verify the screenshot looks correct in `tests/visual/baselines/`
+4. Verify the screenshot looks correct in `tests/visual/baselines/` and that it
+   is not listed as identical to an existing baseline
 
 5. Run the test to confirm it passes:
    ```bash

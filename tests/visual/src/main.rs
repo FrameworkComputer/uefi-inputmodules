@@ -9,7 +9,9 @@ use colored::*;
 use image::{ImageReader, Rgb, RgbImage};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::fs;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -644,6 +646,38 @@ const STABLE_INTERVAL: Duration = Duration::from_millis(150);
 /// Give up waiting for a stable frame after this long
 const STABLE_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Tracks screenshot content across the whole run to detect scenarios that capture the same
+/// screen twice (usually a keypress that had no visible effect, or a state masked by a
+/// higher-priority message).
+#[derive(Default)]
+struct DuplicateTracker {
+    /// content hash -> screenshot names (in capture order)
+    by_hash: HashMap<u64, Vec<String>>,
+}
+
+impl DuplicateTracker {
+    fn record(&mut self, name: &str, png_bytes: &[u8]) {
+        let mut hasher = DefaultHasher::new();
+        png_bytes.hash(&mut hasher);
+        self.by_hash
+            .entry(hasher.finish())
+            .or_default()
+            .push(name.to_string());
+    }
+
+    /// Groups of screenshot names that are pixel-identical
+    fn duplicates(&self) -> Vec<Vec<String>> {
+        let mut groups: Vec<Vec<String>> = self
+            .by_hash
+            .values()
+            .filter(|names| names.len() > 1)
+            .cloned()
+            .collect();
+        groups.sort();
+        groups
+    }
+}
+
 /// Run a single test scenario
 fn run_scenario(
     scenario: &Scenario,
@@ -651,6 +685,7 @@ fn run_scenario(
     baselines_dir: &Path,
     outputs_dir: &Path,
     update_baselines: bool,
+    duplicates: &mut DuplicateTracker,
 ) -> Result<ScenarioResult> {
     let mut results = Vec::new();
 
@@ -694,6 +729,8 @@ fn run_scenario(
 
                 // Clean up PPM
                 let _ = fs::remove_file(&output_path);
+
+                duplicates.record(name, &fs::read(&png_path)?);
 
                 if update_baselines {
                     // Copy to baselines directory
@@ -982,6 +1019,7 @@ fn main() -> Result<()> {
             let mut total_passed = 0;
             let mut total_failed = 0;
             let mut failed_scenarios = Vec::new();
+            let mut duplicates = DuplicateTracker::default();
 
             // Track current build mode to restart QEMU only when needed
             let mut current_build_mode: Option<BuildMode> = None;
@@ -1050,7 +1088,14 @@ fn main() -> Result<()> {
                 println!("{} {}", "Running:".bold(), scenario.name.cyan());
 
                 let scenario_failed;
-                match run_scenario(scenario, qmp_client, &baselines_dir, &outputs_dir, update) {
+                match run_scenario(
+                    scenario,
+                    qmp_client,
+                    &baselines_dir,
+                    &outputs_dir,
+                    update,
+                    &mut duplicates,
+                ) {
                     Ok(result) => {
                         for step_result in &result.step_results {
                             print_step_result(step_result);
@@ -1104,6 +1149,18 @@ fn main() -> Result<()> {
                     total_failed.to_string().green()
                 }
             );
+
+            let duplicate_groups = duplicates.duplicates();
+            if !duplicate_groups.is_empty() {
+                println!(
+                    "\n{}",
+                    "Warning: pixel-identical screenshots (check that each step changes the UI):"
+                        .yellow()
+                );
+                for group in &duplicate_groups {
+                    println!("  - {}", group.join(" == "));
+                }
+            }
 
             if !failed_scenarios.is_empty() {
                 println!("\n{}", "Failed scenarios:".red());
