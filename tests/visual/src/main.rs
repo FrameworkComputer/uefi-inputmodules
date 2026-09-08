@@ -786,6 +786,9 @@ fn print_step_result(result: &StepResult) {
                 expected.0, expected.1, actual.0, actual.1
             );
             println!("      Actual: {:?}", actual_path);
+            println!(
+                "      Hint: the OVMF vars may lack the resolution setting, run 'rm ovmf/OVMF_VARS.fd && make ovmf/OVMF_VARS.fd'"
+            );
         }
         StepResult::PixelMismatch {
             name,

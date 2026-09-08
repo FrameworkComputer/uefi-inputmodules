@@ -40,7 +40,8 @@ ovmf/OVMF_CODE.fd:
 		cp /usr/share/OVMF/OVMF_CODE.fd ovmf/ || \
 		cp /usr/share/OVMF/OVMF_CODE_4M.fd ovmf/OVMF_CODE.fd
 	chmod 755 ovmf/*
-ovmf/OVMF_VARS.fd:
+# Depends on ovmf_vars.json so the resolution is re-applied when the json changes
+ovmf/OVMF_VARS.fd: ovmf_vars.json
 	mkdir -p ovmf
 	cp `nix-build '<nixpkgs>' -A OVMF.fd`/FV/OVMF_VARS.fd ovmf/ || \
 		cp /usr/share/OVMF/OVMF_VARS.fd ovmf/ || \

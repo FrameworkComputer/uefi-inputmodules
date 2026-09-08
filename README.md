@@ -367,7 +367,9 @@ Visual tests run automatically on GitHub Actions. On failure:
 
 **Screenshots have wrong resolution**
 - Default resolution is 2560x1600 (Framework 16 native)
-- OVMF may need configuration for higher resolutions (see "Running in native resolution" above)
+- The resolution is stored in `ovmf/OVMF_VARS.fd`, generated from `ovmf_vars.json`.
+  An old copy from before that setting existed produces a size mismatch on every
+  screenshot. Regenerate it: `rm ovmf/OVMF_VARS.fd && make ovmf/OVMF_VARS.fd`
 
 **Test runner can't find binary**
 - Build the app first: `make qemu-release` (or `make qemu` for debug)
