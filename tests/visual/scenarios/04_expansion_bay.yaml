@@ -16,8 +16,6 @@ steps:
   # No expansion bay module (key Q)
   - action: send_keys
     keys: ["q"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "no_expansion_bay"
     compare: true
@@ -25,8 +23,6 @@ steps:
   # Bad connection / UMA fan (key W)
   - action: send_keys
     keys: ["w"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "expansion_bay_bad_connection"
     compare: true
@@ -34,8 +30,6 @@ steps:
   # UMA interposer - OK state (key E)
   - action: send_keys
     keys: ["e"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "expansion_bay_uma"
     compare: true
@@ -43,8 +37,6 @@ steps:
   # Dual interposer - OK state (key R)
   - action: send_keys
     keys: ["r"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "expansion_bay_dual"
     compare: true

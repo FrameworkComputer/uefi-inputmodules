@@ -8,8 +8,6 @@ steps:
   # AC adapter, no battery (key A)
   - action: send_keys
     keys: ["a"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "ac_no_battery"
     compare: true
@@ -17,8 +15,6 @@ steps:
   # Battery at 5%, discharging (key S)
   - action: send_keys
     keys: ["s"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "battery_5_discharging"
     compare: true
@@ -26,8 +22,6 @@ steps:
   # Battery at 5%, charging (key D)
   - action: send_keys
     keys: ["d"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "battery_5_charging"
     compare: true
@@ -35,8 +29,6 @@ steps:
   # Battery at 61%, discharging (key F)
   - action: send_keys
     keys: ["f"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "battery_61_discharging"
     compare: true
@@ -44,8 +36,6 @@ steps:
   # Battery at 61%, charging (key G)
   - action: send_keys
     keys: ["g"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "battery_61_charging"
     compare: true

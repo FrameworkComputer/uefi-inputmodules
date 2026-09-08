@@ -20,8 +20,6 @@ steps:
   # Full-width module + touchpad (key 7)
   - action: send_keys
     keys: ["7"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "full_width_module"
     compare: true

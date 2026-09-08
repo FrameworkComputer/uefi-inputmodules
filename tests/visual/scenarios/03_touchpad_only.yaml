@@ -20,8 +20,6 @@ steps:
   # Touchpad only, no input modules (key 1)
   - action: send_keys
     keys: ["1"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "touchpad_only"
     compare: true

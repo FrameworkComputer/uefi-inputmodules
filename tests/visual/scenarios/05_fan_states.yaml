@@ -16,26 +16,18 @@ steps:
   # ... also finish interposer ...
   - action: send_keys
     keys: ["e"]
-  - action: wait
-    ms: 300
 
   # ... and hubboard ...
   - action: send_keys
     keys: ["h"]
-  - action: wait
-    ms: 300
 
   # ... and all inputmodules so that the error message is clear
   - action: send_keys
     keys: ["6"]
-  - action: wait
-    ms: 300
 
   # Both fans missing (key Z)
   - action: send_keys
     keys: ["z"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "both_fans_missing"
     compare: true
@@ -43,8 +35,6 @@ steps:
   # Right fan missing only (key X)
   - action: send_keys
     keys: ["x"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "right_fan_missing"
     compare: true
@@ -52,8 +42,6 @@ steps:
   # Left fan missing only (key C)
   - action: send_keys
     keys: ["c"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "left_fan_missing"
     compare: true
@@ -61,8 +49,6 @@ steps:
   # Both fans OK (key V)
   - action: send_keys
     keys: ["v"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "both_fans_ok"
     compare: true

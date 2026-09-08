@@ -15,32 +15,20 @@ steps:
 
   - action: send_keys
     keys: ["l"]
-  - action: wait
-    ms: 300
 
   - action: send_keys
     keys: ["v"]
-  - action: wait
-    ms: 300
 
   - action: send_keys
     keys: ["e"]
-  - action: wait
-    ms: 300
 
   - action: send_keys
     keys: ["h"]
-  - action: wait
-    ms: 300
 
   - action: send_keys
     keys: ["6"]
-  - action: wait
-    ms: 300
 
   # Capture the finished state
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "finished_all_ok"
     compare: true

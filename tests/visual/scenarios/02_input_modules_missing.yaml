@@ -20,8 +20,6 @@ steps:
   # No modules, no touchpad (key 2)
   - action: send_keys
     keys: ["2"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "no_modules_no_touchpad"
     compare: true
@@ -29,8 +27,6 @@ steps:
   # 1x C-module, no touchpad (key 3)
   - action: send_keys
     keys: ["3"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "one_c_module"
     compare: true
@@ -38,8 +34,6 @@ steps:
   # 2x C-modules, no touchpad (key 4)
   - action: send_keys
     keys: ["4"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "two_c_modules"
     compare: true
@@ -47,8 +41,6 @@ steps:
   # 3x modules (C, C, Keyboard A), no touchpad (key 5)
   - action: send_keys
     keys: ["5"]
-  - action: wait
-    ms: 500
   - action: screenshot
     name: "three_modules_no_touchpad"
     compare: true
