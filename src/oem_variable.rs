@@ -29,6 +29,14 @@ impl UefiVariable {
     pub fn standalone_mode_enabled(&self) -> bool {
         unsafe { (*self.oem_variable_area_ptr).standalone_mode == 1 }
     }
+    /// Raw value, so we can save exactly what the BIOS gave us
+    pub fn standalone_mode_raw(&self) -> u8 {
+        unsafe { (*self.oem_variable_area_ptr).standalone_mode }
+    }
+    /// Raw value, so we can save exactly what the BIOS gave us, even if invalid
+    pub fn inputmodule_setting_raw(&self) -> u8 {
+        unsafe { (*self.oem_variable_area_ptr).inputmodule_request }
+    }
     pub fn inputmodule_setting(&self) -> Option<InputmoduleSetting> {
         let setting = unsafe { (*self.oem_variable_area_ptr).inputmodule_request };
         match setting {

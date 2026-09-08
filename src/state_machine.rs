@@ -42,6 +42,7 @@ use crate::buffer::Buffer;
 use crate::built_info;
 use crate::drawing::*;
 use crate::ec_comm;
+use crate::run_record::{self, RunRecord};
 use crate::sleep::sleep_or;
 use crate::uefi_usb::{self, UsbDevice};
 
@@ -196,6 +197,67 @@ enum StateFrame {
     /// EC diagnostics still in progress (device_complete == 0)
     CheckingDiagnostics,
     Finished,
+}
+
+/// Which issues this frame is telling the user about, see run_record::issues
+fn frame_issues(frame: &StateFrame) -> u32 {
+    match frame {
+        StateFrame::NoExpansionBay(bay_issue) => {
+            run_record::issues::NO_EXPANSION_BAY
+                | match bay_issue {
+                    BayIssue::LeftFan => run_record::issues::BAY_LEFT_FAN,
+                    BayIssue::RightFan => run_record::issues::BAY_RIGHT_FAN,
+                    BayIssue::BothFans => run_record::issues::BAY_BOTH_FANS,
+                    BayIssue::InterposerOpen => run_record::issues::BAY_INTERPOSER_OPEN,
+                    BayIssue::ModuleMissing => run_record::issues::BAY_MODULE_MISSING,
+                    BayIssue::BadConnection => run_record::issues::BAY_BAD_CONNECTION,
+                }
+        }
+        StateFrame::InterposerClosed => run_record::issues::INTERPOSER_CLOSED,
+        StateFrame::NoHubboard => run_record::issues::NO_HUBBOARD,
+        StateFrame::TouchpadButNoInputmodules => run_record::issues::TOUCHPAD_BUT_NO_INPUTMODULES,
+        StateFrame::InputModulesMissing => run_record::issues::INPUT_MODULES_MISSING,
+        StateFrame::NoTouchpad => run_record::issues::NO_TOUCHPAD,
+        StateFrame::OutdatedFirmware(outdated) => {
+            let mut issues = run_record::issues::OUTDATED_FIRMWARE;
+            if !outdated.keyboard.is_empty() {
+                issues |= run_record::issues::OUTDATED_KEYBOARD;
+            }
+            if outdated.pd1_controller.is_some() {
+                issues |= run_record::issues::OUTDATED_PD1;
+            }
+            if outdated.pd2_controller.is_some() {
+                issues |= run_record::issues::OUTDATED_PD2;
+            }
+            if outdated.pd3_controller.is_some() {
+                issues |= run_record::issues::OUTDATED_PD3;
+            }
+            issues
+        }
+        StateFrame::CheckingDiagnostics => run_record::issues::CHECKING_DIAGNOSTICS,
+        StateFrame::Finished => 0,
+    }
+}
+
+/// See run_record::frame
+fn frame_code(frame: &StateFrame) -> u8 {
+    match frame {
+        StateFrame::NoExpansionBay(_) => run_record::frame::NO_EXPANSION_BAY,
+        StateFrame::InterposerClosed => run_record::frame::INTERPOSER_CLOSED,
+        StateFrame::NoHubboard => run_record::frame::NO_HUBBOARD,
+        StateFrame::TouchpadButNoInputmodules => run_record::frame::TOUCHPAD_BUT_NO_INPUTMODULES,
+        StateFrame::InputModulesMissing => run_record::frame::INPUT_MODULES_MISSING,
+        StateFrame::NoTouchpad => run_record::frame::NO_TOUCHPAD,
+        StateFrame::OutdatedFirmware(_) => run_record::frame::OUTDATED_FIRMWARE,
+        StateFrame::CheckingDiagnostics => run_record::frame::CHECKING_DIAGNOSTICS,
+        StateFrame::Finished => run_record::frame::FINISHED,
+    }
+}
+
+/// Remember every issue we showed and which frame we ended up on
+fn record_frame(record: &mut RunRecord, frame: &StateFrame) {
+    record.add_issues(frame_issues(frame));
+    record.final_frame = frame_code(frame);
 }
 
 impl State {
@@ -1036,6 +1098,7 @@ pub fn start(
     st: &SystemTable<Boot>,
     ec: &Option<CrosEc>,
     force_ui: bool,
+    record: &mut RunRecord,
 ) -> uefi::Result<Option<uefi::table::runtime::ResetType>> {
     let mut input_deck = ec_comm::get_input_deck(ec);
     let mut expansion_bay = ec_comm::get_expansion_bay(ec);
@@ -1068,6 +1131,7 @@ pub fn start(
             == StateFrame::Finished
     {
         info!("Started out as fully populated, booting immediately");
+        record.set(run_record::flags::SKIPPED_ALL_OK);
         return Ok(None);
     }
 
@@ -1078,8 +1142,11 @@ pub fn start(
         error!("inputmodules.efi - Couldn't draw to display");
         // Something went wrong with GOP initialization, keep booting
         // TODO: Maybe in DVT2 we should still assert here?
+        record.set(run_record::flags::NO_GOP);
         return Ok(None);
     };
+
+    record.set(run_record::flags::UI_SHOWN);
 
     // Get Input protocol to detect keypresses
     let mut input = get_input_protocol(bs).expect("Should always have input protocol");
@@ -1240,6 +1307,7 @@ pub fn start(
 
         if need_redraw {
             state.frame = state.next_state(&input_deck, &expansion_bay, &hw_diag, &usb_devices);
+            record_frame(record, &state.frame);
             state.draw_state(&mut buffer, &input_deck);
 
             if let StateFrame::OutdatedFirmware(msgs) = &state.frame {
