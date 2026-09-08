@@ -410,7 +410,8 @@ tests/visual/
 ├── scenarios/              # Test scenario definitions (YAML)
 │   ├── 01_initial_state.yaml
 │   ├── 02_input_modules_missing.yaml
-│   └── ...
+│   ├── ...
+│   └── 11_outdated_firmware.yaml
 ├── baselines/              # Expected screenshots (committed to git)
 │   ├── initial_no_modules.png
 │   └── ...
