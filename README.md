@@ -256,9 +256,12 @@ make test-debug
 # List available test scenarios
 make test-list
 
-# Run specific scenarios (filter by name)
+# Run specific scenarios (substring match on file name or scenario name)
+make test FILTER=fan
+make test FILTER=battery
+
+# Or invoke the runner directly (after `make visual-test test-build`)
 ./tests/visual/target/debug/visual-test-runner run --filter "fan"
-./tests/visual/target/debug/visual-test-runner run --filter "battery"
 ```
 
 ### Updating Baselines
@@ -273,7 +276,7 @@ make test-update
 make test-update-debug
 
 # Update specific scenarios only
-./tests/visual/target/debug/visual-test-runner run --update --filter "expansion"
+make test-update FILTER=expansion
 ```
 
 After updating, review the changes in `tests/visual/baselines/` and commit them.
@@ -332,14 +335,14 @@ Keys are mapped to QEMU key codes. Common keys:
 
 3. Generate the baseline:
    ```bash
-   ./tests/visual/target/debug/visual-test-runner run --update --filter "my_new_test"
+   make test-update FILTER=my_new_test
    ```
 
 4. Verify the screenshot looks correct in `tests/visual/baselines/`
 
 5. Run the test to confirm it passes:
    ```bash
-   ./tests/visual/target/debug/visual-test-runner run --filter "my_new_test"
+   make test FILTER=my_new_test
    ```
 
 ### Build Modes

@@ -80,20 +80,22 @@ test-build:
 	cargo build --manifest-path tests/visual/Cargo.toml
 
 # Run tests in release mode (default)
+# Optionally run a subset: make test FILTER=fan
+FILTER_ARG=$(if $(FILTER),--filter $(FILTER),)
 test: visual-test ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
-	./tests/visual/target/debug/visual-test-runner run
+	./tests/visual/target/debug/visual-test-runner run $(FILTER_ARG)
 
 # Run tests in debug mode
 test-debug: visual-test-debug ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
-	./tests/visual/target/debug/visual-test-runner run --debug
+	./tests/visual/target/debug/visual-test-runner run --debug $(FILTER_ARG)
 
 # Update baselines in release mode (default)
 test-update: visual-test ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
-	./tests/visual/target/debug/visual-test-runner run --update
+	./tests/visual/target/debug/visual-test-runner run --update $(FILTER_ARG)
 
 # Update baselines in debug mode
 test-update-debug: visual-test-debug ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
-	./tests/visual/target/debug/visual-test-runner run --update --debug
+	./tests/visual/target/debug/visual-test-runner run --update --debug $(FILTER_ARG)
 
 test-list: test-build
 	./tests/visual/target/debug/visual-test-runner list
