@@ -17,6 +17,10 @@ steps:
   - action: send_keys
     keys: ["e"]
 
+  # Mark EC diagnostics complete so we reach the finished screen
+  - action: send_keys
+    keys: ["b"]
+
   # Full-width module + touchpad (key 7)
   - action: send_keys
     keys: ["7"]

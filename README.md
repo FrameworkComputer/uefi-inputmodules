@@ -197,7 +197,7 @@ Controls:
 - H: Hubboard toggle
 - 1, 2, 3, 4, 5, 6, 7: Inputmodules (Only Touchpad, None, 1, 2, 3, 3+Touchpad, Full-Width+Touchpad)
 - P: Outdated firmware warning toggle (keyboard + PD)
-- B: Device diagnostics complete toggle
+- B: Device diagnostics complete toggle (until pressed, the finished screen shows "Checking fan status..." and fan errors are not reported)
 
 Finish everything: L, V, E, H, 6, P, B
 
@@ -316,6 +316,13 @@ steps:
     compare: true
 ```
 
+The UI only shows the highest-priority problem, so a scenario has to put every
+higher-priority item into an OK state first. The order is: expansion bay /
+interposer door / fans (`L`, `V`, `Q`/`W`/`E`/`R`), hubboard (`H`), input
+modules and touchpad (`1`-`7`), outdated firmware (`P`), then EC diagnostics
+complete (`B`). Without `B` the finished screen shows "Checking fan status..."
+and missing fans are not reported.
+
 #### Available Actions
 
 | Action | Parameters | Description |
@@ -390,6 +397,9 @@ Visual tests run automatically on GitHub Actions. On failure:
 **Test runner can't find binary**
 - Build the app first: `make visual-test` (or `make visual-test-debug` for debug).
   The runner only looks in `target/visual-test/`, not in the normal `target/` dir.
+
+**Screenshot shows "Checking fan status..." instead of the finished screen**
+- Press `b` in the scenario to mark EC diagnostics complete
 
 ### File Structure
 

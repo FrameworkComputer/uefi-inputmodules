@@ -21,6 +21,10 @@ steps:
   - action: send_keys
     keys: ["6"]
 
+  # ... and mark EC diagnostics complete so the OK state is the finished screen
+  - action: send_keys
+    keys: ["b"]
+
   # Six toggles hubboard on
   - action: screenshot
     name: "hubboard_present"

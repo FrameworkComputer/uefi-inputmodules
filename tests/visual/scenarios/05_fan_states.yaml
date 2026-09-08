@@ -25,6 +25,10 @@ steps:
   - action: send_keys
     keys: ["6"]
 
+  # ... and mark EC diagnostics complete, otherwise fan status is "Checking fan status..."
+  - action: send_keys
+    keys: ["b"]
+
   # Both fans missing (key Z)
   - action: send_keys
     keys: ["z"]

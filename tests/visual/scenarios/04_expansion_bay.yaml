@@ -13,6 +13,11 @@ steps:
   - action: send_keys
     keys: ["v"]
 
+  # Populate input deck + hubboard and mark EC diagnostics complete, otherwise
+  # the "OK" expansion bay states are masked by the hubboard / fan-check messages
+  - action: send_keys
+    keys: ["6", "b"]
+
   # No expansion bay module (key Q)
   - action: send_keys
     keys: ["q"]

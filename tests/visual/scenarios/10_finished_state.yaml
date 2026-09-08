@@ -11,6 +11,7 @@ steps:
   # E = Dual interposer expansion bay
   # H = Hubboard present (if toggled off)
   # 6 = Populated top-row + touchpad
+  # B = EC device diagnostics complete
 
 
   - action: send_keys
@@ -27,6 +28,9 @@ steps:
 
   - action: send_keys
     keys: ["6"]
+
+  - action: send_keys
+    keys: ["b"]
 
   # Capture the finished state
   - action: screenshot
