@@ -235,6 +235,10 @@ This project includes an automated visual regression testing system that runs th
 4. **Baselines**: Expected screenshots stored in `tests/visual/baselines/`
 5. **Comparison**: Exact pixel-by-pixel comparison for strict validation
 
+The app under test is built with the `visual-test` cargo feature (implies `qemu`, and freezes
+dynamic elements like the boot countdown) into its own target directory
+`target/visual-test/`, so the runner can never pick up a binary built with other features.
+
 ### Prerequisites
 
 - QEMU (`qemu-system-x86_64`)
@@ -372,7 +376,8 @@ Visual tests run automatically on GitHub Actions. On failure:
   screenshot. Regenerate it: `rm ovmf/OVMF_VARS.fd && make ovmf/OVMF_VARS.fd`
 
 **Test runner can't find binary**
-- Build the app first: `make qemu-release` (or `make qemu` for debug)
+- Build the app first: `make visual-test` (or `make visual-test-debug` for debug).
+  The runner only looks in `target/visual-test/`, not in the normal `target/` dir.
 
 ### File Structure
 

@@ -1,6 +1,9 @@
-.PHONY: run clean test test-debug test-update test-update-debug test-build test-list
+.PHONY: run clean test test-debug test-update test-update-debug test-build test-list visual-test visual-test-debug
 TARGET:=debug
 SOURCES=Cargo.toml $(wildcard src/*.rs) $(wildcard resources/*)
+# Separate target dir for the visual-test feature build, so the test runner
+# never picks up a binary that was built with different features.
+VISUAL_TEST_TARGET_DIR=target/visual-test
 
 debug: target/x86_64-unknown-uefi/debug/inputmodules.efi
 	@ls -lh $<
@@ -19,7 +22,10 @@ qemu-release: $(SOURCES)
 	cargo build --release --target x86_64-unknown-uefi --features qemu
 
 visual-test: $(SOURCES)
-	cargo build --release --target x86_64-unknown-uefi --features visual-test
+	cargo build --release --target x86_64-unknown-uefi --features visual-test --target-dir $(VISUAL_TEST_TARGET_DIR)
+
+visual-test-debug: $(SOURCES)
+	cargo build --target x86_64-unknown-uefi --features visual-test --target-dir $(VISUAL_TEST_TARGET_DIR)
 
 target/x86_64-unknown-uefi/debug/inputmodules.efi: $(SOURCES)
 	cargo build --target x86_64-unknown-uefi
@@ -78,7 +84,7 @@ test: visual-test ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
 	./tests/visual/target/debug/visual-test-runner run
 
 # Run tests in debug mode
-test-debug: qemu ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
+test-debug: visual-test-debug ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
 	./tests/visual/target/debug/visual-test-runner run --debug
 
 # Update baselines in release mode (default)
@@ -86,7 +92,7 @@ test-update: visual-test ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
 	./tests/visual/target/debug/visual-test-runner run --update
 
 # Update baselines in debug mode
-test-update-debug: qemu ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
+test-update-debug: visual-test-debug ovmf/OVMF_CODE.fd ovmf/OVMF_VARS.fd test-build
 	./tests/visual/target/debug/visual-test-runner run --update --debug
 
 test-list: test-build

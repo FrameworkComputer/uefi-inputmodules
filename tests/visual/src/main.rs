@@ -559,8 +559,10 @@ fn find_binary(
         bail!("Specified binary does not exist: {:?}", path);
     }
 
+    // The visual-test feature build lives in its own target dir (see Makefile) so we never pick
+    // up a binary built with different features.
     let binary_path = project_root.join(format!(
-        "target/x86_64-unknown-uefi/{}/inputmodules.efi",
+        "target/visual-test/x86_64-unknown-uefi/{}/inputmodules.efi",
         build_mode
     ));
 
@@ -569,7 +571,7 @@ fn find_binary(
     }
 
     bail!(
-        "No UEFI binary found for {} build. Please build with 'make qemu-release' or 'make qemu' first.\n\
+        "No UEFI binary found for {} build. Please build with 'make visual-test' (or 'make visual-test-debug') first.\n\
          Looked for: {:?}",
         build_mode,
         binary_path
