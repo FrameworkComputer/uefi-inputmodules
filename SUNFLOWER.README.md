@@ -168,11 +168,12 @@ Presence/Status detection
 
 ### Version 0.4.8
 
-- Unsigned binary SHA256: TBD
-- Authenticode SHA256:    TBD
-- Unsigned Size:          TBDKB
+- Unsigned binary SHA256: 797298f7ac9839fef9db97dd89c27002ef020e0d395c6d2673d80b46196941e8
+- Authenticode SHA256:    8c7365541a6c47e47aecf260d9637d07472eaccc5ac6533e937ca32b5a664910
+- Unsigned Size:          404KB
 - Changes
     - Move error message box up a bit to avoid it being cut off
+    - Detect powerbutton short-press immediately
 
 ### Version 0.4.7
 
