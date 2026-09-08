@@ -234,6 +234,8 @@ This project includes an automated visual regression testing system that runs th
 3. **Scenarios**: YAML files define test sequences (keystrokes, waits, screenshots)
 4. **Baselines**: Expected screenshots stored in `tests/visual/baselines/`
 5. **Comparison**: Exact pixel-by-pixel comparison for strict validation
+6. **Stable frames**: Before every screenshot the runner polls the framebuffer until two
+   consecutive frames are identical, so scenarios don't need fixed waits after keypresses
 
 The app under test is built with the `visual-test` cargo feature (implies `qemu`, and freezes
 dynamic elements like the boot countdown) into its own target directory
@@ -292,17 +294,17 @@ description: "Test expansion bay module detection states"
 # build_mode: debug
 
 steps:
-  # Wait for app to initialize
+  # Wait for OVMF to boot the app (the firmware splash is also a stable frame,
+  # so this one wait cannot be replaced by stable-frame detection)
   - action: wait
     ms: 2000
 
   # Simulate hardware state (see QEMU Special Keys above)
   - action: send_keys
     keys: ["q"]  # No expansion bay module
-  - action: wait
-    ms: 500
 
-  # Capture and compare screenshot
+  # Capture and compare screenshot. The runner waits for the frame to stop
+  # changing before capturing, so no wait step is needed after send_keys.
   - action: screenshot
     name: "no_expansion_bay"
     compare: true
@@ -312,9 +314,9 @@ steps:
 
 | Action | Parameters | Description |
 |--------|------------|-------------|
-| `wait` | `ms` | Wait for specified milliseconds |
+| `wait` | `ms` | Wait for specified milliseconds (only needed for the initial boot) |
 | `send_keys` | `keys` (list) | Send keyboard keys to QEMU |
-| `screenshot` | `name`, `compare` | Capture screenshot, optionally compare to baseline |
+| `screenshot` | `name`, `compare` | Wait for a stable frame, capture it, optionally compare to baseline |
 
 #### Key Mapping
 

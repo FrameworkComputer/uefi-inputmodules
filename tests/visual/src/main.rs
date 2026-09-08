@@ -15,7 +15,7 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Visual regression test runner for UEFI inputmodules
 #[derive(Parser)]
@@ -307,14 +307,47 @@ impl QmpClient {
             }),
         )?;
 
-        // Wait for screenshot to be written
-        thread::sleep(Duration::from_millis(200));
-
-        if !output_path.exists() {
-            bail!("Screenshot was not created at {:?}", output_path);
+        // QMP answers screendump once the file is written, but poll briefly to be safe
+        for _ in 0..50 {
+            if output_path.exists() {
+                return Ok(());
+            }
+            thread::sleep(Duration::from_millis(20));
         }
+        bail!("Screenshot was not created at {:?}", output_path);
+    }
 
-        Ok(())
+    /// Capture a screenshot once the frame has stopped changing.
+    ///
+    /// Takes screendumps `interval` apart until two consecutive frames are identical, so we don't
+    /// need fixed sleeps after every keypress. Gives up after `timeout` and returns the last frame
+    /// (with `stable == false`), which then shows up as a normal comparison failure.
+    fn screendump_stable(
+        &mut self,
+        output_path: &Path,
+        interval: Duration,
+        timeout: Duration,
+    ) -> Result<bool> {
+        let tmp_path = output_path.with_extension("ppm.next");
+        let start = Instant::now();
+
+        self.screendump(output_path)?;
+        let mut prev = fs::read(output_path)?;
+
+        loop {
+            thread::sleep(interval);
+            self.screendump(&tmp_path)?;
+            let next = fs::read(&tmp_path)?;
+            if next == prev {
+                let _ = fs::remove_file(&tmp_path);
+                return Ok(true);
+            }
+            fs::rename(&tmp_path, output_path)?;
+            prev = next;
+            if start.elapsed() > timeout {
+                return Ok(false);
+            }
+        }
     }
 
     /// Reset the VM to initial state
@@ -606,6 +639,11 @@ fn find_ovmf(project_root: &Path) -> Result<(PathBuf, PathBuf)> {
     );
 }
 
+/// How long the frame must stay unchanged before a screenshot is taken
+const STABLE_INTERVAL: Duration = Duration::from_millis(150);
+/// Give up waiting for a stable frame after this long
+const STABLE_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Run a single test scenario
 fn run_scenario(
     scenario: &Scenario,
@@ -634,8 +672,17 @@ fn run_scenario(
                 let png_path = outputs_dir.join(format!("{}.png", name));
                 let baseline_path = baselines_dir.join(format!("{}.png", name));
 
-                // Capture screenshot (QEMU outputs PPM format)
-                qmp.screendump(&output_path)?;
+                // Capture screenshot (QEMU outputs PPM format), waiting for the frame to settle
+                let stable =
+                    qmp.screendump_stable(&output_path, STABLE_INTERVAL, STABLE_TIMEOUT)?;
+                if !stable {
+                    println!(
+                        "    {} {} - frame still changing after {:?}, capturing anyway",
+                        "!".yellow(),
+                        name,
+                        STABLE_TIMEOUT
+                    );
+                }
 
                 // Convert PPM to PNG for easier handling
                 let img = ImageReader::open(&output_path)
