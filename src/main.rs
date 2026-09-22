@@ -100,7 +100,15 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         // Show the UI if we can't tell the BIOS settings or they indicate we need to show the UI
         let show_ui = show_ui(boot_services) != Some(false);
 
-        let reset = if force_ui || show_ui {
+        // If a reboot into the setup menu was requested (e.g. via F12 in this app), don't get
+        // in the way. The firmware only acts on OsIndications after this driver has run.
+        let setup_requested =
+            state_machine::boot_to_fw_ui_requested(system_table.runtime_services());
+        if setup_requested {
+            info!("Boot to firmware UI requested, skipping UI");
+        }
+
+        let reset = if force_ui || (show_ui && !setup_requested) {
             ec_comm::set_uefi_app_mode(&ec, true);
             let gui_res = state_machine::start(boot_services, &system_table, &ec, force_ui);
             ec_comm::set_uefi_app_mode(&ec, false);
