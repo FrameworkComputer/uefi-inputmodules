@@ -70,21 +70,21 @@ pub const TULIP_PD1_VER: AppVersion = AppVersion {
     application: Application::Notebook,
     major: 0,
     minor: 0,
-    circuit: 0x22,
+    circuit: 0x23,
 };
 
 pub const TULIP_PD2_VER: AppVersion = AppVersion {
     application: Application::Notebook,
     major: 0,
     minor: 0,
-    circuit: 0x22,
+    circuit: 0x23,
 };
 
 pub const PD3_VER: AppVersion = AppVersion {
     application: Application::Notebook,
     major: 0,
     minor: 0,
-    circuit: 0x22,
+    circuit: 0x23,
 };
 
 #[allow(dead_code)]
