@@ -1000,6 +1000,18 @@ fn has_bay_issue(
     None
 }
 
+/// Check whether the firmware was asked to boot into the setup menu (`OsIndications` has
+/// `EFI_OS_INDICATIONS_BOOT_TO_FW_UI` set), for example by F12 in this app or by the OS.
+pub fn boot_to_fw_ui_requested(rt: &RuntimeServices) -> bool {
+    let vendor = VariableVendor(EFI_GLOBAL_VARIABLE_GUID);
+    let mut buf = [0; 8];
+    match rt.get_variable(cstr16!("OsIndications"), &vendor, &mut buf) {
+        Ok(_) => u64::from_ne_bytes(buf) & EFI_OS_INDICATIONS_BOOT_TO_FW_UI != 0,
+        // Variable doesn't exist (or is unreadable) -> nothing requested
+        Err(_) => false,
+    }
+}
+
 /// Set OS indications so that a reboot will boot into setup menu
 fn set_os_indications_setupmenu(rt: &RuntimeServices) {
     let vendor = VariableVendor(EFI_GLOBAL_VARIABLE_GUID);
