@@ -1,3 +1,11 @@
+## 0.3.17
+
+Unsigned binary SHA256: TBD
+Authenticode SHA256:    TBD
+Unsigned Size:          TBDKB
+
+* fw16: Match on dGPU PD 0.0.23
+
 ## 0.3.16
 
 Unsigned binary SHA256: 252d59213bcb2bf77e105c7c5d18c41534769a28c1dc4c6e4923b166b552ec76
