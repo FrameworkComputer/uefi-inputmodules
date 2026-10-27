@@ -838,7 +838,7 @@ pub fn get_als_data(ec: &Option<CrosEc>) -> u32 {
         return 0;
     };
 
-    get_als_reading(ec).unwrap_or(0)
+    get_als_reading(ec, 0).unwrap_or(0)
 }
 
 pub fn get_accel_reading(ec: &Option<CrosEc>) -> (AccelData, AccelData, LidAngle) {

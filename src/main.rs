@@ -4,18 +4,19 @@
 
 extern crate alloc;
 
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 use framework_lib::chromium_ec::commands::*;
 use framework_lib::chromium_ec::input_deck::InputDeckState;
 use framework_lib::chromium_ec::{print_err, CrosEc};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
+use uefi::boot::{self, OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::prelude::*;
-use uefi::proto::shell_params::*;
-use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
+use uefi::proto::shell_params::ShellParameters;
 use uefi::Identify;
 #[allow(unused_imports)]
-use uefi_services::{print, println};
+use uefi::{print, println};
 
 mod buffer;
 #[cfg(not(feature = "12in"))]
@@ -40,10 +41,25 @@ mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
+/// Since Rust 1.99 (LLVM 23), loops that search for a NUL u16, like in
+/// `CStr16::from_ptr`, are turned into calls to wcslen.
+/// There's no libc on UEFI and compiler_builtins doesn't provide it.
+///
+/// # Safety
+/// `s` must point to a NUL-terminated UCS-2 string
+#[no_mangle]
+pub unsafe extern "C" fn wcslen(s: *const u16) -> usize {
+    let mut len = 0;
+    // Volatile read, so LLVM can't turn this loop into a call to itself
+    while core::ptr::read_volatile(s.add(len)) != 0 {
+        len += 1;
+    }
+    len
+}
+
 #[entry]
-fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    let event = uefi_services::init(&mut system_table).unwrap();
-    let boot_services = system_table.boot_services();
+fn main() -> Status {
+    uefi::helpers::init().unwrap();
 
     // Only error prints in release build
     #[cfg(not(debug_assertions))]
@@ -52,7 +68,7 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     //#[cfg(debug_assertions)]
     //log::set_max_level(log::LevelFilter::Trace);
 
-    let arg = get_shell_action(boot_services);
+    let arg = get_shell_action();
     if let Ok(ShellAction::Info) = arg {
         println!("Provide Parameter: 'gui' to launch UI and show issues");
         println!("Provide Parameter: 'force' to launch UI even if everything is ok");
@@ -64,7 +80,7 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         print_12in_status();
     } else if let Ok(ShellAction::GopInfo) = arg {
         println!("GOP Info");
-        util::print_gop_info(boot_services);
+        util::print_gop_info();
     } else {
         info!("No shell arg, launching GUI");
 
@@ -76,27 +92,20 @@ fn main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
         ec_comm::set_uefi_app_mode(&ec, true);
         let quick_boot = !matches!(arg, Ok(ShellAction::Force));
         #[cfg(not(feature = "12in"))]
-        let gui_res = state_machine::start(boot_services, &system_table, &ec, quick_boot);
+        let gui_res = state_machine::start(&ec, quick_boot);
         #[cfg(feature = "12in")]
-        let gui_res = state_machine_12in::start(boot_services, &system_table, &ec, quick_boot);
+        let gui_res = state_machine_12in::start(&ec, quick_boot);
         ec_comm::set_uefi_app_mode(&ec, false);
 
         let reset = gui_res.unwrap();
         if let Some(reset_type) = reset {
             #[cfg(debug_assertions)]
             info!("Shutting down");
-            boot_services.stall(1_000_000);
+            boot::stall(core::time::Duration::from_micros(1_000_000));
 
             // Shut down the system
-            // TODO: I should do this outside of this function
-            let rt = system_table.runtime_services();
-            rt.reset(reset_type, Status::SUCCESS, None);
+            uefi::runtime::reset(reset_type, Status::SUCCESS, None);
         }
-    }
-
-    if let Some(event) = event {
-        // Will crash when Linux boots if we don't call this
-        boot_services.close_event(event).unwrap();
     }
 
     Status::SUCCESS
@@ -110,17 +119,17 @@ enum ShellAction {
     GopInfo,
 }
 
-fn get_shell_action(boot_services: &BootServices) -> uefi::Result<ShellAction> {
+fn get_shell_action() -> uefi::Result<ShellAction> {
     // TODO: I think I should open this from the ImageHandle?
     let shell_params_h =
-        boot_services.locate_handle_buffer(SearchType::ByProtocol(&ShellParameters::GUID))?;
-    trace!("Found {} ShellParameters handles", (*shell_params_h).len());
-    for handle in &*shell_params_h {
+        boot::locate_handle_buffer(SearchType::ByProtocol(&ShellParameters::GUID))?;
+    trace!("Found {} ShellParameters handles", shell_params_h.len());
+    for handle in shell_params_h.iter() {
         let params_handle = unsafe {
-            boot_services.open_protocol::<ShellParameters>(
+            boot::open_protocol::<ShellParameters>(
                 OpenProtocolParams {
                     handle: *handle,
-                    agent: boot_services.image_handle(),
+                    agent: boot::image_handle(),
                     controller: None,
                 },
                 OpenProtocolAttributes::GetProtocol,
@@ -129,11 +138,11 @@ fn get_shell_action(boot_services: &BootServices) -> uefi::Result<ShellAction> {
 
         // Ehm why are there two and one has no args?
         // Maybe one is the shell itself?
-        if params_handle.argc == 0 {
+        if params_handle.args_len() == 0 {
             continue;
         }
 
-        let args = params_handle.get_args();
+        let args: Vec<String> = params_handle.args().map(|arg| arg.to_string()).collect();
         // First arg is the executable path
         return Ok(if args.len() == 2 && args[1] == "gui" {
             ShellAction::Gui

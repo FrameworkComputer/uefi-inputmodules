@@ -15,8 +15,8 @@ use framework_lib::chromium_ec::commands::*;
 use framework_lib::power::{AccelData, LidAngle, ReducedPowerInfo};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
+use uefi::boot::ScopedProtocol;
 use uefi::proto::console::gop::GraphicsOutput;
-use uefi::table::boot::ScopedProtocol;
 use zune_core::result::DecodingResult;
 use zune_png::PngDecoder;
 
