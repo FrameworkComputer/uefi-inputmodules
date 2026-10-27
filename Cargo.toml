@@ -2,7 +2,7 @@
 name = "inputmodules"
 version = "0.4.8"
 edition = "2021"
-rust-version = "1.61"
+rust-version = "1.89"
 build = "build.rs"
 
 [features]
@@ -19,16 +19,9 @@ cfg-if = "1.0.0"
 embedded-graphics = "0.7.1"
 getargs = { version = "0.5.0", default-features = false }
 log = "0.4"
-uefi = { version = "0.20", features = ["alloc"] }
-uefi-services = "0.17"
+uefi = { version = "0.41", features = ["alloc", "global_allocator", "logger", "panic_handler"] }
 zune-core = "0.2.14"
 micromath = "2.1.0"
-
-# Temporarily override because we need pending PRs for
-# for the Shell and ShellParameters protocols
-[patch.crates-io]
-uefi = { git = "https://github.com/FrameworkComputer/uefi-rs", branch = "merged" }
-uefi-services = { git = "https://github.com/FrameworkComputer/uefi-rs", branch = "merged" }
 
 [dependencies.zune-png]
 version = "0.2.1"
@@ -37,7 +30,7 @@ default-features = false
 [dependencies.framework_lib]
 # path = "/home/zoid/clone/framework-system/framework_lib"
 git = "https://github.com/FrameworkComputer/framework-system"
-rev = "v0.5.0"
+rev = "844d64061120676388cbd741f6ba78469cfcef3a"
 features = ["uefi"]
 default-features = false
 

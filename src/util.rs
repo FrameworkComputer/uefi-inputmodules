@@ -2,23 +2,22 @@ use embedded_graphics::prelude::Point;
 
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
-use uefi::prelude::{BootServices, RuntimeServices};
+use uefi::boot::{self, OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
 use uefi::proto::console::gop::{GraphicsOutput, Mode};
 use uefi::proto::console::text::Input;
-use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
-use uefi::table::runtime::{VariableAttributes, VariableVendor};
+use uefi::runtime::{VariableAttributes, VariableVendor};
 use uefi::{cstr16, guid, Identify};
 #[allow(unused_imports)]
-use uefi_services::{print, println, system_table};
+use uefi::{print, println};
 
 use crate::buffer::Buffer;
 
 const EFI_OS_INDICATIONS_BOOT_TO_FW_UI: u64 = 0x0000000000000001;
 const EFI_GLOBAL_VARIABLE_GUID: uefi::Guid = guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
 
-pub fn print_gop_info(bs: &BootServices) -> Option<()> {
+pub fn print_gop_info() -> Option<()> {
     let gop_handles = if let Ok(gop_handles) =
-        bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
+        boot::locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
     {
         gop_handles
     } else {
@@ -28,10 +27,10 @@ pub fn print_gop_info(bs: &BootServices) -> Option<()> {
 
     let gop = if let Some(handle) = gop_handles.iter().next() {
         unsafe {
-            bs.open_protocol::<GraphicsOutput>(
+            boot::open_protocol::<GraphicsOutput>(
                 OpenProtocolParams {
                     handle: *handle,
-                    agent: bs.image_handle(),
+                    agent: boot::image_handle(),
                     controller: None,
                 },
                 OpenProtocolAttributes::GetProtocol,
@@ -56,11 +55,9 @@ pub fn print_gop_info(bs: &BootServices) -> Option<()> {
     Some(())
 }
 
-pub fn get_gop_buffer(
-    bs: &BootServices,
-) -> Option<(ScopedProtocol<GraphicsOutput>, Buffer, Option<Mode>)> {
+pub fn get_gop_buffer() -> Option<(ScopedProtocol<GraphicsOutput>, Buffer, Option<Mode>)> {
     let gop_handles = if let Ok(gop_handles) =
-        bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
+        boot::locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
     {
         gop_handles
     } else {
@@ -70,10 +67,10 @@ pub fn get_gop_buffer(
 
     let mut gop = if let Some(handle) = gop_handles.iter().next() {
         unsafe {
-            bs.open_protocol::<GraphicsOutput>(
+            boot::open_protocol::<GraphicsOutput>(
                 OpenProtocolParams {
                     handle: *handle,
-                    agent: bs.image_handle(),
+                    agent: boot::image_handle(),
                     controller: None,
                 },
                 OpenProtocolAttributes::GetProtocol,
@@ -124,21 +121,22 @@ pub fn get_gop_buffer(
     Some((gop, Buffer::new(width, height), original_mode))
 }
 
-pub fn get_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
-    let input_handles =
-        if let Ok(input_handles) = bs.locate_handle_buffer(SearchType::ByProtocol(&Input::GUID)) {
-            input_handles
-        } else {
-            info!("Input protocol is missing");
-            return None;
-        };
+pub fn get_input_protocol() -> Option<ScopedProtocol<Input>> {
+    let input_handles = if let Ok(input_handles) =
+        boot::locate_handle_buffer(SearchType::ByProtocol(&Input::GUID))
+    {
+        input_handles
+    } else {
+        info!("Input protocol is missing");
+        return None;
+    };
 
     if let Some(handle) = input_handles.iter().next() {
         unsafe {
-            bs.open_protocol::<Input>(
+            boot::open_protocol::<Input>(
                 OpenProtocolParams {
                     handle: *handle,
-                    agent: bs.image_handle(),
+                    agent: boot::image_handle(),
                     controller: None,
                 },
                 OpenProtocolAttributes::GetProtocol,
@@ -152,34 +150,32 @@ pub fn get_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
 }
 
 // Avoid using because it might cause trouble with later boot process
-fn _get_exclusive_input_protocol(bs: &BootServices) -> Option<ScopedProtocol<Input>> {
-    let input_handle = bs.get_handle_for_protocol::<Input>().ok()?;
-    bs.open_protocol_exclusive::<Input>(input_handle).ok()
+fn _get_exclusive_input_protocol() -> Option<ScopedProtocol<Input>> {
+    let input_handle = boot::get_handle_for_protocol::<Input>().ok()?;
+    boot::open_protocol_exclusive::<Input>(input_handle).ok()
 }
 
 /// Set OS indications so that a reboot will boot into setup menu
-pub fn set_os_indications_setupmenu(rt: &RuntimeServices) {
+pub fn set_os_indications_setupmenu() {
     let vendor = VariableVendor(EFI_GLOBAL_VARIABLE_GUID);
     let mut buf = [0; 8];
-    rt.get_variable(cstr16!("OsIndicationsSupported"), &vendor, &mut buf)
+    uefi::runtime::get_variable(cstr16!("OsIndicationsSupported"), &vendor, &mut buf)
         .expect("failed to get variable");
     let os_indications: u64 = u64::from_ne_bytes(buf);
     debug!("OS Indications: {:?}", os_indications);
 
-    let os_indications = if rt
-        .get_variable(cstr16!("OsIndications"), &vendor, &mut buf)
-        .is_ok()
-    {
-        u64::from_ne_bytes(buf) | EFI_OS_INDICATIONS_BOOT_TO_FW_UI
-    } else {
-        EFI_OS_INDICATIONS_BOOT_TO_FW_UI
-    };
+    let os_indications =
+        if uefi::runtime::get_variable(cstr16!("OsIndications"), &vendor, &mut buf).is_ok() {
+            u64::from_ne_bytes(buf) | EFI_OS_INDICATIONS_BOOT_TO_FW_UI
+        } else {
+            EFI_OS_INDICATIONS_BOOT_TO_FW_UI
+        };
     debug!("OS Indications: {:?}", os_indications);
 
     let attrs = VariableAttributes::NON_VOLATILE
         | VariableAttributes::BOOTSERVICE_ACCESS
         | VariableAttributes::RUNTIME_ACCESS;
-    rt.set_variable(
+    uefi::runtime::set_variable(
         cstr16!("OsIndications"),
         &vendor,
         attrs,

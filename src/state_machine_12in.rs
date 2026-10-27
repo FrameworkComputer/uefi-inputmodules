@@ -16,12 +16,11 @@ use framework_lib::power::{self, get_accel_data, AccelData, LidAngle, ReducedPow
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use log::{log_enabled, Level};
-use uefi::prelude::BootServices;
+use uefi::boot;
 use uefi::proto::console::text::{Key, ScanCode};
-use uefi::table::{Boot, SystemTable};
 use uefi::Char16;
 #[allow(unused_imports)]
-use uefi_services::{print, println, system_table};
+use uefi::{print, println};
 
 use crate::buffer::Buffer;
 use crate::built_info;
@@ -253,11 +252,9 @@ impl State {
 }
 
 pub fn start(
-    bs: &BootServices,
-    st: &SystemTable<Boot>,
     ec: &Option<CrosEc>,
     quick_boot: bool,
-) -> uefi::Result<Option<uefi::table::runtime::ResetType>> {
+) -> uefi::Result<Option<uefi::runtime::ResetType>> {
     let mut input_deck = ec_comm::get_input_deck(ec);
     let mut hw_diag = ec_comm::get_hw_diag(ec);
     let mut accel_reading = ec_comm::get_accel_reading(ec);
@@ -285,7 +282,7 @@ pub fn start(
     // }
 
     // Get GOP protocol to draw on the screen
-    let (mut gop, mut buffer, original_mode) = if let Some(res) = util::get_gop_buffer(bs) {
+    let (mut gop, mut buffer, original_mode) = if let Some(res) = util::get_gop_buffer() {
         res
     } else {
         // Something went wrong with GOP initialization, keep booting
@@ -294,7 +291,7 @@ pub fn start(
     };
 
     // Get Input protocol to detect keypresses
-    let mut input = util::get_input_protocol(bs).expect("Should always have input protocol");
+    let mut input = util::get_input_protocol().expect("Should always have input protocol");
 
     let mut state = State::new();
     let mut long_press = 0;
@@ -332,15 +329,14 @@ pub fn start(
         }
 
         if state.keypress == Some(Key::Special(ScanCode::FUNCTION_12)) {
-            let rt = st.runtime_services();
-            util::set_os_indications_setupmenu(rt);
-            return Ok(Some(uefi::table::runtime::ResetType::Cold));
+            util::set_os_indications_setupmenu();
+            return Ok(Some(uefi::runtime::ResetType::COLD));
         }
 
         let need_redraw = state.need_redraw(&input_deck, &hw_diag, &power_info, &accel_reading);
         if need_redraw && log_enabled!(Level::Debug) {
             // Sleep after state.need_redraw prints debug information
-            bs.stall(1_000_000);
+            boot::stall(core::time::Duration::from_micros(1_000_000));
         }
 
         let q_key = Char16::try_from('?').unwrap();
@@ -359,12 +355,10 @@ pub fn start(
             // && !need_redraw {
             if long_press > 4 {
                 // Exit and signal that we need to poweroff
-                return Ok(Some(uefi::table::runtime::ResetType::Shutdown));
+                return Ok(Some(uefi::runtime::ResetType::SHUTDOWN));
             }
             // Wait a second
-            sleep_or(bs, 1_000, unsafe {
-                Some(input.wait_for_key_event().unsafe_clone())
-            });
+            sleep_or(1_000, input.wait_for_key_event().ok());
             long_press += 1;
             true
         } else {
@@ -403,9 +397,7 @@ pub fn start(
         // TODO: It needs to be very low to detect short power button presses,
         // but it doesn't have to be that low for the input modules. Maybe we can find a compromise
         // Put CPU to sleep until key press or 10ms timeout
-        sleep_or(bs, 10, unsafe {
-            Some(input.wait_for_key_event().unsafe_clone())
-        });
+        sleep_or(10, input.wait_for_key_event().ok());
         state.keypress = input.read_key().expect(FAILED_INPUT);
 
         // Save current values to access and compare them in next iteration

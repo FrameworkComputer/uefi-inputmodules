@@ -10,16 +10,15 @@ use framework_lib::chromium_ec::input_deck::InputDeckState;
 use framework_lib::chromium_ec::{CrosEc, EcRequestRaw};
 #[allow(unused_imports)]
 use log::{debug, error, info};
+use uefi::boot::{self, OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::console::text::{Input, Key, ScanCode};
-use uefi::table::boot::BootServices;
-use uefi::table::boot::{OpenProtocolAttributes, OpenProtocolParams, SearchType};
 use uefi::Identify;
 use uefi::Result;
 #[allow(unused_imports)]
 use uefi::{prelude::*, Char16};
 #[allow(unused_imports)]
-use uefi_services::{print, println};
+use uefi::{print, println};
 
 use embedded_graphics::{
     image::Image,
@@ -124,7 +123,7 @@ pub fn get_input_deck(
     }
 }
 
-pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<CrosEc>) -> Result {
+pub fn draw_background(ec: &Option<CrosEc>) -> Result {
     let emulated_deck = InputDeckStatus12In {
         chassis_closed: false,
         pwrbtn_present: false,
@@ -160,7 +159,7 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
     //};
 
     let gop_handles = if let Ok(gop_handles) =
-        bs.locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
+        boot::locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
     {
         gop_handles
     } else {
@@ -170,10 +169,10 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
 
     let mut gop = if let Some(handle) = gop_handles.iter().next() {
         unsafe {
-            bs.open_protocol::<GraphicsOutput>(
+            boot::open_protocol::<GraphicsOutput>(
                 OpenProtocolParams {
                     handle: *handle,
-                    agent: bs.image_handle(),
+                    agent: boot::image_handle(),
                     controller: None,
                 },
                 OpenProtocolAttributes::GetProtocol,
@@ -294,8 +293,8 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
     // Draw the buffer to the screen.
     buffer.blit(&mut gop)?;
 
-    let input_handle = bs.get_handle_for_protocol::<Input>().unwrap();
-    let mut input = bs.open_protocol_exclusive::<Input>(input_handle).unwrap();
+    let input_handle = boot::get_handle_for_protocol::<Input>().unwrap();
+    let mut input = boot::open_protocol_exclusive::<Input>(input_handle).unwrap();
 
     let zero_key = Char16::try_from('0').unwrap();
     let one_key = Char16::try_from('1').unwrap();
@@ -331,17 +330,12 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
                 }
                 //TODO: REmove this
                 println!("Shutting down;");
-                bs.stall(1_000_000);
+                boot::stall(core::time::Duration::from_micros(1_000_000));
                 // Shut down the system
-                let rt = st.runtime_services();
-                rt.reset(
-                    uefi::table::runtime::ResetType::Shutdown,
-                    Status::SUCCESS,
-                    None,
-                );
+                uefi::runtime::reset(uefi::runtime::ResetType::SHUTDOWN, Status::SUCCESS, None);
             }
             // Wait a few seconds and if it's still pressed next time around, it was a long press
-            bs.stall(1_000_000);
+            boot::stall(core::time::Duration::from_micros(1_000_000));
             long_press += 1;
         } else {
             long_press = 0;
@@ -402,7 +396,7 @@ pub fn draw_background(bs: &BootServices, st: &SystemTable<Boot>, ec: &Option<Cr
                 5,
             );
             buffer.blit(&mut gop)?;
-            bs.stall(2_000_000);
+            boot::stall(core::time::Duration::from_micros(2_000_000));
 
             // Clear screen to black. Otherwise the next app is responsible for clearing.
             // If the app was launched from the UEFI shell, the user would have to manually clear
