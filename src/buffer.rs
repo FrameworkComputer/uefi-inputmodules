@@ -32,7 +32,11 @@ impl DrawTarget for Buffer {
             // Check if the pixel coordinates are out of bounds (negative or greater than
             // (63,63)). `DrawTarget` implementation are required to discard any out of bounds
             // pixels without returning an error or causing a panic.
-            if coord.x < self.width as i32 && coord.y < self.height as i32 {
+            if coord.x >= 0
+                && coord.y >= 0
+                && coord.x < self.width as i32
+                && coord.y < self.height as i32
+            {
                 // Calculate the index in the framebuffer.
                 let pixel = self.pixel(coord.x as usize, coord.y as usize).unwrap();
                 pixel.red = color.r();
