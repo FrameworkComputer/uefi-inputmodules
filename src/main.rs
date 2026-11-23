@@ -6,8 +6,8 @@ extern crate alloc;
 
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use framework_lib::chromium_ec::input_deck::InputDeckState;
-use framework_lib::chromium_ec::{print_err, CrosEc};
+#[cfg(not(feature = "qemu"))]
+use framework_lib::chromium_ec::CrosEc;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use uefi::boot::{self, OpenProtocolAttributes, OpenProtocolParams, SearchType};
@@ -17,52 +17,19 @@ use uefi::Identify;
 #[allow(unused_imports)]
 use uefi::{print, println};
 
+use platform::Platform;
+
+mod app;
 mod buffer;
-mod drawing;
 mod ec_comm;
-mod oem_variable;
+mod platform;
 mod sleep;
-mod state_machine;
 mod uefi_usb;
+mod ui;
+mod util;
 mod built_info {
     // The file has been placed there by the build script.
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
-
-struct BiosSettings {
-    standalone_mode: bool,
-    inputmodule_setting: Option<oem_variable::InputmoduleSetting>,
-}
-
-fn get_bios_settings() -> Option<BiosSettings> {
-    // If the protocol isn't present, assume nothing is disabled and show the UI
-    let oem_handle = boot::get_handle_for_protocol::<oem_variable::UefiVariable>().ok()?;
-    let oem = boot::open_protocol_exclusive::<oem_variable::UefiVariable>(oem_handle).ok()?;
-
-    Some(BiosSettings {
-        standalone_mode: oem.standalone_mode_enabled(),
-        inputmodule_setting: oem.inputmodule_setting(),
-    })
-}
-
-/// If either standalone mode is enabled or Require Inputmodules is set to ForceOff/ForceOn,
-/// don't show the UI but immediately exit and continue booting
-/// Return value of Some(false) means don't show, everything else means show
-///
-/// This is how the BIOS was previously doing it.
-/// TODO: Actually we want to show the UI in any case, if:
-/// - dGPU PD is outdated
-/// - Fan has issues
-/// - Interposer or door has issues
-fn show_ui() -> Option<bool> {
-    let settings = get_bios_settings()?;
-    let require_inputmodules =
-        settings.inputmodule_setting == Some(oem_variable::InputmoduleSetting::RequireModules);
-
-    // require_inputmodules should be equal to the below predicate
-    // !matches!(input_deck.state, InputDeckState::Disconnected | InputDeckState::TurningOn | InputDeckState::On)
-
-    Some(!settings.standalone_mode && require_inputmodules)
 }
 
 /// Since Rust 1.99 (LLVM 23), loops that search for a NUL u16, like in
@@ -95,10 +62,12 @@ fn main() -> Status {
         println!("Provide Parameter: 'force' to launch UI even if everything is ok");
         println!("Provide Parameter: 'gop' to print GOP debugging info");
         println!();
-        print_module_status();
+        print_tool_version();
+        println!();
+        platform::Current::print_status();
     } else if let Ok(ShellAction::GopInfo) = arg {
         println!("GOP Info");
-        state_machine::print_gop_info();
+        util::print_gop_info();
     } else {
         info!("No shell arg, launching GUI");
 
@@ -109,12 +78,11 @@ fn main() -> Status {
 
         let force_ui = matches!(arg, Ok(ShellAction::Force));
 
-        // Show the UI if we can't tell the BIOS settings or they indicate we need to show the UI
-        let show_ui = show_ui() != Some(false);
+        let show_ui = platform::Current::show_ui();
 
         let reset = if force_ui || show_ui {
             ec_comm::set_uefi_app_mode(&ec, true);
-            let gui_res = state_machine::start(&ec, force_ui);
+            let gui_res = app::run::<platform::Current>(&ec, force_ui);
             ec_comm::set_uefi_app_mode(&ec, false);
             gui_res.unwrap()
         } else {
@@ -182,63 +150,6 @@ fn get_shell_action() -> uefi::Result<ShellAction> {
         });
     }
     Ok(ShellAction::Gui)
-}
-
-fn print_module_status() {
-    print_tool_version();
-    println!("");
-
-    let ec = CrosEc::new();
-
-    println!("Input Module Status:");
-    if let Some(status) = print_err(ec.get_input_deck_status()) {
-        println!("  Input Deck State: {:?}", status.state);
-        if !matches!(
-            status.state,
-            InputDeckState::Disconnected | InputDeckState::TurningOn | InputDeckState::On
-        ) {
-            println!(
-                "  Input Deck State Overridden: {:?}. No detection of modules possible",
-                status.state
-            );
-        }
-        println!("  Hubboard present: {:?}", status.hubboard_present);
-        println!("  Touchpad present: {:?}", status.touchpad_present);
-        println!("  Positions:");
-        println!("    Pos 0: {:?}", status.top_row.pos0);
-        println!("    Pos 1: {:?}", status.top_row.pos1);
-        println!("    Pos 2: {:?}", status.top_row.pos2);
-        println!("    Pos 3: {:?}", status.top_row.pos3);
-        println!("    Pos 4: {:?}", status.top_row.pos4);
-    } else {
-        println!("  Unable to tell");
-    }
-
-    println!("  Firmware Versions");
-    if let Ok(devices) = uefi_usb::get_usb_devices() {
-        for device in devices {
-            let name = if let Some(name) = device.get_name() {
-                name
-            } else {
-                continue;
-            };
-
-            println!("    {}: {}", name, device.format_bcd_device());
-        }
-    } else {
-        println!("    Unknown");
-    }
-
-    println!("BIOS Settings");
-    if let Some(settings) = get_bios_settings() {
-        println!("  Standalone Mode Enabled: {}", settings.standalone_mode);
-        println!(
-            "  Inputmodule Setting:     {:?}",
-            settings.inputmodule_setting
-        );
-    } else {
-        println!("  Unknown");
-    }
 }
 
 fn print_tool_version() {

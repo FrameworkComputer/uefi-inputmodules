@@ -1,6 +1,6 @@
 .PHONY: run clean
 TARGET:=debug
-SOURCES=Cargo.toml $(wildcard src/*.rs) $(wildcard resources/*)
+SOURCES=Cargo.toml $(shell find src resources -type f)
 
 debug: target/x86_64-unknown-uefi/debug/inputmodules.efi
 	@ls -lh $<
