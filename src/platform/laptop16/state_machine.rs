@@ -37,7 +37,7 @@ use hwio::{Io, Pio};
 
 use crate::buffer::Buffer;
 use crate::built_info;
-use crate::drawing::*;
+use super::drawing::*;
 use crate::ec_comm;
 use crate::sleep::sleep_or;
 use crate::uefi_usb::{self, UsbDevice};

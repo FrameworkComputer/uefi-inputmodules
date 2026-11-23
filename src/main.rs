@@ -17,12 +17,12 @@ use uefi::Identify;
 #[allow(unused_imports)]
 use uefi::{print, println};
 
+use platform::laptop16::{oem_variable, state_machine};
+
 mod buffer;
-mod drawing;
 mod ec_comm;
-mod oem_variable;
+mod platform;
 mod sleep;
-mod state_machine;
 mod uefi_usb;
 mod built_info {
     // The file has been placed there by the build script.
