@@ -1,16 +1,19 @@
 use alloc::format;
 use alloc::string::{String, ToString};
+use alloc::vec;
 use alloc::vec::Vec;
+use embedded_graphics::draw_target::DrawTarget;
 use embedded_graphics::geometry::{AnchorPoint, Dimensions, Size};
 use embedded_graphics::image::{Image, ImageRaw};
 use embedded_graphics::mono_font::{ascii, MonoTextStyle};
 use embedded_graphics::pixelcolor::Rgb888;
 use embedded_graphics::prelude::{Point, Primitive, RgbColor};
 use embedded_graphics::primitives::{
-    PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle,
+    Line, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, RoundedRectangle,
 };
-use embedded_graphics::text::Text;
+use embedded_graphics::text::{Alignment, Baseline, Text, TextStyleBuilder};
 use embedded_graphics::Drawable;
+use framework_lib::ccgx::AppVersion;
 use framework_lib::chromium_ec::input_deck::{InputModuleType, TopRowPositions};
 use framework_lib::power::ReducedPowerInfo;
 #[allow(unused_imports)]
@@ -31,6 +34,18 @@ pub const BLACK_BAR: Rgb888 = Rgb888::new(0x33, 0x33, 0x33);
 
 pub const WARN_X: i32 = WIDTH_I32 / 2;
 pub const WARN_Y: i32 = HEIGHT_I32 - 114 - 75;
+
+/// How far the laptop illustration moves to the left to make room for the debug panel
+const DEBUG_SHIFT: i32 = 560;
+
+/// Offset to apply to the laptop illustration (and everything drawn on top of it)
+pub fn scene_offset(verbose: bool) -> Point {
+    if verbose {
+        Point::new(-DEBUG_SHIFT, 0)
+    } else {
+        Point::new(0, 0)
+    }
+}
 
 #[derive(Default)]
 pub struct StateBitmaps {
@@ -77,17 +92,23 @@ pub struct ImagePlusMeta<'a> {
 }
 
 impl<'a> ImagePlusMeta<'a> {
-    pub fn draw(&self, buffer: &mut Buffer) {
-        let image_raw = ImageRaw::<Rgb888>::new(self.data, self.width);
-        let image = Image::new(&image_raw, self.pos);
-        image.draw(buffer).unwrap();
+    pub fn draw<D>(&self, target: &mut D)
+    where
+        D: DrawTarget<Color = Rgb888>,
+        D::Error: core::fmt::Debug,
+    {
+        self.draw_pos(target, self.pos);
     }
 
     // Draw at a different position
-    pub fn draw_pos(&self, buffer: &mut Buffer, pos: Point) {
+    pub fn draw_pos<D>(&self, target: &mut D, pos: Point)
+    where
+        D: DrawTarget<Color = Rgb888>,
+        D::Error: core::fmt::Debug,
+    {
         let image_raw = ImageRaw::<Rgb888>::new(self.data, self.width);
         let image = Image::new(&image_raw, pos);
-        image.draw(buffer).unwrap();
+        image.draw(target).unwrap();
     }
 }
 
@@ -862,7 +883,11 @@ fn top_row_string(top_row: &TopRowPositions) -> String {
     )
 }
 
-pub fn draw_battery_info(buffer: &mut Buffer, power_info: &Option<ReducedPowerInfo>) {
+pub fn draw_battery_info(
+    buffer: &mut Buffer,
+    power_info: &Option<ReducedPowerInfo>,
+    verbose: bool,
+) {
     if let Some(ReducedPowerInfo {
         battery: Some(ref battery),
         ac_present,
@@ -871,7 +896,8 @@ pub fn draw_battery_info(buffer: &mut Buffer, power_info: &Option<ReducedPowerIn
         if battery.charge_percentage <= 20 {
             draw_textbox(
                 buffer,
-                Point::new(WIDTH as i32 / 2, 0),
+                // Stay centered above the laptop, even when it's shifted for the debug panel
+                Point::new(WIDTH_I32 / 2, 0) + scene_offset(verbose),
                 if *ac_present {
                     TextColor::Warn
                 } else {
@@ -891,120 +917,275 @@ pub fn draw_battery_info(buffer: &mut Buffer, power_info: &Option<ReducedPowerIn
     };
 }
 
-pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose: bool) {
-    // Place version information in the lower right corner
-    let font = ascii::FONT_9X18_BOLD;
-    let cs = Point::new(
-        font.character_size.width as i32,
-        font.character_size.height as i32,
-    );
-    let (height, ver_text) = if verbose {
+// Debug panel colors
+const PANEL_TEXT: Rgb888 = BACKGROUND_COLOR;
+const PANEL_LABEL: Rgb888 = Rgb888::new(0xA3, 0x9F, 0x9D);
+const PANEL_ACCENT: Rgb888 = Rgb888::new(0xFF, 0xB0, 0x6E);
+const PANEL_DIVIDER: Rgb888 = Rgb888::new(0x4D, 0x4A, 0x49);
+
+// Debug panel layout, to the right of the (shifted) laptop, above the black bar
+const PANEL_WIDTH: i32 = 1000;
+const PANEL_MARGIN: i32 = 40;
+const PANEL_X: i32 = WIDTH_I32 - PANEL_MARGIN - PANEL_WIDTH;
+const PANEL_Y: i32 = PANEL_MARGIN;
+const PANEL_MAX_BOTTOM: i32 = HEIGHT_I32 - 300 - PANEL_MARGIN;
+const PANEL_PAD: i32 = 32;
+const PANEL_LINE: i32 = 24;
+const PANEL_SECTION_GAP: i32 = 14;
+/// Width of the label column in characters
+const PANEL_LABEL_CHARS: i32 = 16;
+
+type Section = (&'static str, Vec<(String, String)>);
+
+fn yes_no(b: bool) -> String {
+    String::from(if b { "Yes" } else { "No" })
+}
+
+fn app_section() -> Section {
+    (
+        "Application",
+        vec![
+            ("Version".into(), built_info::PKG_VERSION.into()),
+            (
+                "Git Ref".into(),
+                built_info::GIT_HEAD_REF.unwrap_or("?").into(),
+            ),
+            (
+                "Commit".into(),
+                built_info::GIT_COMMIT_HASH.unwrap_or("?").into(),
+            ),
+            (
+                "Dirty".into(),
+                yes_no(built_info::GIT_DIRTY.unwrap_or(false)),
+            ),
+        ],
+    )
+}
+
+fn debug_sections(debug_info: DebugInfo) -> Vec<Section> {
+    let pd_ver = |actual: Option<AppVersion>, expected: AppVersion| {
+        format!(
+            "{}  (expected {})",
+            actual
+                .map(|x| format!("{}", x))
+                .unwrap_or("Unknown".to_string()),
+            expected
+        )
+    };
+
+    let mut firmware = vec![
+        ("BIOS".into(), debug_info.bios_version.clone()),
+        ("EC".into(), debug_info.ec_version.clone()),
+        ("PD 1".into(), pd_ver(debug_info.pd1_ver, LOTUS_PD1_VER)),
+        ("PD 2".into(), pd_ver(debug_info.pd2_ver, LOTUS_PD2_VER)),
+        ("PD 3".into(), pd_ver(debug_info.pd3_ver, PD3_VER)),
+    ];
+    let keyboards = debug_info
+        .usb_devices
+        .iter()
+        .filter(|dev| dev.is_framework_keyboard())
+        .map(|dev| {
+            format!(
+                "{}  {}",
+                dev.format_bcd_device(),
+                dev.get_name().unwrap_or("???")
+            )
+        });
+    let mut has_keyboards = false;
+    for (i, keyboard) in keyboards.enumerate() {
+        let label = if i == 0 { "USB Keyboards" } else { "" };
+        firmware.push((label.into(), keyboard));
+        has_keyboards = true;
+    }
+    if !has_keyboards {
+        firmware.push(("USB Keyboards".into(), "None".into()));
+    }
+
+    let (ac, battery) = if let Some(power_info) = &debug_info.power_info {
         (
-            10, // Need to update if adding more lines
-            if let Some(debug_info) = debug_info {
-                let power_str = if let Some(power_info) = debug_info.power_info {
-                    if let Some(battery) = power_info.battery {
-                        format!(
-                            "AC Power: {}, Battery: Yes, Charge: {}%",
-                            power_info.ac_present, battery.charge_percentage
-                        )
-                    } else {
-                        format!("AC Power: {}, Battery:  No", power_info.ac_present)
-                    }
-                } else {
-                    String::from("AC/DC:    ???")
-                };
-                let usb_fw_versions = debug_info
-                    .usb_devices
-                    .into_iter()
-                    .filter(|dev| dev.is_framework_keyboard())
-                    .map(|dev| {
-                        let name = dev.get_name().unwrap_or("???");
-                        format!("{}: {}", name, dev.format_bcd_device())
-                    })
-                    .collect::<Vec<String>>()
-                    .join(", ");
-                format!(
-                    // TODO: Pad dirty to the end
-                    "BIOS: {}, EC: {}, App Version:  {}\nRef:      {}, Dirty:{}\nCommit:   {}\nHas EC:   {}, PwrBtn pressed:{}, PwrBtn Long press cnt:{}\nBay State:{}, En:{}, Fault:{}, Closed:{}\nBayModule:IDs: ({}, {}), {:?}\nHW Diag:  {}\n          {:#032b}\nFan Speed  Left: {}RPM Right {}RPM\nDeckState:{:?}, Hubboard:{}, Touchpad:{}, {}\n{}\nPD 1 Ver: {}, Expected: {}\nPD 2 Ver: {}, Expected: {}\nPD 3 Ver: {}, Expected: {}\n{}",
-                    debug_info.bios_version,
-                    debug_info.ec_version,
-                    built_info::PKG_VERSION,
-                    built_info::GIT_HEAD_REF.unwrap_or("?"),
-                    built_info::GIT_DIRTY.unwrap_or(false),
-                    built_info::GIT_COMMIT_HASH.unwrap_or("?"),
-                    // Basics
-                    debug_info.ec_present,
-                    debug_info.power_button,
-                    debug_info.long_press,
-                    // Bay State
-                    debug_info.bay_state,
-                    debug_info.bay_enabled,
-                    debug_info.bay_fault,
-                    debug_info.hatch_closed,
-                    // Bay Module IDs
-                    debug_info.gpu0,
-                    debug_info.gpu1,
-                    debug_info.bay_module,
-                    // HW Diag
-                    debug_info.hw_diag,
-                    { debug_info.hw_diag.hw_diag },
-                    debug_info.fan_speed.0,
-                    debug_info.fan_speed.1,
-                    // Input Deck
-                    debug_info.deck.state,
-                    debug_info.deck.hubboard_present,
-                    debug_info.deck.touchpad_present,
-                    top_row_string(&debug_info.deck.top_row),
-                    power_str,
-                    debug_info.pd1_ver.map(|x| format!("{}", x)).unwrap_or("Unknown".to_string()),
-                    LOTUS_PD1_VER,
-                    debug_info.pd2_ver.map(|x| format!("{}", x)).unwrap_or("Unknown".to_string()),
-                    LOTUS_PD2_VER,
-                    debug_info.pd3_ver.map(|x| format!("{}", x)).unwrap_or("Unknown".to_string()),
-                    PD3_VER,
-                    usb_fw_versions,
-                )
+            yes_no(power_info.ac_present),
+            if let Some(battery) = &power_info.battery {
+                format!("{}%", battery.charge_percentage)
             } else {
-                format!(
-                    "Version: {}\nRef:     {}\nCommit:  {}\nDirty:   {}",
-                    built_info::PKG_VERSION,
-                    built_info::GIT_HEAD_REF.unwrap_or("?"),
-                    built_info::GIT_COMMIT_HASH.unwrap_or("?"),
-                    built_info::GIT_DIRTY.unwrap_or(false),
-                )
+                String::from("Not present")
             },
         )
     } else {
-        (1, format!("v{}", built_info::PKG_VERSION))
+        (String::from("?"), String::from("?"))
     };
-    let ver_len = ver_text.lines().fold(0, |longest, cur| -> i32 {
-        let cur_len = cur.len() as i32;
-        if longest > cur_len {
-            longest
-        } else {
-            cur_len
+
+    vec![
+        ("Firmware", firmware),
+        (
+            "Power",
+            vec![
+                ("EC present".into(), yes_no(debug_info.ec_present)),
+                ("AC power".into(), ac),
+                ("Battery".into(), battery),
+                ("Power button".into(), yes_no(debug_info.power_button)),
+                ("Long press".into(), format!("{}", debug_info.long_press)),
+            ],
+        ),
+        (
+            "Input Deck",
+            vec![
+                ("State".into(), format!("{:?}", debug_info.deck.state)),
+                ("Hubboard".into(), yes_no(debug_info.deck.hubboard_present)),
+                ("Touchpad".into(), yes_no(debug_info.deck.touchpad_present)),
+                ("Top row".into(), top_row_string(&debug_info.deck.top_row)),
+            ],
+        ),
+        (
+            "Expansion Bay",
+            vec![
+                ("State".into(), format!("{}", debug_info.bay_state)),
+                ("Enabled".into(), yes_no(debug_info.bay_enabled)),
+                ("Fault".into(), yes_no(debug_info.bay_fault)),
+                ("Door closed".into(), yes_no(debug_info.hatch_closed)),
+                (
+                    "Board IDs".into(),
+                    format!("{}, {}", debug_info.gpu0, debug_info.gpu1),
+                ),
+                ("Module".into(), format!("{:?}", debug_info.bay_module)),
+            ],
+        ),
+        (
+            "Diagnostics",
+            vec![
+                ("HW Diag".into(), format!("{}", debug_info.hw_diag)),
+                (
+                    "".into(),
+                    format!("{:#034b}", { debug_info.hw_diag.hw_diag }),
+                ),
+                (
+                    "Fans".into(),
+                    format!(
+                        "Left {} RPM, Right {} RPM",
+                        debug_info.fan_speed.0, debug_info.fan_speed.1
+                    ),
+                ),
+            ],
+        ),
+        app_section(),
+    ]
+}
+
+/// Cut off text that doesn't fit into the given number of characters
+fn fit(text: &str, max_chars: usize) -> String {
+    if text.len() <= max_chars {
+        String::from(text)
+    } else {
+        let mut s: String = text.chars().take(max_chars.saturating_sub(3)).collect();
+        s.push_str("...");
+        s
+    }
+}
+
+fn draw_debug_panel(buffer: &mut Buffer, sections: &[Section]) {
+    let font = ascii::FONT_10X20;
+    let char_w = font.character_size.width as i32;
+    let top = TextStyleBuilder::new().baseline(Baseline::Top).build();
+    let top_right = TextStyleBuilder::new()
+        .baseline(Baseline::Top)
+        .alignment(Alignment::Right)
+        .build();
+    let title_style = MonoTextStyle::new(&ascii::FONT_10X20, PANEL_TEXT);
+    let header_style = MonoTextStyle::new(&font, PANEL_ACCENT);
+    let label_style = MonoTextStyle::new(&font, PANEL_LABEL);
+    let value_style = MonoTextStyle::new(&font, PANEL_TEXT);
+    let divider_style = PrimitiveStyle::with_stroke(PANEL_DIVIDER, 1);
+
+    let rows: i32 = sections
+        .iter()
+        .map(|(_, items)| 1 + items.len() as i32)
+        .sum();
+    let title_height = PANEL_LINE + PANEL_SECTION_GAP;
+    let content_height =
+        title_height + rows * PANEL_LINE + sections.len() as i32 * PANEL_SECTION_GAP;
+    let height = (content_height + PANEL_PAD * 2).min(PANEL_MAX_BOTTOM - PANEL_Y);
+
+    let panel = Rectangle::new(
+        Point::new(PANEL_X, PANEL_Y),
+        Size::new(PANEL_WIDTH as u32, height as u32),
+    );
+    RoundedRectangle::with_equal_corners(panel, Size::new(24, 24))
+        .into_styled(PrimitiveStyle::with_fill(BLACK_BAR))
+        .draw(buffer)
+        .unwrap();
+
+    let left = PANEL_X + PANEL_PAD;
+    let right = PANEL_X + PANEL_WIDTH - PANEL_PAD;
+    let value_x = left + PANEL_LABEL_CHARS * char_w;
+    let max_value_chars = ((right - value_x) / char_w) as usize;
+    let max_y = PANEL_Y + height - PANEL_PAD - PANEL_LINE;
+    let mut y = PANEL_Y + PANEL_PAD;
+
+    // Title
+    Text::with_text_style("DEBUG INFO", Point::new(left, y), title_style, top)
+        .draw(buffer)
+        .unwrap();
+    Text::with_text_style(
+        "Press ? to hide",
+        Point::new(right, y),
+        label_style,
+        top_right,
+    )
+    .draw(buffer)
+    .unwrap();
+    y += PANEL_LINE;
+    Line::new(
+        Point::new(left, y + PANEL_SECTION_GAP / 2 - 4),
+        Point::new(right, y + PANEL_SECTION_GAP / 2 - 4),
+    )
+    .into_styled(divider_style)
+    .draw(buffer)
+    .unwrap();
+    y += PANEL_SECTION_GAP;
+
+    for (header, items) in sections {
+        if y > max_y {
+            break;
         }
-    });
-    // Next to the button icons
-    let bottom_right = (Point::new(WIDTH_I32 - 30 * 2 - 2 * 148, HEIGHT_I32 - 40 - 171)
-        + Point::new(0, 132 - cs.y * height))
-        - Point::new(cs.x * ver_len + cs.x, 0);
-    let top_left = Point::new(20, 20);
-    let pos = if verbose { bottom_right } else { top_left };
+        Text::with_text_style(header, Point::new(left, y), header_style, top)
+            .draw(buffer)
+            .unwrap();
+        y += PANEL_LINE;
+        for (label, value) in items {
+            if y > max_y {
+                break;
+            }
+            let label = fit(label, PANEL_LABEL_CHARS as usize - 3);
+            Text::with_text_style(&label, Point::new(left + 2 * char_w, y), label_style, top)
+                .draw(buffer)
+                .unwrap();
+            let value = fit(value, max_value_chars);
+            Text::with_text_style(&value, Point::new(value_x, y), value_style, top)
+                .draw(buffer)
+                .unwrap();
+            y += PANEL_LINE;
+        }
+        y += PANEL_SECTION_GAP;
+    }
+}
+
+pub fn draw_version(buffer: &mut Buffer, debug_info: Option<DebugInfo>, verbose: bool) {
+    if verbose {
+        let sections = match debug_info {
+            Some(debug_info) => debug_sections(debug_info),
+            None => vec![app_section()],
+        };
+        draw_debug_panel(buffer, &sections);
+        return;
+    }
+
+    // Small version string in the upper left corner
+    let font = ascii::FONT_9X18_BOLD;
+    let ver_text = format!("v{}", built_info::PKG_VERSION);
     let text = Text::new(
         &ver_text,
-        pos,
-        MonoTextStyle::new(&font, if verbose { BACKGROUND_COLOR } else { BLACK_BAR }),
+        Point::new(20, 20),
+        MonoTextStyle::new(&font, BLACK_BAR),
     );
-
-    // Make sure the background is cleared if we only update the version
-    let background = text.bounding_box();
-    let blank_style = PrimitiveStyleBuilder::new()
-        .fill_color(if verbose { BLACK_BAR } else { BACKGROUND_COLOR })
-        .build();
-    background.into_styled(blank_style).draw(buffer).unwrap();
-
     text.draw(buffer).unwrap();
 }
 

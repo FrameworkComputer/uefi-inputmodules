@@ -6,7 +6,9 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 
+use embedded_graphics::draw_target::{DrawTarget, DrawTargetExt};
 use embedded_graphics::geometry::Size;
+use embedded_graphics::pixelcolor::Rgb888;
 use embedded_graphics::prelude::Point;
 
 use dmidecode::Structure;
@@ -388,54 +390,38 @@ impl State {
         // Draw dark grey bar at the bottom
         draw_black_bar(buffer);
 
+        // Move the laptop over to the left when showing the debug panel on the right
+        let mut scene = buffer.translated(scene_offset(self.verbose));
+
         // Draw laptop with latches open
-        self.bitmaps.laptop_latches_open().draw(buffer);
+        self.bitmaps.laptop_latches_open().draw(&mut scene);
 
         // Fix up the laptop
         match self.frame {
             StateFrame::NoExpansionBay(BayIssue::InterposerOpen) | StateFrame::InterposerClosed => {
-                self.bitmaps.latch_warning().draw(buffer)
+                self.bitmaps.latch_warning().draw(&mut scene)
             }
-            StateFrame::NoExpansionBay(_) => self.bitmaps.expansion_bay_missing().draw(buffer),
-            StateFrame::NoHubboard => self.bitmaps.hubboard_missing().draw(buffer),
+            StateFrame::NoExpansionBay(_) => self.bitmaps.expansion_bay_missing().draw(&mut scene),
+            StateFrame::NoHubboard => self.bitmaps.hubboard_missing().draw(&mut scene),
             _ => {}
         }
 
-        // Hints on lower left and right
-        match self.frame {
-            StateFrame::Finished => {
-                // Boot Button indicator right
-                self.bitmaps.button_boot().draw(buffer);
-
-                // Overlay latches closed
-                self.bitmaps.latches_closed_left().draw(buffer);
-                self.bitmaps.latches_closed_right().draw(buffer);
-            }
-            StateFrame::OutdatedFirmware(_) => {
-                self.bitmaps.button_short_skip().draw(buffer);
-                self.bitmaps.button_long_off().draw(buffer);
-
-                // Overlay latches closed
-                self.bitmaps.latches_closed_left().draw(buffer);
-                self.bitmaps.latches_closed_right().draw(buffer);
-            }
-            StateFrame::InterposerClosed => {
-                self.bitmaps.button_short_reboot().draw(buffer);
-                self.bitmaps.button_long_off().draw(buffer);
-            }
-            _ => {
-                self.bitmaps.button_short_skip().draw(buffer);
-                self.bitmaps.button_long_off().draw(buffer);
-            }
+        // Overlay latches closed
+        if matches!(
+            self.frame,
+            StateFrame::Finished | StateFrame::OutdatedFirmware(_)
+        ) {
+            self.bitmaps.latches_closed_left().draw(&mut scene);
+            self.bitmaps.latches_closed_right().draw(&mut scene);
         }
 
         // QR Codes
         match &self.frame {
             StateFrame::NoExpansionBay(_) | StateFrame::InterposerClosed => {
-                self.bitmaps.qr_code_1().draw(buffer);
+                self.bitmaps.qr_code_1().draw(&mut scene);
             }
             StateFrame::NoHubboard => {
-                self.bitmaps.qr_code_2().draw(buffer);
+                self.bitmaps.qr_code_2().draw(&mut scene);
             }
             StateFrame::Finished | StateFrame::CheckingDiagnostics => {}
             StateFrame::OutdatedFirmware(msgs) => {
@@ -449,27 +435,27 @@ impl State {
                     // No issue, no QR code needed
                     (false, false, false) => {}
                     (false, false, true) => {
-                        self.bitmaps.qr_code_pd().draw(buffer);
+                        self.bitmaps.qr_code_pd().draw(&mut scene);
                     }
                     (false, true, false) => {
-                        self.bitmaps.qr_code_side_pd().draw(buffer);
+                        self.bitmaps.qr_code_side_pd().draw(&mut scene);
                     }
                     // If dGPU and side PD both are outdated, show only the side PD QR code for two reasons.
                     // 1. They both redirect to the same KB article - no need to duplicate.
                     // 2. Side PD not in sync with BIOS version means there was a bug during the BIOS update.
                     // We use the side PD QR code to track who experienced the updater bug, so prioritize that QR over the other one
                     (false, true, true) => {
-                        self.bitmaps.qr_code_side_pd().draw(buffer);
+                        self.bitmaps.qr_code_side_pd().draw(&mut scene);
                     }
                     (true, false, false) => {
-                        self.bitmaps.qr_code_kb().draw(buffer);
+                        self.bitmaps.qr_code_kb().draw(&mut scene);
                     }
                     (true, false, true) => {
-                        self.bitmaps.qr_code_kb().draw(buffer);
+                        self.bitmaps.qr_code_kb().draw(&mut scene);
                         // To show both QR codes at the same time we need to move one up a bit
                         // By the height (198) and some extra padding
                         self.bitmaps.qr_code_pd().draw_pos(
-                            buffer,
+                            &mut scene,
                             Point {
                                 x: 1814,
                                 y: 967 - 198 - 15,
@@ -477,11 +463,11 @@ impl State {
                         );
                     }
                     (true, true, false) => {
-                        self.bitmaps.qr_code_kb().draw(buffer);
+                        self.bitmaps.qr_code_kb().draw(&mut scene);
                         // To show both QR codes at the same time we need to move one up a bit
                         // By the height (198) and some extra padding
                         self.bitmaps.qr_code_side_pd().draw_pos(
-                            buffer,
+                            &mut scene,
                             Point {
                                 x: 1814,
                                 y: 967 - 198 - 15,
@@ -489,11 +475,11 @@ impl State {
                         );
                     }
                     (true, true, true) => {
-                        self.bitmaps.qr_code_kb().draw(buffer);
+                        self.bitmaps.qr_code_kb().draw(&mut scene);
                         // To show both QR codes at the same time we need to move one up a bit
                         // By the height (198) and some extra padding
                         self.bitmaps.qr_code_side_pd().draw_pos(
-                            buffer,
+                            &mut scene,
                             Point {
                                 x: 1814,
                                 y: 967 - 198 - 15,
@@ -503,7 +489,7 @@ impl State {
                 };
             }
             _ => {
-                self.bitmaps.qr_code_3().draw(buffer);
+                self.bitmaps.qr_code_3().draw(&mut scene);
             }
         }
 
@@ -517,7 +503,23 @@ impl State {
                 | StateFrame::CheckingDiagnostics
                 | StateFrame::Finished
         ) {
-            self.draw_inputmodules(buffer, input_deck)
+            self.draw_inputmodules(&mut scene, input_deck)
+        }
+
+        // Hints on lower left and right
+        match self.frame {
+            StateFrame::Finished => {
+                // Boot Button indicator right
+                self.bitmaps.button_boot().draw(buffer);
+            }
+            StateFrame::InterposerClosed => {
+                self.bitmaps.button_short_reboot().draw(buffer);
+                self.bitmaps.button_long_off().draw(buffer);
+            }
+            _ => {
+                self.bitmaps.button_short_skip().draw(buffer);
+                self.bitmaps.button_long_off().draw(buffer);
+            }
         }
 
         // Help text on the bottom
@@ -628,7 +630,11 @@ impl State {
         }
     }
 
-    fn draw_inputmodules(&mut self, buffer: &mut Buffer, input_deck: &InputDeckStatus) {
+    fn draw_inputmodules<D>(&mut self, buffer: &mut D, input_deck: &InputDeckStatus)
+    where
+        D: DrawTarget<Color = Rgb888>,
+        D::Error: core::fmt::Debug,
+    {
         // Full width location can have pogo connection on any location. For other modules we
         // assume it's connected at the very left of the module. But because full-width covers the
         // whole area, it has flexibility of connector position.
@@ -1095,7 +1101,7 @@ pub fn start(
                 );
             }
 
-            draw_battery_info(&mut buffer, &power_info);
+            draw_battery_info(&mut buffer, &power_info, state.verbose);
             draw_version(
                 &mut buffer,
                 Some(DebugInfo {
