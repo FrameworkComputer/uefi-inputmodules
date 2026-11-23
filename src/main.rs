@@ -24,6 +24,7 @@ mod ec_comm;
 mod platform;
 mod sleep;
 mod uefi_usb;
+mod ui;
 mod util;
 mod built_info {
     // The file has been placed there by the build script.

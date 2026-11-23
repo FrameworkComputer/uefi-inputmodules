@@ -39,6 +39,7 @@ use crate::built_info;
 use crate::ec_comm;
 use crate::sleep::sleep_or;
 use crate::uefi_usb::{self, UsbDevice};
+use crate::ui::{clear_screen, draw_battery_info, draw_textbox, TextColor};
 use crate::util;
 
 const FAILED_INPUT: &str = "Failed to get keypress";
@@ -1109,7 +1110,7 @@ pub fn start(
                 );
             }
 
-            draw_battery_info(&mut buffer, &power_info);
+            draw_battery_info(&mut buffer, Point::new(WIDTH_I32 / 2, 0), &power_info);
             draw_version(
                 &mut buffer,
                 Some(DebugInfo {
