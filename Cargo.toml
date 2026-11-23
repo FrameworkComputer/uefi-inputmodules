@@ -37,6 +37,12 @@ default-features = false
 [target.'cfg(target_os = "uefi")'.dependencies]
 uefi = { version = "0.41", features = ["alloc", "global_allocator", "logger", "panic_handler"] }
 
+# Dependencies to run as a native application on Linux/Windows/macOS
+[target.'cfg(not(target_os = "uefi"))'.dependencies]
+env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
+minifb = { version = "0.29", default-features = false, features = ["x11"] }
+nusb = "0.2"
+
 [target.'cfg(target_os = "uefi")'.dependencies.framework_lib]
 version = "0.6.7"
 default-features = false

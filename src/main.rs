@@ -1,49 +1,40 @@
-#![no_main]
-#![no_std]
+// Build as UEFI application by default, or as a native application on other targets
+#![cfg_attr(target_os = "uefi", no_main)]
+#![cfg_attr(target_os = "uefi", no_std)]
 #![allow(clippy::result_unit_err)]
 
 extern crate alloc;
 
 use alloc::string::{String, ToString};
-use alloc::vec::Vec;
 use framework_lib::chromium_ec::input_deck::InputDeckState;
 use framework_lib::chromium_ec::{print_err, CrosEc};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
-use uefi::boot::{self, OpenProtocolAttributes, OpenProtocolParams, SearchType};
+#[cfg(target_os = "uefi")]
 use uefi::prelude::*;
-use uefi::proto::shell_params::ShellParameters;
-use uefi::Identify;
+#[cfg(target_os = "uefi")]
 #[allow(unused_imports)]
 use uefi::{print, println};
 
 mod buffer;
 mod drawing;
 mod ec_comm;
+#[cfg_attr(not(target_os = "uefi"), allow(dead_code))]
 mod oem_variable;
-mod sleep;
+mod platform;
 mod state_machine;
-mod uefi_usb;
+mod usb;
 mod built_info {
     // The file has been placed there by the build script.
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
-struct BiosSettings {
-    standalone_mode: bool,
-    inputmodule_setting: Option<oem_variable::InputmoduleSetting>,
+pub struct BiosSettings {
+    pub standalone_mode: bool,
+    pub inputmodule_setting: Option<oem_variable::InputmoduleSetting>,
 }
 
-fn get_bios_settings() -> Option<BiosSettings> {
-    // If the protocol isn't present, assume nothing is disabled and show the UI
-    let oem_handle = boot::get_handle_for_protocol::<oem_variable::UefiVariable>().ok()?;
-    let oem = boot::open_protocol_exclusive::<oem_variable::UefiVariable>(oem_handle).ok()?;
-
-    Some(BiosSettings {
-        standalone_mode: oem.standalone_mode_enabled(),
-        inputmodule_setting: oem.inputmodule_setting(),
-    })
-}
+use platform::get_bios_settings;
 
 /// If either standalone mode is enabled or Require Inputmodules is set to ForceOff/ForceOn,
 /// don't show the UI but immediately exit and continue booting
@@ -65,6 +56,7 @@ fn show_ui() -> Option<bool> {
     Some(!settings.standalone_mode && require_inputmodules)
 }
 
+#[cfg(target_os = "uefi")]
 /// Since Rust 1.99 (LLVM 23), loops that search for a NUL u16, like in
 /// `CStr16::from_ptr`, are turned into calls to wcslen.
 /// There's no libc on UEFI and compiler_builtins doesn't provide it.
@@ -81,6 +73,7 @@ pub unsafe extern "C" fn wcslen(s: *const u16) -> usize {
     len
 }
 
+#[cfg(target_os = "uefi")]
 #[entry]
 fn main() -> Status {
     uefi::helpers::init().unwrap();
@@ -89,51 +82,87 @@ fn main() -> Status {
     #[cfg(not(debug_assertions))]
     log::set_max_level(log::LevelFilter::Error);
 
-    let arg = get_shell_action();
-    if let Ok(ShellAction::Info) = arg {
-        println!("Provide Parameter: 'gui' to launch UI and show issues");
-        println!("Provide Parameter: 'force' to launch UI even if everything is ok");
-        println!("Provide Parameter: 'gop' to print GOP debugging info");
-        println!();
-        print_module_status();
-    } else if let Ok(ShellAction::GopInfo) = arg {
-        println!("GOP Info");
-        state_machine::print_gop_info();
-    } else {
-        info!("No shell arg, launching GUI");
-
-        #[cfg(not(feature = "qemu"))]
-        let ec = Some(CrosEc::new());
-        #[cfg(feature = "qemu")]
-        let ec = None;
-
-        let force_ui = matches!(arg, Ok(ShellAction::Force));
-
-        // Show the UI if we can't tell the BIOS settings or they indicate we need to show the UI
-        let show_ui = show_ui() != Some(false);
-
-        let reset = if force_ui || show_ui {
-            ec_comm::set_uefi_app_mode(&ec, true);
-            let gui_res = state_machine::start(&ec, force_ui);
-            ec_comm::set_uefi_app_mode(&ec, false);
-            gui_res.unwrap()
-        } else {
-            // If didn't run the app, don't reset, just keep booting
-            None
-        };
-
-        if let Some(reset_type) = reset {
-            #[cfg(debug_assertions)]
-            info!("Shutting down");
-            boot::stall(core::time::Duration::from_micros(1_000_000));
-
-            // Shut down the system
-            // TODO: I should do this outside of this function
-            uefi::runtime::reset(reset_type, Status::SUCCESS, None);
+    let action = match platform::get_args() {
+        Ok(Some(args)) => parse_args(&args),
+        // Not launched from the shell, e.g. by the BIOS during boot
+        Ok(None) => ShellAction::Gui,
+        Err(err) => {
+            debug!("No shell arguments: {:?}", err);
+            ShellAction::Gui
         }
-    }
+    };
+
+    #[cfg(not(feature = "qemu"))]
+    let ec = Some(CrosEc::new());
+    #[cfg(feature = "qemu")]
+    let ec = None;
+
+    run(action, ec);
 
     Status::SUCCESS
+}
+
+#[cfg(not(target_os = "uefi"))]
+fn main() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
+    // By default don't talk to the EC, but mock the data, like in QEMU.
+    // Then the keyboard can be used to simulate different states.
+    // With --ec, talk to the real EC (needs root on Linux)
+    let mut args: Vec<String> = std::env::args().collect();
+    let use_ec = if let Some(pos) = args.iter().position(|arg| arg == "--ec") {
+        args.remove(pos);
+        true
+    } else {
+        false
+    };
+    let ec = if use_ec { Some(CrosEc::new()) } else { None };
+
+    let action = parse_args(&args);
+    if let ShellAction::Info = action {
+        println!("Provide Parameter: '--ec' to make the GUI read from the EC instead of mocking");
+    }
+    run(action, ec);
+}
+
+fn run(action: ShellAction, ec: Option<CrosEc>) {
+    match action {
+        ShellAction::Info => {
+            println!("Provide Parameter: 'gui' to launch UI and show issues");
+            println!("Provide Parameter: 'force' to launch UI even if everything is ok");
+            println!("Provide Parameter: 'gop' to print GOP debugging info");
+            println!();
+            print_module_status();
+        }
+        ShellAction::GopInfo => {
+            println!("GOP Info");
+            platform::print_gop_info();
+        }
+        ShellAction::Gui | ShellAction::Force => {
+            info!("No shell arg, launching GUI");
+
+            let force_ui = matches!(action, ShellAction::Force);
+
+            // Show the UI if we can't tell the BIOS settings or they indicate we need to show the UI
+            let show_ui = show_ui() != Some(false);
+
+            let reset = if force_ui || show_ui {
+                platform::set_uefi_app_mode(&ec, true);
+                let gui_res = state_machine::start(&ec, force_ui);
+                platform::set_uefi_app_mode(&ec, false);
+                gui_res.unwrap()
+            } else {
+                // If didn't run the app, don't reset, just keep booting
+                None
+            };
+
+            if let Some(reset_type) = reset {
+                // Shut down the system
+                // TODO: I should do this outside of this function
+                platform::reset(reset_type);
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -144,44 +173,19 @@ enum ShellAction {
     GopInfo,
 }
 
-fn get_shell_action() -> uefi::Result<ShellAction> {
-    // TODO: I think I should open this from the ImageHandle?
-    let shell_params_h =
-        boot::locate_handle_buffer(SearchType::ByProtocol(&ShellParameters::GUID))?;
-    trace!("Found {} ShellParameters handles", shell_params_h.len());
-    for handle in shell_params_h.iter() {
-        let params_handle = unsafe {
-            boot::open_protocol::<ShellParameters>(
-                OpenProtocolParams {
-                    handle: *handle,
-                    agent: boot::image_handle(),
-                    controller: None,
-                },
-                OpenProtocolAttributes::GetProtocol,
-            )?
-        };
-
-        // Ehm why are there two and one has no args?
-        // Maybe one is the shell itself?
-        if params_handle.args_len() == 0 {
-            continue;
-        }
-
-        let args: Vec<String> = params_handle.args().map(|arg| arg.to_string()).collect();
-        // First arg is the executable path
-        return Ok(if args.len() == 2 && args[1] == "gui" {
-            ShellAction::Gui
-        } else if args.len() == 2 && args[1] == "force" {
-            ShellAction::Force
-        } else if args.len() == 2 && args[1] == "gop" {
-            ShellAction::GopInfo
-        } else if args.len() == 1 {
-            ShellAction::Gui
-        } else {
-            ShellAction::Info
-        });
+/// Parse commandline arguments. First arg is the executable path
+fn parse_args(args: &[String]) -> ShellAction {
+    if args.len() == 2 && args[1] == "gui" {
+        ShellAction::Gui
+    } else if args.len() == 2 && args[1] == "force" {
+        ShellAction::Force
+    } else if args.len() == 2 && args[1] == "gop" {
+        ShellAction::GopInfo
+    } else if args.len() <= 1 {
+        ShellAction::Gui
+    } else {
+        ShellAction::Info
     }
-    Ok(ShellAction::Gui)
 }
 
 fn print_module_status() {
@@ -215,7 +219,7 @@ fn print_module_status() {
     }
 
     println!("  Firmware Versions");
-    if let Ok(devices) = uefi_usb::get_usb_devices() {
+    if let Ok(devices) = usb::get_usb_devices() {
         for device in devices {
             let name = if let Some(name) = device.get_name() {
                 name

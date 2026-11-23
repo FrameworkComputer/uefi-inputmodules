@@ -25,27 +25,15 @@ use framework_lib::smbios::{get_platform, Platform};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
 use log::{log_enabled, Level};
-use uefi::boot::{self, OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol, SearchType};
-use uefi::proto::console::gop::GraphicsOutput;
-use uefi::proto::console::text::{Input, Key, ScanCode};
-use uefi::runtime::{VariableAttributes, VariableVendor};
-use uefi::{cstr16, guid, Char16, Identify};
-#[allow(unused_imports)]
-use uefi::{print, println};
-
-use hwio::{Io, Pio};
+use uefi::proto::console::text::{Key, ScanCode};
+use uefi::Char16;
 
 use crate::buffer::Buffer;
 use crate::built_info;
 use crate::drawing::*;
 use crate::ec_comm;
-use crate::sleep::sleep_or;
-use crate::uefi_usb::{self, UsbDevice};
-
-const FAILED_INPUT: &str = "Failed to get keypress";
-
-const EFI_OS_INDICATIONS_BOOT_TO_FW_UI: u64 = 0x0000000000000001;
-const EFI_GLOBAL_VARIABLE_GUID: uefi::Guid = guid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
+use crate::platform::{self, Screen};
+use crate::usb::{self, UsbDevice};
 
 const BOOT_TIME_SECONDS: u32 = 20;
 
@@ -852,117 +840,6 @@ impl State {
     }
 }
 
-pub fn print_gop_info() -> Option<()> {
-    let gop_handles = if let Ok(gop_handles) =
-        boot::locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
-    {
-        gop_handles
-    } else {
-        error!("GraphicsOutput protocol is missing");
-        return None;
-    };
-
-    let gop = if let Some(handle) = gop_handles.iter().next() {
-        unsafe {
-            boot::open_protocol::<GraphicsOutput>(
-                OpenProtocolParams {
-                    handle: *handle,
-                    agent: boot::image_handle(),
-                    controller: None,
-                },
-                OpenProtocolAttributes::GetProtocol,
-            )
-            .expect("Failed to open GraphicsOutput handle")
-        }
-    } else {
-        error!("No GOP handles found");
-        return None;
-    };
-
-    println!("Available resolutions:");
-    for mode in gop.modes() {
-        let (width, height) = mode.info().resolution();
-        println!("  {}x{}", width, height);
-    }
-
-    let mode = gop.current_mode_info();
-    let (width, height) = mode.resolution();
-    println!("Current Resolution: {}x{}", width, height);
-
-    Some(())
-}
-
-fn get_gop_buffer() -> Option<(ScopedProtocol<GraphicsOutput>, Buffer)> {
-    let gop_handles = if let Ok(gop_handles) =
-        boot::locate_handle_buffer(SearchType::ByProtocol(&GraphicsOutput::GUID))
-    {
-        gop_handles
-    } else {
-        error!("GraphicsOutput protocol is missing");
-        return None;
-    };
-
-    let gop = if let Some(handle) = gop_handles.iter().next() {
-        unsafe {
-            boot::open_protocol::<GraphicsOutput>(
-                OpenProtocolParams {
-                    handle: *handle,
-                    agent: boot::image_handle(),
-                    controller: None,
-                },
-                OpenProtocolAttributes::GetProtocol,
-            )
-            .expect("Failed to open GraphicsOutput handle")
-        }
-    } else {
-        error!("No GOP handles found");
-        return None;
-    };
-
-    let mode = gop.current_mode_info();
-    let (width, height) = mode.resolution();
-    let _size = Point::new(width as i32, height as i32);
-    info!("Current Resolution {}x{}", width, height);
-
-    // Create a buffer to draw into.
-    let (width, height) = gop.current_mode_info().resolution();
-    Some((gop, Buffer::new(width, height)))
-}
-
-fn get_input_protocol() -> Option<ScopedProtocol<Input>> {
-    let input_handles = if let Ok(input_handles) =
-        boot::locate_handle_buffer(SearchType::ByProtocol(&Input::GUID))
-    {
-        input_handles
-    } else {
-        error!("Input protocol is missing");
-        return None;
-    };
-
-    if let Some(handle) = input_handles.iter().next() {
-        unsafe {
-            boot::open_protocol::<Input>(
-                OpenProtocolParams {
-                    handle: *handle,
-                    agent: boot::image_handle(),
-                    controller: None,
-                },
-                OpenProtocolAttributes::GetProtocol,
-            )
-            .ok()
-        }
-    } else {
-        info!("No Input handles found");
-        None
-    }
-}
-
-// Avoid using because it might cause trouble with later boot process
-fn _get_exclusive_input_protocol() -> Option<ScopedProtocol<Input>> {
-    let input_handle = boot::get_handle_for_protocol::<Input>().ok()?;
-    boot::open_protocol_exclusive::<Input>(input_handle).ok()
-}
-
 fn has_bay_issue(
     expansion_bay: &EcResponseExpansionBayStatus,
     hw_diag: &EcResponseGetHwDiag,
@@ -998,35 +875,6 @@ fn has_bay_issue(
     None
 }
 
-/// Set OS indications so that a reboot will boot into setup menu
-fn set_os_indications_setupmenu() {
-    let vendor = VariableVendor(EFI_GLOBAL_VARIABLE_GUID);
-    let mut buf = [0; 8];
-    uefi::runtime::get_variable(cstr16!("OsIndicationsSupported"), &vendor, &mut buf)
-        .expect("failed to get variable");
-    let os_indications: u64 = u64::from_ne_bytes(buf);
-    debug!("OS Indications: {:?}", os_indications);
-
-    let os_indications =
-        if uefi::runtime::get_variable(cstr16!("OsIndications"), &vendor, &mut buf).is_ok() {
-            u64::from_ne_bytes(buf) | EFI_OS_INDICATIONS_BOOT_TO_FW_UI
-        } else {
-            EFI_OS_INDICATIONS_BOOT_TO_FW_UI
-        };
-    debug!("OS Indications: {:?}", os_indications);
-
-    let attrs = VariableAttributes::NON_VOLATILE
-        | VariableAttributes::BOOTSERVICE_ACCESS
-        | VariableAttributes::RUNTIME_ACCESS;
-    uefi::runtime::set_variable(
-        cstr16!("OsIndications"),
-        &vendor,
-        attrs,
-        &u64::to_ne_bytes(os_indications),
-    )
-    .expect("failed to set variable");
-}
-
 pub fn start(
     ec: &Option<CrosEc>,
     force_ui: bool,
@@ -1039,12 +887,13 @@ pub fn start(
         .as_ref()
         .and_then(power::power_info)
         .map(Into::<ReducedPowerInfo>::into);
-    let mut usb_devices = uefi_usb::get_usb_devices_noerr();
+    let mut usb_devices = usb::get_usb_devices_noerr();
 
     #[cfg(feature = "qemu")]
     let smbios: Option<SmbiosStore> = None;
+    // Without EC (e.g. running natively in mock mode) don't show the host's BIOS version
     #[cfg(not(feature = "qemu"))]
-    let smbios = get_smbios();
+    let smbios = ec.as_ref().and_then(|_| get_smbios());
     let bios_version = smbios
         .as_ref()
         .and_then(|smbios| {
@@ -1067,18 +916,17 @@ pub fn start(
         return Ok(None);
     }
 
-    // Get GOP protocol to draw on the screen
-    let (mut gop, mut buffer) = if let Some((gop, buf)) = get_gop_buffer() {
-        (gop, buf)
+    // Get GOP protocol to draw on the screen and Input protocol to detect keypresses
+    let mut screen = if let Some(screen) = Screen::open() {
+        screen
     } else {
         error!("inputmodules.efi - Couldn't draw to display");
         // Something went wrong with GOP initialization, keep booting
         // TODO: Maybe in DVT2 we should still assert here?
         return Ok(None);
     };
-
-    // Get Input protocol to detect keypresses
-    let mut input = get_input_protocol().expect("Should always have input protocol");
+    let (width, height) = screen.size();
+    let mut buffer = Buffer::new(width, height);
 
     let mut state = State::new(ec);
     // Record the time when the warning shows up and the timer starts
@@ -1092,11 +940,9 @@ pub fn start(
         // If the any firmware (keyboard or PD) is outdated, start a countdown timer and continue boot
         // Outdated keyboard or PD firmware does not impact boot functionality, so we can safely continue
         if let StateFrame::OutdatedFirmware(_) = &state.frame {
-            if let Ok(now) = uefi::runtime::get_time() {
-                let current_seconds = now.second() as u32 + (now.minute() as u32 * 60);
-
-                if now.second() as u32 != last_second {
-                    last_second = now.second() as u32;
+            if let Some(current_seconds) = platform::clock_seconds() {
+                if current_seconds % 60 != last_second {
+                    last_second = current_seconds % 60;
                     force_tick_redraw = true;
                 }
 
@@ -1151,7 +997,7 @@ pub fn start(
                 &mut power_info,
             );
         }
-        usb_devices = uefi_usb::get_usb_devices_noerr();
+        usb_devices = usb::get_usb_devices_noerr();
         // TODO: Maybe mock power button press?
         let button_pressed = ec_comm::button_pressed(ec);
 
@@ -1162,13 +1008,9 @@ pub fn start(
         match (short_press, state.frame.clone()) {
             // Reboot
             (true, StateFrame::InterposerClosed) => {
-                // EfiResetCold does a warm reset on AMD systems,
-                // so we need to manually force a cold reset.
-                // Use legacy CF9 register - AMD doc says it keeps CPU in S5 for 3 seconds.
-                Pio::<u8>::new(0x0CF9).write(0x0E);
-                // If it reaches here, it will panic, show an error message and shut off
-                // It's safe and customers can report this issue, if it occurs
-                unreachable!();
+                // Does not return in UEFI
+                platform::force_cold_reset();
+                break;
             }
             // Just exit and continue
             (true, _) => break,
@@ -1176,7 +1018,7 @@ pub fn start(
         }
 
         if state.keypress == Some(Key::Special(ScanCode::FUNCTION_12)) {
-            set_os_indications_setupmenu();
+            platform::set_os_indications_setupmenu();
             info!("Rebooting into BIOS Setup Menu");
             return Ok(Some(uefi::runtime::ResetType::COLD));
         }
@@ -1193,7 +1035,7 @@ pub fn start(
             );
         if need_redraw && log_enabled!(Level::Debug) {
             // Sleep after state.need_redraw prints debug information
-            boot::stall(core::time::Duration::from_micros(1_000_000));
+            platform::stall(core::time::Duration::from_micros(1_000_000));
         }
 
         let q_key = Char16::try_from('?').unwrap();
@@ -1218,7 +1060,7 @@ pub fn start(
                 return Ok(Some(uefi::runtime::ResetType::SHUTDOWN));
             }
             // Wait a second
-            sleep_or(1_000, input.wait_for_key_event().ok());
+            screen.wait(1_000);
             long_press += 1;
             true
         } else {
@@ -1280,14 +1122,13 @@ pub fn start(
                 }),
                 state.verbose,
             );
-            buffer.blit(&mut gop)?;
+            screen.blit(&buffer)?;
         }
 
         // TODO: It needs to be very low to detect short power button presses,
         // but it doesn't have to be that low for the input modules. Maybe we can find a compromise
         // Put CPU to sleep until key press or 10ms timeout
-        sleep_or(10, input.wait_for_key_event().ok());
-        state.keypress = input.read_key().expect(FAILED_INPUT);
+        state.keypress = screen.wait_for_key(10);
 
         // Save current values to access and compare them in next iteration
         state.prev_input_deck = Some(input_deck.clone());
@@ -1297,7 +1138,8 @@ pub fn start(
         state.prev_usb_devices = Some(usb_devices.clone());
         state.prev_pressed = button_pressed;
     }
-    let _ = clear_screen(&mut buffer, &mut gop);
+    clear_screen(&mut buffer);
+    let _ = screen.blit(&buffer);
     info!("Exited loop, continuing to boot");
     Ok(None)
 }

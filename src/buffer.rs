@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use embedded_graphics::{pixelcolor::Rgb888, prelude::*};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
-use uefi::proto::console::gop::{BltOp, BltPixel, BltRegion, GraphicsOutput};
+use uefi::proto::console::gop::BltPixel;
 
 pub struct Buffer {
     width: usize,
@@ -60,13 +60,16 @@ impl Buffer {
         self.pixels.get_mut(y * self.width + x)
     }
 
-    /// Blit the buffer to the framebuffer.
-    pub fn blit(&self, gop: &mut GraphicsOutput) -> uefi::Result {
-        gop.blt(BltOp::BufferToVideo {
-            buffer: &self.pixels,
-            src: BltRegion::Full,
-            dest: (0, 0),
-            dims: (self.width, self.height),
-        })
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    /// All pixels, row by row
+    pub fn pixels(&self) -> &[BltPixel] {
+        &self.pixels
     }
 }

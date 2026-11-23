@@ -132,6 +132,39 @@ You can then use `make` commands as usual:
 make qemu && make run
 ```
 
+## Running natively
+
+For quicker development, the app can also be built and run as a regular
+application. It draws into a window instead of on the screen through GOP.
+Tested on Linux (X11/XWayland). Windows and macOS should work, but are untested.
+
+```sh
+# Launch GUI in a window
+cargo run -- force
+# Or
+make native-run
+
+# Print status info on the commandline
+cargo run -- info
+```
+
+By default the EC is not accessed and its data is mocked, like in QEMU.
+Use the keys listed in [QEMU Special Keys](#qemu-special-keys) to simulate
+different states.
+
+To show the real state of the system, pass `--ec`. On Linux this requires root
+or access to `/dev/cros_ec`:
+
+```sh
+cargo build && sudo ./target/debug/inputmodules --ec force
+```
+
+Natively the app never resets or shuts down the system, never writes UEFI
+variables and does not put the EC into UEFI app mode. It only logs what it
+would have done. Close the window or press ESC to exit.
+
+Set `RUST_LOG` to change the log level, e.g. `RUST_LOG=debug`.
+
 ## Debugging
 To test in QEMU build the QEMU version and run it.
 
@@ -187,6 +220,8 @@ window menu: "View" -> "Zoom Out".
   - Can't detect touchpad position, all locations are wired together
 
 ## QEMU Special Keys
+
+These also work when running natively without `--ec`.
 
 Controls:
 

@@ -15,8 +15,6 @@ use framework_lib::chromium_ec::input_deck::{InputModuleType, TopRowPositions};
 use framework_lib::power::ReducedPowerInfo;
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
-use uefi::boot::ScopedProtocol;
-use uefi::proto::console::gop::GraphicsOutput;
 use zune_core::result::DecodingResult;
 use zune_png::PngDecoder;
 
@@ -1018,7 +1016,7 @@ pub fn draw_black_bar(buffer: &mut Buffer) {
     rect.into_styled(style).draw(buffer).unwrap();
 }
 
-pub fn clear_screen(buffer: &mut Buffer, gop: &mut ScopedProtocol<GraphicsOutput>) -> uefi::Result {
+pub fn clear_screen(buffer: &mut Buffer) {
     // Clear screen to black. Otherwise the next app is responsible for clearing.
     // If the app was launched from the UEFI shell, the user would have to manually clear
     let whole_screen: Rectangle =
@@ -1027,7 +1025,4 @@ pub fn clear_screen(buffer: &mut Buffer, gop: &mut ScopedProtocol<GraphicsOutput
         .fill_color(Rgb888::BLACK)
         .build();
     whole_screen.into_styled(blank_style).draw(buffer).unwrap();
-    buffer.blit(gop)?;
-
-    Ok(())
 }

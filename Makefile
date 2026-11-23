@@ -1,6 +1,6 @@
-.PHONY: run clean
+.PHONY: run clean native native-run
 TARGET:=debug
-SOURCES=Cargo.toml $(wildcard src/*.rs) $(wildcard resources/*)
+SOURCES=Cargo.toml $(wildcard src/*.rs src/*/*.rs src/*/*/*.rs) $(wildcard resources/*)
 
 debug: target/x86_64-unknown-uefi/debug/inputmodules.efi
 	@ls -lh $<
@@ -29,6 +29,14 @@ target/x86_64-unknown-uefi/release/inputmodules.efi: $(SOURCES)
 
 clippy:
 	cargo clippy --target x86_64-unknown-uefi
+	cargo clippy
+
+# Build and run as native application in a window, with mocked EC data
+native: $(SOURCES)
+	cargo build
+
+native-run: $(SOURCES)
+	cargo run -- force
 
 # Automatically get OVMF from system path
 ovmf/OVMF_CODE.fd:

@@ -232,6 +232,7 @@ pub fn get_fan_speed(ec: &Option<CrosEc>) -> (u16, u16) {
 /// The only issue could be if enabling works but disabling fails.
 /// Then the system will be in a state where the power button is disabled, which is not good.
 /// Only an EC reset will restore it.
+#[cfg_attr(not(target_os = "uefi"), allow(dead_code))]
 pub fn set_uefi_app_mode(ec: &Option<CrosEc>, mode: bool) {
     let enable = if mode { 1 } else { 0 };
     if let Some(ref ec) = ec {
