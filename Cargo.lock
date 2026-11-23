@@ -818,6 +818,8 @@ dependencies = [
  "nusb",
  "redox_hwio",
  "uefi",
+ "windows-sys 0.61.2",
+ "x11-dl",
  "zune-core",
  "zune-png",
 ]

@@ -43,6 +43,13 @@ env_logger = { version = "0.11", default-features = false, features = ["auto-col
 minifb = { version = "0.29", default-features = false, features = ["x11"] }
 nusb = "0.2"
 
+# To get the screen size for fullscreen
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging"] }
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+x11-dl = "2.21"
+
 [target.'cfg(target_os = "uefi")'.dependencies.framework_lib]
 version = "0.6.7"
 default-features = false

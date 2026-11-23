@@ -118,6 +118,12 @@ fn main() {
     };
     let ec = if use_ec { Some(CrosEc::new()) } else { None };
 
+    // Fullscreen by default, like in UEFI. With --windowed show a resizable window instead.
+    if let Some(pos) = args.iter().position(|arg| arg == "--windowed") {
+        args.remove(pos);
+        platform::set_windowed(true);
+    }
+
     let action = parse_args(&args);
     if let ShellAction::Info = action {
         println!("Provide Parameter: '--ec' to make the GUI read from the EC instead of mocking");

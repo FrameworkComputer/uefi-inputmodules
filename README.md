@@ -163,6 +163,10 @@ Natively the app never resets or shuts down the system, never writes UEFI
 variables and does not put the EC into UEFI app mode. It only logs what it
 would have done. Close the window or press ESC to exit.
 
+The GUI covers the whole primary screen by default. On the 2560x1600 display of
+the Framework Laptop 16 it is pixel-perfect, on other screens it is scaled.
+Pass `--windowed` to show it in a resizable window instead.
+
 Set `RUST_LOG` to change the log level, e.g. `RUST_LOG=debug`.
 
 ## Debugging

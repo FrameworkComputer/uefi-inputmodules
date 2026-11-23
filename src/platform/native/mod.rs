@@ -7,6 +7,7 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use framework_lib::chromium_ec::CrosEc;
@@ -47,23 +48,102 @@ pub struct Screen {
     chars: Rc<RefCell<VecDeque<char>>>,
 }
 
+static WINDOWED: AtomicBool = AtomicBool::new(false);
+
+/// Show the UI in a regular resizable window instead of fullscreen
+pub fn set_windowed(windowed: bool) {
+    WINDOWED.store(windowed, Ordering::Relaxed);
+}
+
+/// Size of the primary screen in physical pixels
+#[cfg(windows)]
+fn screen_size() -> Option<(usize, usize)> {
+    use windows_sys::Win32::UI::HiDpi::{
+        SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+    let (width, height) = unsafe {
+        // Without DPI awareness Windows reports a scaled-down screen size
+        // and stretches the window, which makes the UI blurry.
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN))
+    };
+    (width > 0 && height > 0).then_some((width as usize, height as usize))
+}
+
+/// Size of the default X11 screen in pixels
+#[cfg(all(unix, not(target_os = "macos")))]
+fn screen_size() -> Option<(usize, usize)> {
+    let xlib = x11_dl::xlib::Xlib::open()
+        .map_err(|err| error!("Failed to load Xlib: {}", err))
+        .ok()?;
+    unsafe {
+        let display = (xlib.XOpenDisplay)(std::ptr::null());
+        if display.is_null() {
+            error!("Failed to open X display");
+            return None;
+        }
+        let screen = (xlib.XDefaultScreen)(display);
+        let width = (xlib.XDisplayWidth)(display, screen);
+        let height = (xlib.XDisplayHeight)(display, screen);
+        (xlib.XCloseDisplay)(display);
+        (width > 0 && height > 0).then_some((width as usize, height as usize))
+    }
+}
+
+#[cfg(not(any(windows, all(unix, not(target_os = "macos")))))]
+fn screen_size() -> Option<(usize, usize)> {
+    None
+}
+
 impl Screen {
     pub fn open() -> Option<Self> {
         // The UI is laid out for the 2560x1600 display of the Framework Laptop 16.
-        // Keep the buffer at that size and let the window scale it down to fit the screen.
-        let mut window = Window::new(
-            WINDOW_TITLE,
-            WIDTH / 2,
-            HEIGHT / 2,
-            WindowOptions {
-                resize: true,
-                scale: Scale::X1,
-                scale_mode: ScaleMode::AspectRatioStretch,
-                ..WindowOptions::default()
-            },
-        )
-        .map_err(|err| error!("Failed to open window: {}", err))
-        .ok()?;
+        // Keep the buffer at that size and let the window scale it to fit.
+        let fullscreen = if WINDOWED.load(Ordering::Relaxed) {
+            None
+        } else {
+            let size = screen_size();
+            if size.is_none() {
+                warn!("Couldn't determine screen size, falling back to windowed mode");
+            }
+            size
+        };
+
+        let mut window = if let Some((width, height)) = fullscreen {
+            debug!("Opening fullscreen window: {}x{}", width, height);
+            // Borderless window covering the entire screen
+            let mut window = Window::new(
+                WINDOW_TITLE,
+                width,
+                height,
+                WindowOptions {
+                    none: true,
+                    topmost: true,
+                    scale: Scale::X1,
+                    scale_mode: ScaleMode::AspectRatioStretch,
+                    ..WindowOptions::default()
+                },
+            )
+            .map_err(|err| error!("Failed to open window: {}", err))
+            .ok()?;
+            window.set_position(0, 0);
+            window
+        } else {
+            Window::new(
+                WINDOW_TITLE,
+                WIDTH / 2,
+                HEIGHT / 2,
+                WindowOptions {
+                    resize: true,
+                    scale: Scale::X1,
+                    scale_mode: ScaleMode::AspectRatioStretch,
+                    ..WindowOptions::default()
+                },
+            )
+            .map_err(|err| error!("Failed to open window: {}", err))
+            .ok()?
+        };
 
         let chars = Rc::new(RefCell::new(VecDeque::new()));
         window.set_input_callback(Box::new(CharQueue(chars.clone())));
