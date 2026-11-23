@@ -21,12 +21,10 @@ use framework_lib::power::{self, ReducedPowerInfo};
 use framework_lib::smbios::get_smbios;
 #[cfg(feature = "qemu")]
 use framework_lib::smbios::SmbiosStore;
-use framework_lib::smbios::{get_platform, Platform};
+use framework_lib::smbios::{get_platform, Platform as SmbiosPlatform};
 #[allow(unused_imports)]
 use log::{debug, error, info, trace};
-use log::{log_enabled, Level};
-use uefi::boot;
-use uefi::proto::console::text::{Key, ScanCode};
+use uefi::proto::console::text::Key;
 use uefi::Char16;
 #[allow(unused_imports)]
 use uefi::{print, println};
@@ -34,16 +32,12 @@ use uefi::{print, println};
 use hwio::{Io, Pio};
 
 use super::drawing::*;
-use super::ec;
+use super::{ec, status};
 use crate::buffer::Buffer;
-use crate::built_info;
 use crate::ec_comm;
-use crate::sleep::sleep_or;
+use crate::platform::{LoopInfo, Platform, Tick};
 use crate::uefi_usb::{self, UsbDevice};
-use crate::ui::{clear_screen, draw_battery_info, draw_textbox, TextColor};
-use crate::util;
-
-const FAILED_INPUT: &str = "Failed to get keypress";
+use crate::ui::{draw_battery_info, draw_textbox, TextColor};
 
 const BOOT_TIME_SECONDS: u32 = 20;
 
@@ -106,25 +100,35 @@ pub struct DebugInfo {
     pub usb_devices: Vec<UsbDevice>,
 }
 
+/// Hardware state, read once per loop iteration
+#[derive(Clone)]
+pub struct Snapshot {
+    input_deck: InputDeckStatus,
+    expansion_bay: EcResponseExpansionBayStatus,
+    hw_diag: EcResponseGetHwDiag,
+    fan_speed: (u16, u16),
+    power_info: Option<ReducedPowerInfo>,
+    usb_devices: Vec<UsbDevice>,
+}
+
 pub struct State {
     // Cache bitmaps for drawing
     bitmaps: StateBitmaps,
     screen_size: Size,
     // Currently displayed frame
     frame: StateFrame,
-    prev_input_deck: Option<InputDeckStatus>,
-    prev_expansion_bay: Option<EcResponseExpansionBayStatus>,
-    prev_hw_diag: Option<EcResponseGetHwDiag>,
-    prev_power_info: Option<Option<ReducedPowerInfo>>,
-    prev_usb_devices: Option<Vec<UsbDevice>>,
-    prev_pressed: bool,
-    verbose: bool,
-    keypress: Option<Key>,
+    bios_version: String,
+    ec_version: String,
     pd1_ver: Option<AppVersion>,
     pd2_ver: Option<AppVersion>,
     pd3_ver: Option<AppVersion>,
     outdated_firmware: OutdatedFirmware,
     mock_outdated_fw: bool,
+    // Record the time when the warning shows up and the timer starts
+    // So that the countdown does not start when the user is still installing inputmodules
+    warning_start_time: Option<u32>,
+    last_second: u32,
+    countdown_text: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -194,14 +198,29 @@ enum StateFrame {
 }
 
 impl State {
-    pub fn new(ec: &Option<CrosEc>) -> Self {
+    fn new(ec: &Option<CrosEc>) -> Self {
+        #[cfg(feature = "qemu")]
+        let smbios: Option<SmbiosStore> = None;
+        #[cfg(not(feature = "qemu"))]
+        let smbios = get_smbios();
+        let bios_version = smbios
+            .as_ref()
+            .and_then(|smbios| {
+                smbios.structures().find_map(|r| match r {
+                    Ok(Structure::Bios(bios)) => Some(bios.bios_version.to_string()),
+                    _ => None,
+                })
+            })
+            .unwrap_or_else(|| "?.??".to_string());
+        let ec_version = ec_comm::version_info(ec);
+
         let mut outdated_firmware = OutdatedFirmware::default();
         let mut pd1_ver = None;
         let mut pd2_ver = None;
         let mut pd3_ver = None;
         let versions = ec.as_ref().and_then(|x| power::read_pd_version(x).ok());
         if let Some(MainPdVersions::Many(versions)) = versions {
-            if let Some(Platform::Framework16Amd7080) = get_platform() {
+            if let Some(SmbiosPlatform::Framework16Amd7080) = get_platform() {
                 if let Some(ver) = versions.get(0) {
                     pd1_ver = Some(ver.app);
                     if ver.app != LOTUS_PD1_VER {
@@ -274,43 +293,37 @@ impl State {
             },
             // Doesn't matter where we start from, will be updated immediately, before checking
             frame: StateFrame::Finished,
-            prev_input_deck: None,
-            prev_expansion_bay: None,
-            prev_hw_diag: None,
-            prev_power_info: None,
-            prev_usb_devices: None,
-            prev_pressed: false,
-            verbose: built_info::DEBUG,
-            keypress: None,
+            bios_version,
+            ec_version,
             pd1_ver,
             pd2_ver,
             pd3_ver,
             outdated_firmware,
             mock_outdated_fw: false,
+            warning_start_time: None,
+            last_second: 0,
+            countdown_text: String::new(),
         }
     }
 
     // Very simple state machine
     // The next state does not depend on the current state
-    fn next_state(
-        &self,
-        input_deck: &InputDeckStatus,
-        expansion_bay: &EcResponseExpansionBayStatus,
-        hw_diag: &EcResponseGetHwDiag,
-        usb_devices: &Vec<UsbDevice>,
-    ) -> StateFrame {
+    fn next_state(&self, prev: Option<&Snapshot>, cur: &Snapshot) -> StateFrame {
+        let Snapshot {
+            input_deck,
+            expansion_bay,
+            hw_diag,
+            usb_devices,
+            ..
+        } = cur;
+
         // Can't get out of this, need to reboot
         if self.frame == StateFrame::InterposerClosed {
             return self.frame.clone();
         }
 
-        let prev_bay_issue = if let (Some(ref prev_expansion_bay), Some(ref pre_hw_diag)) =
-            (self.prev_expansion_bay, self.prev_hw_diag)
-        {
-            has_bay_issue(prev_expansion_bay, pre_hw_diag)
-        } else {
-            None
-        };
+        let prev_bay_issue =
+            prev.and_then(|prev| has_bay_issue(&prev.expansion_bay, &prev.hw_diag));
         let bay_issue = has_bay_issue(expansion_bay, hw_diag);
         let door_was_open = Some(BayIssue::InterposerOpen) == prev_bay_issue;
         let door_now_open = Some(BayIssue::InterposerOpen) == bay_issue;
@@ -805,49 +818,6 @@ impl State {
             }
         }
     }
-
-    pub fn need_redraw(
-        &self,
-        input_deck: &InputDeckStatus,
-        expansion_bay: &EcResponseExpansionBayStatus,
-        hw_diag: &EcResponseGetHwDiag,
-        power_info: &Option<ReducedPowerInfo>,
-        usb_devices: &Vec<UsbDevice>,
-    ) -> bool {
-        let new_deck = Some(input_deck) != self.prev_input_deck.as_ref();
-        let new_bay = Some(expansion_bay) != self.prev_expansion_bay.as_ref();
-        let new_diag = Some(hw_diag) != self.prev_hw_diag.as_ref();
-        let new_power = Some(power_info) != self.prev_power_info.as_ref();
-        let new_usb_devices = Some(usb_devices) != self.prev_usb_devices.as_ref();
-
-        if new_deck {
-            debug!("Deck Changed");
-            debug!("Old: {:?}", self.prev_input_deck.as_ref());
-            debug!("New: {:?}", input_deck);
-        }
-        if new_bay {
-            debug!("Bay Changed");
-            debug!("Old: {:?}", self.prev_expansion_bay.as_ref());
-            debug!("New: {:?}", expansion_bay);
-        }
-        if new_diag {
-            debug!("Diag Changed");
-            debug!("Old: {:?}", self.prev_hw_diag.as_ref());
-            debug!("New: {:?}", hw_diag);
-        }
-        if new_power {
-            debug!("Power Changed");
-            debug!("Old: {:?}", self.prev_power_info.as_ref());
-            debug!("New: {:?}", power_info);
-        }
-        if new_usb_devices {
-            debug!("USB Devices Changed");
-            debug!("Old: {:?}", self.prev_usb_devices.as_ref());
-            debug!("New: {:?}", usb_devices);
-        }
-
-        new_deck || new_bay || new_diag || new_power || new_usb_devices
-    }
 }
 
 fn has_bay_issue(
@@ -885,84 +855,65 @@ fn has_bay_issue(
     None
 }
 
-pub fn start(
-    ec: &Option<CrosEc>,
-    force_ui: bool,
-) -> uefi::Result<Option<uefi::runtime::ResetType>> {
-    let mut input_deck = ec::get_input_deck(ec);
-    let mut expansion_bay = ec::get_expansion_bay(ec);
-    let mut hw_diag = ec_comm::get_hw_diag(ec);
-    let mut fan_speed = ec::get_fan_speed(ec);
-    let mut power_info: Option<ReducedPowerInfo> = ec
-        .as_ref()
-        .and_then(power::power_info)
-        .map(Into::<ReducedPowerInfo>::into);
-    let mut usb_devices = uefi_usb::get_usb_devices_noerr();
+impl Platform for State {
+    type Snapshot = Snapshot;
 
-    #[cfg(feature = "qemu")]
-    let smbios: Option<SmbiosStore> = None;
-    #[cfg(not(feature = "qemu"))]
-    let smbios = get_smbios();
-    let bios_version = smbios
-        .as_ref()
-        .and_then(|smbios| {
-            smbios.structures().find_map(|r| match r {
-                Ok(Structure::Bios(bios)) => Some(bios.bios_version.to_string()),
-                _ => None,
-            })
-        })
-        .unwrap_or_else(|| "?.??".to_string());
-    let ec_version = ec_comm::version_info(ec);
-
-    let state = State::new(ec);
-    // If we start out as fully populated we want to boot as fast as possible
-    // and skip the GUI
-    if !force_ui
-        && state.next_state(&input_deck, &expansion_bay, &hw_diag, &usb_devices)
-            == StateFrame::Finished
-    {
-        info!("Started out as fully populated, booting immediately");
-        return Ok(None);
+    fn show_ui() -> bool {
+        // Show the UI if we can't tell the BIOS settings or they indicate we need to show the UI
+        status::show_ui() != Some(false)
     }
 
-    // Get GOP protocol to draw on the screen
-    let (mut gop, mut buffer) = if let Some((gop, buf)) = util::get_gop_buffer() {
-        (gop, buf)
-    } else {
-        error!("inputmodules.efi - Couldn't draw to display");
-        // Something went wrong with GOP initialization, keep booting
-        // TODO: Maybe in DVT2 we should still assert here?
-        return Ok(None);
-    };
+    fn print_status() {
+        status::print_module_status();
+    }
 
-    // Get Input protocol to detect keypresses
-    let mut input = util::get_input_protocol().expect("Should always have input protocol");
+    fn new(ec: &Option<CrosEc>) -> Self {
+        State::new(ec)
+    }
 
-    let mut state = State::new(ec);
-    // Record the time when the warning shows up and the timer starts
-    // So that the countdown does not start when the user is still installing inputmodules
-    let mut warning_start_time: Option<u32> = None;
-    let mut last_second: u32 = 0;
-    let mut countdown_text = String::new();
-    let mut long_press = 0;
-    loop {
-        let mut force_tick_redraw = false;
-        // If the any firmware (keyboard or PD) is outdated, start a countdown timer and continue boot
-        // Outdated keyboard or PD firmware does not impact boot functionality, so we can safely continue
-        if let StateFrame::OutdatedFirmware(_) = &state.frame {
+    fn read(&self, ec: &Option<CrosEc>) -> Snapshot {
+        Snapshot {
+            input_deck: ec::get_input_deck(ec),
+            expansion_bay: ec::get_expansion_bay(ec),
+            hw_diag: ec_comm::get_hw_diag(ec),
+            fan_speed: ec::get_fan_speed(ec),
+            power_info: ec
+                .as_ref()
+                .and_then(power::power_info)
+                .map(Into::<ReducedPowerInfo>::into),
+            usb_devices: uefi_usb::get_usb_devices_noerr(),
+        }
+    }
+
+    fn mock(&mut self, keypress: Option<Key>, s: &mut Snapshot) {
+        ec::keypress_mock_data(
+            keypress,
+            &mut s.input_deck,
+            &mut s.expansion_bay,
+            &mut s.hw_diag,
+            &mut s.power_info,
+        );
+        s.usb_devices = uefi_usb::get_usb_devices_noerr();
+    }
+
+    fn boot_immediately(&self, snapshot: &Snapshot) -> bool {
+        self.next_state(None, snapshot) == StateFrame::Finished
+    }
+
+    /// If the any firmware (keyboard or PD) is outdated, start a countdown timer and continue boot
+    /// Outdated keyboard or PD firmware does not impact boot functionality, so we can safely continue
+    fn tick(&mut self) -> Tick {
+        let mut force_redraw = false;
+        if let StateFrame::OutdatedFirmware(_) = &self.frame {
             if let Ok(now) = uefi::runtime::get_time() {
                 let current_seconds = now.second() as u32 + (now.minute() as u32 * 60);
 
-                if now.second() as u32 != last_second {
-                    last_second = now.second() as u32;
-                    force_tick_redraw = true;
+                if now.second() as u32 != self.last_second {
+                    self.last_second = now.second() as u32;
+                    force_redraw = true;
                 }
 
-                if warning_start_time.is_none() {
-                    warning_start_time = Some(current_seconds);
-                }
-
-                let start_sec = warning_start_time.unwrap();
+                let start_sec = *self.warning_start_time.get_or_insert(current_seconds);
                 let elapsed = if current_seconds >= start_sec {
                     current_seconds - start_sec
                 } else {
@@ -974,188 +925,135 @@ pub fn start(
                 };
 
                 let remaining = BOOT_TIME_SECONDS.saturating_sub(elapsed);
-                countdown_text = format!("\nContinuing boot in {}s...", remaining);
+                self.countdown_text = format!("\nContinuing boot in {}s...", remaining);
 
                 if elapsed >= BOOT_TIME_SECONDS {
                     info!("Timeout reached for firmware warning. Continuing boot...");
-                    break;
+                    return Tick::Boot;
                 }
             }
         } else {
             // Reset the timer in case we exit the OutdatedFirmware state and enter again later
-            warning_start_time = None;
-            countdown_text.clear();
+            self.warning_start_time = None;
+            self.countdown_text.clear();
         }
-
-        #[cfg(feature = "azalea")]
-        let azalea = true;
-        #[cfg(not(feature = "azalea"))]
-        let azalea = false;
-        if !azalea && ec.is_some() {
-            input_deck = ec::get_input_deck(ec);
-            expansion_bay = ec::get_expansion_bay(ec);
-            hw_diag = ec_comm::get_hw_diag(ec);
-            fan_speed = ec::get_fan_speed(ec);
-            power_info = ec
-                .as_ref()
-                .and_then(power::power_info)
-                .map(Into::<ReducedPowerInfo>::into);
-        } else {
-            ec::keypress_mock_data(
-                state.keypress,
-                &mut input_deck,
-                &mut expansion_bay,
-                &mut hw_diag,
-                &mut power_info,
-            );
-        }
-        usb_devices = uefi_usb::get_usb_devices_noerr();
-        // TODO: Maybe mock power button press?
-        let button_pressed = ec_comm::button_pressed(ec);
-
-        // Detect short press of power button
-        // Short press (or ESC) will exit and boot (skip all further checks)
-        let short_press = (!button_pressed && state.prev_pressed)
-            || state.keypress == Some(Key::Special(ScanCode::ESCAPE));
-        match (short_press, state.frame.clone()) {
-            // Reboot
-            (true, StateFrame::InterposerClosed) => {
-                // EfiResetCold does a warm reset on AMD systems,
-                // so we need to manually force a cold reset.
-                // Use legacy CF9 register - AMD doc says it keeps CPU in S5 for 3 seconds.
-                Pio::<u8>::new(0x0CF9).write(0x0E);
-                // If it reaches here, it will panic, show an error message and shut off
-                // It's safe and customers can report this issue, if it occurs
-                unreachable!();
-            }
-            // Just exit and continue
-            (true, _) => break,
-            _ => {}
-        }
-
-        if state.keypress == Some(Key::Special(ScanCode::FUNCTION_12)) {
-            util::set_os_indications_setupmenu();
-            info!("Rebooting into BIOS Setup Menu");
-            return Ok(Some(uefi::runtime::ResetType::COLD));
-        }
-
-        // If verbose always need to update, to update things like fan info in the debug section
-        let need_redraw = force_tick_redraw
-            || state.verbose
-            || state.need_redraw(
-                &input_deck,
-                &expansion_bay,
-                &hw_diag,
-                &power_info,
-                &usb_devices,
-            );
-        if need_redraw && log_enabled!(Level::Debug) {
-            // Sleep after state.need_redraw prints debug information
-            boot::stall(core::time::Duration::from_micros(1_000_000));
-        }
-
-        let q_key = Char16::try_from('?').unwrap();
-        let p_key = Char16::try_from('p').unwrap();
-        let need_redraw = match state.keypress {
-            Some(Key::Printable(key)) if key == q_key => {
-                state.verbose = !state.verbose;
-                true
-            }
-            Some(Key::Printable(key)) if key == p_key => {
-                state.mock_outdated_fw = !state.mock_outdated_fw;
-                true
-            }
-            _ => need_redraw,
-        };
-
-        // Detect long press of power button
-        let need_redraw = if button_pressed && state.prev_pressed && !need_redraw {
-            if long_press > 4 {
-                // Exit and signal that we need to poweroff
-                info!("Powering off");
-                return Ok(Some(uefi::runtime::ResetType::SHUTDOWN));
-            }
-            // Wait a second
-            sleep_or(1_000, input.wait_for_key_event().ok());
-            long_press += 1;
-            true
-        } else {
-            long_press = 0;
-            need_redraw
-        };
-
-        if need_redraw {
-            state.frame = state.next_state(&input_deck, &expansion_bay, &hw_diag, &usb_devices);
-            state.draw_state(&mut buffer, &input_deck);
-
-            if let StateFrame::OutdatedFirmware(msgs) = &state.frame {
-                let mut all_msgs = msgs.keyboard.clone();
-                if let Some(msg) = &msgs.pd1_controller {
-                    all_msgs.push(msg.to_string());
-                }
-                if let Some(msg) = &msgs.pd2_controller {
-                    all_msgs.push(msg.to_string());
-                }
-                if let Some(msg) = &msgs.pd3_controller {
-                    all_msgs.push(msg.to_string());
-                }
-
-                let mut msg = all_msgs.join("\n");
-                msg.push_str(&countdown_text);
-
-                draw_textbox(
-                    &mut buffer,
-                    Point::new(WARN_X, WARN_Y),
-                    TextColor::Warn,
-                    &msg,
-                );
-            }
-
-            draw_battery_info(&mut buffer, Point::new(WIDTH_I32 / 2, 0), &power_info);
-            draw_version(
-                &mut buffer,
-                Some(DebugInfo {
-                    bios_version: bios_version.clone(),
-                    ec_version: ec_version.clone(),
-                    power_button: button_pressed,
-                    ec_present: ec.is_some(),
-                    long_press,
-                    bay_module: expansion_bay.expansion_bay_board(),
-                    gpu0: expansion_bay.board_id_0,
-                    gpu1: expansion_bay.board_id_1,
-                    bay_state: expansion_bay.state,
-                    bay_enabled: expansion_bay.module_enabled(),
-                    bay_fault: expansion_bay.module_fault(),
-                    hatch_closed: expansion_bay.hatch_switch_closed(),
-                    hw_diag,
-                    fan_speed,
-                    deck: input_deck.clone(),
-                    power_info: power_info.clone(),
-                    pd1_ver: state.pd1_ver,
-                    pd2_ver: state.pd2_ver,
-                    pd3_ver: state.pd3_ver,
-                    usb_devices: usb_devices.clone(),
-                }),
-                state.verbose,
-            );
-            buffer.blit(&mut gop)?;
-        }
-
-        // TODO: It needs to be very low to detect short power button presses,
-        // but it doesn't have to be that low for the input modules. Maybe we can find a compromise
-        // Put CPU to sleep until key press or 10ms timeout
-        sleep_or(10, input.wait_for_key_event().ok());
-        state.keypress = input.read_key().expect(FAILED_INPUT);
-
-        // Save current values to access and compare them in next iteration
-        state.prev_input_deck = Some(input_deck.clone());
-        state.prev_expansion_bay = Some(expansion_bay);
-        state.prev_hw_diag = Some(hw_diag);
-        state.prev_power_info = Some(power_info.clone());
-        state.prev_usb_devices = Some(usb_devices.clone());
-        state.prev_pressed = button_pressed;
+        Tick::Continue { force_redraw }
     }
-    let _ = clear_screen(&mut buffer, &mut gop);
-    info!("Exited loop, continuing to boot");
-    Ok(None)
+
+    fn handle_key(&mut self, key: Key) -> bool {
+        let p_key = Char16::try_from('p').unwrap();
+        match key {
+            Key::Printable(key) if key == p_key => {
+                self.mock_outdated_fw = !self.mock_outdated_fw;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn on_short_press(&mut self) {
+        if self.frame == StateFrame::InterposerClosed {
+            // EfiResetCold does a warm reset on AMD systems,
+            // so we need to manually force a cold reset.
+            // Use legacy CF9 register - AMD doc says it keeps CPU in S5 for 3 seconds.
+            Pio::<u8>::new(0x0CF9).write(0x0E);
+            // If it reaches here, it will panic, show an error message and shut off
+            // It's safe and customers can report this issue, if it occurs
+            unreachable!();
+        }
+    }
+
+    fn need_redraw(&self, prev: Option<&Snapshot>, cur: &Snapshot) -> bool {
+        let new_deck = Some(&cur.input_deck) != prev.map(|p| &p.input_deck);
+        let new_bay = Some(&cur.expansion_bay) != prev.map(|p| &p.expansion_bay);
+        let new_diag = Some(&cur.hw_diag) != prev.map(|p| &p.hw_diag);
+        let new_power = Some(&cur.power_info) != prev.map(|p| &p.power_info);
+        let new_usb_devices = Some(&cur.usb_devices) != prev.map(|p| &p.usb_devices);
+
+        if new_deck {
+            debug!("Deck Changed");
+            debug!("Old: {:?}", prev.map(|p| &p.input_deck));
+            debug!("New: {:?}", cur.input_deck);
+        }
+        if new_bay {
+            debug!("Bay Changed");
+            debug!("Old: {:?}", prev.map(|p| &p.expansion_bay));
+            debug!("New: {:?}", cur.expansion_bay);
+        }
+        if new_diag {
+            debug!("Diag Changed");
+            debug!("Old: {:?}", prev.map(|p| &p.hw_diag));
+            debug!("New: {:?}", cur.hw_diag);
+        }
+        if new_power {
+            debug!("Power Changed");
+            debug!("Old: {:?}", prev.map(|p| &p.power_info));
+            debug!("New: {:?}", cur.power_info);
+        }
+        if new_usb_devices {
+            debug!("USB Devices Changed");
+            debug!("Old: {:?}", prev.map(|p| &p.usb_devices));
+            debug!("New: {:?}", cur.usb_devices);
+        }
+
+        new_deck || new_bay || new_diag || new_power || new_usb_devices
+    }
+    fn draw(
+        &mut self,
+        buffer: &mut Buffer,
+        prev: Option<&Snapshot>,
+        cur: &Snapshot,
+        info: &LoopInfo,
+        verbose: bool,
+    ) {
+        self.frame = self.next_state(prev, cur);
+        self.draw_state(buffer, &cur.input_deck);
+
+        if let StateFrame::OutdatedFirmware(msgs) = &self.frame {
+            let mut all_msgs = msgs.keyboard.clone();
+            if let Some(msg) = &msgs.pd1_controller {
+                all_msgs.push(msg.to_string());
+            }
+            if let Some(msg) = &msgs.pd2_controller {
+                all_msgs.push(msg.to_string());
+            }
+            if let Some(msg) = &msgs.pd3_controller {
+                all_msgs.push(msg.to_string());
+            }
+
+            let mut msg = all_msgs.join("\n");
+            msg.push_str(&self.countdown_text);
+
+            draw_textbox(buffer, Point::new(WARN_X, WARN_Y), TextColor::Warn, &msg);
+        }
+
+        let expansion_bay = &cur.expansion_bay;
+        draw_battery_info(buffer, Point::new(WIDTH_I32 / 2, 0), &cur.power_info);
+        draw_version(
+            buffer,
+            Some(DebugInfo {
+                bios_version: self.bios_version.clone(),
+                ec_version: self.ec_version.clone(),
+                power_button: info.power_button,
+                ec_present: info.ec_present,
+                long_press: info.long_press,
+                bay_module: expansion_bay.expansion_bay_board(),
+                gpu0: expansion_bay.board_id_0,
+                gpu1: expansion_bay.board_id_1,
+                bay_state: expansion_bay.state,
+                bay_enabled: expansion_bay.module_enabled(),
+                bay_fault: expansion_bay.module_fault(),
+                hatch_closed: expansion_bay.hatch_switch_closed(),
+                hw_diag: cur.hw_diag,
+                fan_speed: cur.fan_speed,
+                deck: cur.input_deck.clone(),
+                power_info: cur.power_info.clone(),
+                pd1_ver: self.pd1_ver,
+                pd2_ver: self.pd2_ver,
+                pd3_ver: self.pd3_ver,
+                usb_devices: cur.usb_devices.clone(),
+            }),
+            verbose,
+        );
+    }
 }
