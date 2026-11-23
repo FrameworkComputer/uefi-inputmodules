@@ -24,6 +24,7 @@ mod ec_comm;
 mod platform;
 mod sleep;
 mod uefi_usb;
+mod util;
 mod built_info {
     // The file has been placed there by the build script.
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
@@ -98,7 +99,7 @@ fn main() -> Status {
         print_module_status();
     } else if let Ok(ShellAction::GopInfo) = arg {
         println!("GOP Info");
-        state_machine::print_gop_info();
+        util::print_gop_info();
     } else {
         info!("No shell arg, launching GUI");
 
