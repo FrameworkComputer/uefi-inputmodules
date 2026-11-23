@@ -34,6 +34,7 @@ use uefi::{print, println};
 use hwio::{Io, Pio};
 
 use super::drawing::*;
+use super::ec;
 use crate::buffer::Buffer;
 use crate::built_info;
 use crate::ec_comm;
@@ -888,10 +889,10 @@ pub fn start(
     ec: &Option<CrosEc>,
     force_ui: bool,
 ) -> uefi::Result<Option<uefi::runtime::ResetType>> {
-    let mut input_deck = ec_comm::get_input_deck(ec);
-    let mut expansion_bay = ec_comm::get_expansion_bay(ec);
+    let mut input_deck = ec::get_input_deck(ec);
+    let mut expansion_bay = ec::get_expansion_bay(ec);
     let mut hw_diag = ec_comm::get_hw_diag(ec);
-    let mut fan_speed = ec_comm::get_fan_speed(ec);
+    let mut fan_speed = ec::get_fan_speed(ec);
     let mut power_info: Option<ReducedPowerInfo> = ec
         .as_ref()
         .and_then(power::power_info)
@@ -991,16 +992,16 @@ pub fn start(
         #[cfg(not(feature = "azalea"))]
         let azalea = false;
         if !azalea && ec.is_some() {
-            input_deck = ec_comm::get_input_deck(ec);
-            expansion_bay = ec_comm::get_expansion_bay(ec);
+            input_deck = ec::get_input_deck(ec);
+            expansion_bay = ec::get_expansion_bay(ec);
             hw_diag = ec_comm::get_hw_diag(ec);
-            fan_speed = ec_comm::get_fan_speed(ec);
+            fan_speed = ec::get_fan_speed(ec);
             power_info = ec
                 .as_ref()
                 .and_then(power::power_info)
                 .map(Into::<ReducedPowerInfo>::into);
         } else {
-            ec_comm::keypress_mock_data(
+            ec::keypress_mock_data(
                 state.keypress,
                 &mut input_deck,
                 &mut expansion_bay,
